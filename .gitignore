@@ -1,0 +1,39 @@
+# Logs
+logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+*.sw?
+*~
+
+# Local-only
+*.local
+.envrc.local
+
+# direnv cache (Nix flake users)
+.direnv/
+
+# Skills installed by scripts/skills-bootstrap.sh — symlinks to llm_skills cache.
+# Re-created on demand; not committed.
+.agents/skills/
+.claude/skills/
+
+# --- Rust ---
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# repoctx local data (sqlite caches, test fixtures)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal

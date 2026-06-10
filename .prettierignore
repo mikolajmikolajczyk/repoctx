@@ -1,0 +1,9 @@
+dist
+node_modules
+.direnv
+LICENSE
+.agents/skills
+.claude/skills
+
+# --- Stack-specific (filled at bootstrap) ---
+# Add lockfiles, generated assets, vendored libraries here.

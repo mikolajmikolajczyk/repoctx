@@ -1,0 +1,9 @@
+# .agents/skillfile — declarative skill list for llm_skills sync
+#
+# Format: <skill-name>  <git-url-or-rid>  [--project|--global]
+# Default target: --project (installs into <project>/.agents/skills/)
+#
+# Run `scripts/skills-bootstrap.sh` to install/refresh.
+
+radicle   https://github.com/mikolajmikolajczyk/llm_skills.git
+radboard  https://github.com/mikolajmikolajczyk/llm_skills.git
