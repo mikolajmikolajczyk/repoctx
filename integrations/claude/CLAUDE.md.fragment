@@ -1,0 +1,18 @@
+## Code navigation with `repoctx`
+
+Prefer `repoctx` over `grep`/`find`/wholesale `Read` for structural
+questions about this repo. The `repoctx` skill at
+`.claude/skills/repoctx/SKILL.md` carries the full command reference
+and choose-the-right-tool guidance.
+
+Quick cues:
+
+- "Where is X defined?" → `{REPOCTX_BIN} definition X`
+- "Show me X and its surrounding code" → `{REPOCTX_BIN} context X`
+- "Explore symbols matching ..." → `{REPOCTX_BIN} symbols <substring>`
+- "Structure of one file" → `{REPOCTX_BIN} outline <file>`
+- "Index health" → `{REPOCTX_BIN} status`
+
+All read commands auto-index on first run. Default output is TOON for
+pipes (token-efficient) and human for TTYs; pass `--json` when piping
+into `jq`. Working tree: `{REPO_ROOT}`.

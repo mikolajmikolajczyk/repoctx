@@ -1,0 +1,14 @@
+name = "claude"
+description = "Claude Code skill at .claude/skills/repoctx/SKILL.md + a CLAUDE.md guidance block."
+
+[[file]]
+src = "SKILL.md"
+dest = ".claude/skills/repoctx/SKILL.md"
+mode = "write"
+
+[[file]]
+src = "CLAUDE.md.fragment"
+dest = "CLAUDE.md"
+mode = "merge-section"
+start_marker = "<!-- repoctx:start -->"
+end_marker = "<!-- repoctx:end -->"
