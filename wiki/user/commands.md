@@ -11,7 +11,7 @@ Eight commands: `index`, `symbols`, `outline`, `definition`, `context`, `status`
 | `--toon` | Force [TOON](https://github.com/toon-format/toon) output even on a TTY. |
 | `--no-record` | Skip gain analytics recording for this invocation. |
 | `--record-query` | Persist the query string in the usage row (off by default). |
-| `--no-auto-index` | Don't auto-index when a read command finds no index — bail with the `no index found` error instead. |
+| `--no-auto-index` | Skip the auto-reindex that read commands normally run before answering. With this flag, `symbols`/`outline`/`definition`/`context` serve from whatever's in the DB even if files have changed (and `stale: true` may appear on `context` hits). With no DB at all, bail with `no index found`. |
 | `-v` / `-vv` | Verbosity: `-v` = info, `-vv` = debug. `RUST_LOG` overrides. |
 
 Output format defaults: TTY → human; non-TTY → TOON; `--json` always JSON. See [`output-formats.md`](output-formats.md) and [ADR-0008](../adr/0008-toon-default-machine-output.md).
@@ -25,7 +25,7 @@ Output format defaults: TTY → human; non-TTY → TOON; `--json` always JSON. S
 
 Errors most users will see:
 
-- `no index found — run 'repoctx index'` — only when `--no-auto-index` is set. Without that flag, a missing index causes a silent one-shot indexing pass on stderr before the query answers.
+- `no index found — run 'repoctx index'` — only when `--no-auto-index` is set. Without that flag, a missing index triggers a one-shot indexing pass; subsequent calls also auto-reindex changed files (one short stderr line when work happened, otherwise silent).
 - `index is locked by another repoctx process — retry` — two writers raced for longer than the 5 s busy timeout.
 - `index is corrupted — delete .repoctx/ and re-run 'repoctx index'` — the DB file is non-SQLite or corrupted.
 - `index was created by a newer repoctx — upgrade repoctx or delete .repoctx/` — schema version is ahead of this binary.
@@ -152,7 +152,7 @@ Matching: exact name (case-sensitive), any kind. Ranking when there are more hit
 
 For each match, the source window is read **from disk** (not the DB) so you get current bytes. The window is `start_line - C .. end_line + C`, clamped to file bounds (top-of-file → empty `before`, bottom-of-file → empty `after`).
 
-Each item carries a `stale` flag. `stale: true` means the file's current `(mtime_ns, size)` no longer matches what the index recorded — typically the file was edited since the last `repoctx index`. The `body` and surrounding lines you're looking at are read fresh from disk, but the `location` line/column came from the index, so they may have drifted apart. Remedy: re-run `repoctx index` and retry. (Other read commands do NOT auto-reindex when the DB already exists — they only auto-index when there's no DB at all. Plain `repoctx index` is the way back to a fresh index.)
+Each item carries a `stale` flag. By default it's basically always `false`: read commands auto-reindex changed files before answering, so the indexed `location` matches what's on disk. `stale: true` only appears when you bypass that with `--no-auto-index` — the indexed `(mtime_ns, size)` no longer matches disk and the on-disk `body` may have drifted relative to the `location` line/column. Remedy: drop `--no-auto-index`, or run `repoctx index` by hand.
 
 If the file was deleted since indexing, the match is dropped with a `WARN` line on stderr and remaining matches still print.
 

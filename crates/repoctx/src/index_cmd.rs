@@ -14,7 +14,7 @@ use serde::Serialize;
 use tracing::{debug, warn};
 
 use crate::output::{HumanRender, Render};
-use crate::walk::{collect_indexable, Candidate};
+use crate::walk::{collect_indexable, collect_quiet, Candidate};
 
 #[derive(Debug, Default, Clone, Serialize)]
 pub struct IndexSummary {
@@ -34,28 +34,28 @@ impl HumanRender for IndexSummary {
 }
 
 pub fn run(repo_root: &Path, force: bool, render: Render) -> Result<()> {
-    let summary = do_index(repo_root, force)?;
+    let summary = do_index(repo_root, force, true)?;
     crate::output::emit(&summary, render)
 }
 
-/// Same as `run` but emits a single human-readable line to stderr instead
-/// of the normal renderer output. Used by `read_cmd::ensure_indexed` so an
-/// auto-index that fires during `repoctx symbols X` doesn't litter stdout.
-pub fn run_silent(repo_root: &Path, force: bool) -> Result<()> {
-    let summary = do_index(repo_root, force)?;
-    eprintln!(
-        "indexed {} file(s) in {} ms",
-        summary.indexed, summary.duration_ms
-    );
-    Ok(())
+/// Same as `run` but returns the summary instead of rendering it, and
+/// suppresses the skip warnings. Used by `read_cmd::ensure_fresh` so an
+/// auto-reindex that fires during a read command doesn't litter stdout
+/// or re-emit the same skip warning on every call.
+pub fn run_silent(repo_root: &Path, force: bool) -> Result<IndexSummary> {
+    do_index(repo_root, force, false)
 }
 
-fn do_index(repo_root: &Path, force: bool) -> Result<IndexSummary> {
+pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Result<IndexSummary> {
     let started = Instant::now();
     let mut store = Store::open(repo_root).context("open store")?;
     let existing = store.file_mtimes().context("read mtimes")?;
 
-    let candidates = collect_indexable(repo_root)?;
+    let candidates = if warn_on_skip {
+        collect_indexable(repo_root)?
+    } else {
+        collect_quiet(repo_root)?
+    };
 
     let mut on_disk: HashSet<String> = HashSet::with_capacity(candidates.len());
     let mut to_parse: Vec<Candidate> = Vec::new();

@@ -123,7 +123,7 @@ pub fn run(
     gain_opts: GainOpts,
     no_auto_index: bool,
 ) -> Result<()> {
-    read_cmd::ensure_indexed(repo_root, no_auto_index)?;
+    read_cmd::ensure_fresh(repo_root, no_auto_index)?;
     let db_path = normalize_path(repo_root, &file_arg)?;
 
     let store = Store::open(repo_root).context("open store")?;

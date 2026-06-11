@@ -18,7 +18,7 @@ repoctx index
 indexed 81 files (0 unchanged, 0 removed) in 69 ms
 ```
 
-…but you don't have to. The read commands below (`symbols`, `status`, `gain`) will index automatically the first time they run in a repo. To opt out (e.g. in a script that expects a pre-indexed state), pass `--no-auto-index`.
+…but you don't have to. `symbols` / `outline` / `definition` / `context` run an incremental reindex automatically before answering — first run builds the DB, every later run cheaply reparses only the files whose `(mtime, size)` tuple changed. `status` and `gain` only auto-build a missing DB (they never auto-reindex on top of an existing one). Pass `--no-auto-index` to opt out entirely.
 
 What just happened:
 

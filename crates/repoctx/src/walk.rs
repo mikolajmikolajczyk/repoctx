@@ -29,10 +29,16 @@ pub fn collect_indexable(repo_root: &Path) -> Result<Vec<Candidate>> {
     collect(repo_root, true)
 }
 
-/// Walker used by `status`: same skip rules, but silent (no warnings on
-/// stderr). Keeps status output clean.
-pub fn collect_stat(repo_root: &Path) -> Result<Vec<Candidate>> {
+/// Walker used by `status` and the auto-reindex helper: same skip rules,
+/// but silent (no warnings on stderr). Keeps query stderr clean and
+/// avoids re-emitting the same skip warning on every read command.
+pub fn collect_quiet(repo_root: &Path) -> Result<Vec<Candidate>> {
     collect(repo_root, false)
+}
+
+/// Back-compat alias used by `status`.
+pub fn collect_stat(repo_root: &Path) -> Result<Vec<Candidate>> {
+    collect_quiet(repo_root)
 }
 
 fn collect(repo_root: &Path, warn_on_skip: bool) -> Result<Vec<Candidate>> {
