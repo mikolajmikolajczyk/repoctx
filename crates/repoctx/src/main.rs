@@ -5,6 +5,7 @@ use clap::{ArgAction, Parser, Subcommand};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
+mod definition_cmd;
 mod gain;
 mod gain_cmd;
 mod index_cmd;
@@ -78,6 +79,14 @@ enum Cmd {
     Outline {
         /// File path (repo-relative or absolute).
         file: PathBuf,
+    },
+    /// Find exact-name definitions.
+    Definition {
+        name: String,
+        #[arg(long)]
+        lang: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
     },
     /// Search indexed symbols by case-insensitive substring.
     Symbols {
@@ -153,6 +162,15 @@ fn main() -> Result<()> {
         Cmd::Outline { file } => {
             outline_cmd::run(&repo_root, file, render, gain_opts, no_auto_index)
         }
+        Cmd::Definition { name, lang, limit } => definition_cmd::run(
+            &repo_root,
+            name,
+            lang,
+            limit,
+            render,
+            gain_opts,
+            no_auto_index,
+        ),
         Cmd::Status { fast } => status_cmd::run(&repo_root, fast, render, no_auto_index),
         Cmd::Symbols {
             query,

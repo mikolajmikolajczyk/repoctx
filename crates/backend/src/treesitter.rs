@@ -32,15 +32,14 @@ impl TreeSitterBackend {
 
 impl CodeIntelBackend for TreeSitterBackend {
     fn workspace_symbols(&self, query: &SymbolQuery) -> Result<Vec<Symbol>> {
-        let limit = if query.limit == 0 {
-            usize::MAX
-        } else {
-            query.limit
-        };
         let filter = SymbolFilter {
             kind: query.kind.as_ref().map(|k| k.as_str()),
             language: query.language.as_deref(),
-            limit: Some(limit),
+            limit: if query.limit == 0 {
+                None
+            } else {
+                Some(query.limit)
+            },
         };
         let rows = self.store.symbols_substring(&query.query, &filter)?;
         rows.into_iter().map(|(r, _lang)| to_symbol(r)).collect()
