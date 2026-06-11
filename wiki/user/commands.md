@@ -212,6 +212,18 @@ Output fields:
 
 `--fast` drops the entire `staleness` block.
 
+## `repoctx hook`
+
+Per-agent install machinery — drops the `repoctx` skill / guidance into a target repo so AI coding agents auto-load it. Three subcommands: `list`, `status`, `install`. No `uninstall` — `install` prints removal instructions on success. Full reference + per-agent table: [`hook.md`](hook.md).
+
+| Subcommand | Effect |
+|---|---|
+| `repoctx hook list` | Enumerate available agents (`claude`, `codex`, `opencode`) with descriptions. |
+| `repoctx hook status [--dir PATH]` | For each agent, show which destination files exist in the target dir. |
+| `repoctx hook install <agent> [--dir PATH] [--dry-run] [--force] [--ref <git-ref>] [--no-cache]` | Install one agent's files. Idempotent re-install returns `skipped_identical`. |
+
+Per-agent files are fetched at install time from GitHub raw at a pinned ref (default `v<binary version>`) and cached under XDG.
+
 ## `repoctx gain`
 
 Surface the navigation cost the agent avoided. `gain` defaults to the **last 30 days**; the subcommand `gain top` ranks per command.

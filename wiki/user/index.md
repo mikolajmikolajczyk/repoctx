@@ -6,7 +6,8 @@
 
 - [Installation](installation.md) — Nix (recommended) or plain Cargo.
 - [Quickstart](quickstart.md) — `index` → `symbols` → `status` → `gain` in five minutes.
-- [Commands reference](commands.md) — full M0 surface, flags, exit codes. *(M1 lands with `38865bb`.)*
+- [Commands reference](commands.md) — full M0 + M1 surface, flags, exit codes.
+- [Hook — per-agent install](hook.md) — `repoctx hook install <agent>` for Claude Code / Codex / opencode.
 - [Output formats + agent integration](output-formats.md) — TOON vs JSON vs human; CLAUDE.md recipe, jq snippets.
 - [Gain analytics](gain.md) — what `repoctx gain` measures, baseline rules, privacy stance.
 
@@ -16,7 +17,7 @@ Coding-agent docs (architecture, conventions, status) live under [`../agents/`](
 
 ## Project status
 
-Pre-1.0 — see [`../agents/status.md`](../agents/status.md). M0 (`index` + `symbols` + `status` + `gain`) is functional end-to-end on Linux/macOS/Windows; M1 (`outline` / `definition` / `context`) is on the roadmap.
+Pre-1.0 — see [`../agents/status.md`](../agents/status.md). M0 + M1 functional surface (`index`, `symbols`, `outline`, `definition`, `context`, `status`, `gain`, `hook`) is end-to-end on Linux/macOS/Windows. M2 (LSP daemon) is on the roadmap.
 
 ## License
 
