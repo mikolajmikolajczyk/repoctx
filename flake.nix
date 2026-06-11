@@ -30,6 +30,11 @@
             shellcheck
             gitleaks
             markdownlint-cli
+
+            # Benchmarks (scripts/bench.sh)
+            hyperfine
+            jq
+            python3
           ];
 
           shellHook = ''
