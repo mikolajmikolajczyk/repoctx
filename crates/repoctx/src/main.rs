@@ -5,6 +5,11 @@ use clap::{ArgAction, Parser, Subcommand};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
+mod output;
+mod output_symbols;
+#[cfg(test)]
+mod output_tests;
+
 #[derive(Parser, Debug)]
 #[command(
     name = "repoctx",
@@ -76,6 +81,7 @@ fn init_tracing(verbose: u8) {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     init_tracing(cli.verbose);
+    let _render = output::resolve(cli.json, cli.toon);
 
     match cli.cmd {
         Cmd::Index { .. } => bail!("not implemented"),
