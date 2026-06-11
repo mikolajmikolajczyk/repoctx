@@ -9,6 +9,7 @@ mod context_cmd;
 mod definition_cmd;
 mod gain;
 mod gain_cmd;
+mod hook_cmd;
 mod index_cmd;
 mod outline_cmd;
 mod output;
@@ -109,6 +110,11 @@ enum Cmd {
         #[arg(long, default_value_t = 50)]
         limit: usize,
     },
+    /// Manage per-agent integration files (skills, AGENTS.md fragments).
+    Hook {
+        #[command(subcommand)]
+        sub: HookSub,
+    },
     /// Surface navigation cost avoided by querying through repoctx.
     Gain {
         /// Lower bound: `7d`, `2h`, `30m`, `120s`. Defaults to 30 days.
@@ -125,6 +131,29 @@ enum Cmd {
 
         #[command(subcommand)]
         sub: Option<GainSub>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum HookSub {
+    /// List available agents and their descriptions.
+    List {
+        /// Git ref to fetch manifests from. Defaults to v<binary version>.
+        #[arg(long)]
+        r#ref: Option<String>,
+        /// Bypass the on-disk cache.
+        #[arg(long)]
+        no_cache: bool,
+    },
+    /// Show which destination files exist for each agent in the target dir.
+    Status {
+        /// Target directory. Defaults to the repo root.
+        #[arg(long, value_name = "PATH")]
+        dir: Option<PathBuf>,
+        #[arg(long)]
+        r#ref: Option<String>,
+        #[arg(long)]
+        no_cache: bool,
     },
 }
 
@@ -211,6 +240,21 @@ fn main() -> Result<()> {
             gain_opts,
             no_auto_index,
         ),
+        Cmd::Hook { sub } => match sub {
+            HookSub::List { r#ref, no_cache } => {
+                let fetcher = hook_cmd::build_fetcher(r#ref, no_cache)?;
+                hook_cmd::run_list(&fetcher, render)
+            }
+            HookSub::Status {
+                dir,
+                r#ref,
+                no_cache,
+            } => {
+                let fetcher = hook_cmd::build_fetcher(r#ref, no_cache)?;
+                let target = hook_cmd::resolve_dir(dir, &repo_root);
+                hook_cmd::run_status(&fetcher, &target, render)
+            }
+        },
         Cmd::Gain {
             since,
             all,

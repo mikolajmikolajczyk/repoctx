@@ -1548,6 +1548,7 @@ dependencies = [
  "rayon",
  "repoctx-backend",
  "repoctx-index",
+ "repoctx-integrations",
  "repoctx-store",
  "rusqlite",
  "serde",

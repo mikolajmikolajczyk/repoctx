@@ -15,6 +15,7 @@ path = "src/main.rs"
 [dependencies]
 repoctx-backend.workspace = true
 repoctx-index.workspace = true
+repoctx-integrations.workspace = true
 repoctx-store.workspace = true
 
 clap.workspace = true
