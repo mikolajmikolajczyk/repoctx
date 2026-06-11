@@ -34,6 +34,23 @@ impl HumanRender for IndexSummary {
 }
 
 pub fn run(repo_root: &Path, force: bool, render: Render) -> Result<()> {
+    let summary = do_index(repo_root, force)?;
+    crate::output::emit(&summary, render)
+}
+
+/// Same as `run` but emits a single human-readable line to stderr instead
+/// of the normal renderer output. Used by `read_cmd::ensure_indexed` so an
+/// auto-index that fires during `repoctx symbols X` doesn't litter stdout.
+pub fn run_silent(repo_root: &Path, force: bool) -> Result<()> {
+    let summary = do_index(repo_root, force)?;
+    eprintln!(
+        "indexed {} file(s) in {} ms",
+        summary.indexed, summary.duration_ms
+    );
+    Ok(())
+}
+
+fn do_index(repo_root: &Path, force: bool) -> Result<IndexSummary> {
     let started = Instant::now();
     let mut store = Store::open(repo_root).context("open store")?;
     let existing = store.file_mtimes().context("read mtimes")?;
@@ -101,12 +118,10 @@ pub fn run(repo_root: &Path, force: bool, render: Render) -> Result<()> {
         .collect();
     let removed = store.prune(&absent).context("prune absent")?;
 
-    let summary = IndexSummary {
+    Ok(IndexSummary {
         indexed,
         unchanged,
         removed,
         duration_ms: started.elapsed().as_millis(),
-    };
-
-    crate::output::emit(&summary, render)
+    })
 }

@@ -8,7 +8,7 @@ See [`installation.md`](installation.md). The rest of this page assumes `repoctx
 
 ## 1. Index a repository
 
-`cd` into the root of any Git repository, then run:
+`cd` into the root of any Git repository. You can run `repoctx index` explicitly:
 
 ```sh
 repoctx index
@@ -17,6 +17,8 @@ repoctx index
 ```text
 indexed 81 files (0 unchanged, 0 removed) in 69 ms
 ```
+
+…but you don't have to. The read commands below (`symbols`, `status`, `gain`) will index automatically the first time they run in a repo. To opt out (e.g. in a script that expects a pre-indexed state), pass `--no-auto-index`.
 
 What just happened:
 

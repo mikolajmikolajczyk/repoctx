@@ -35,11 +35,42 @@ fn json_symbols(root: &Path, args: &[&str]) -> Value {
 }
 
 #[test]
-fn no_index_returns_error_exit_1() {
+fn missing_index_auto_indexes_then_answers() {
     let tmp = fixture();
     let out = Command::cargo_bin("repoctx")
         .unwrap()
-        .args(["--repo", tmp.path().to_str().unwrap(), "symbols", "main"])
+        .args([
+            "--repo",
+            tmp.path().to_str().unwrap(),
+            "--json",
+            "symbols",
+            "main",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let body = String::from_utf8_lossy(&out.stdout);
+    let v: Value = serde_json::from_str(&body).unwrap();
+    assert!(v["count"].as_u64().unwrap() >= 1, "{body}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("no index found"), "stderr: {stderr}");
+    assert!(stderr.contains("indexing now"), "stderr: {stderr}");
+    assert!(tmp.path().join(".repoctx/index.db").exists());
+}
+
+#[test]
+fn no_auto_index_flag_preserves_error() {
+    let tmp = fixture();
+    let out = Command::cargo_bin("repoctx")
+        .unwrap()
+        .args([
+            "--repo",
+            tmp.path().to_str().unwrap(),
+            "--no-auto-index",
+            "symbols",
+            "main",
+        ])
         .assert()
         .failure()
         .get_output()
@@ -47,6 +78,7 @@ fn no_index_returns_error_exit_1() {
     assert!(out.stdout.is_empty(), "stdout should be empty: {out:?}");
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("no index found"), "{stderr}");
+    assert!(!tmp.path().join(".repoctx/index.db").exists());
 }
 
 #[test]

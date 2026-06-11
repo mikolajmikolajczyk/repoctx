@@ -20,8 +20,9 @@ pub fn run(
     limit: usize,
     render: Render,
     gain_opts: GainOpts,
+    no_auto_index: bool,
 ) -> Result<()> {
-    read_cmd::ensure_indexed(repo_root)?;
+    read_cmd::ensure_indexed(repo_root, no_auto_index)?;
     let kind_enum = match &kind {
         None => None,
         Some(s) => Some(SymbolKind::from_str(s).map_err(|e| anyhow!("{}", e))?),

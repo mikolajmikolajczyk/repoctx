@@ -13,6 +13,7 @@ The M0 surface: `index`, `symbols`, `status`, `gain`. All examples below were ve
 | `--toon` | Force [TOON](https://github.com/toon-format/toon) output even on a TTY. |
 | `--no-record` | Skip gain analytics recording for this invocation. |
 | `--record-query` | Persist the query string in the usage row (off by default). |
+| `--no-auto-index` | Don't auto-index when a read command finds no index — bail with the `no index found` error instead. |
 | `-v` / `-vv` | Verbosity: `-v` = info, `-vv` = debug. `RUST_LOG` overrides. |
 
 Output format defaults: TTY → human; non-TTY → TOON; `--json` always JSON. See [`output-formats.md`](output-formats.md) and [ADR-0008](../adr/0008-toon-default-machine-output.md).
@@ -26,7 +27,7 @@ Output format defaults: TTY → human; non-TTY → TOON; `--json` always JSON. S
 
 Errors most users will see:
 
-- `no index found — run 'repoctx index'` — any read command on a directory that hasn't been indexed yet.
+- `no index found — run 'repoctx index'` — only when `--no-auto-index` is set. Without that flag, a missing index causes a silent one-shot indexing pass on stderr before the query answers.
 - `index is locked by another repoctx process — retry` — two writers raced for longer than the 5 s busy timeout.
 - `index is corrupted — delete .repoctx/ and re-run 'repoctx index'` — the DB file is non-SQLite or corrupted.
 - `index was created by a newer repoctx — upgrade repoctx or delete .repoctx/` — schema version is ahead of this binary.

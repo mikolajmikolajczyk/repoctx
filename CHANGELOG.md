@@ -4,6 +4,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **Read commands auto-index by default** (`fa8faed`). When `repoctx symbols` / `status` / `gain` runs in a repo without `.repoctx/index.db`, the missing-index error becomes a single stderr notice (`no index found — indexing now (pass --no-auto-index to skip)...`) followed by an inline index pass. Scripts that want the old `bail with exit 1` behavior can pass the new global `--no-auto-index` flag. Concurrency safety unchanged — the existing `BEGIN IMMEDIATE` migration covers parallel auto-indexers.
+
 ## [0.1.0] — 2026-06-11
 
 First tagged release. M0 functional surface complete on Linux, macOS, and Windows.

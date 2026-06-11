@@ -237,13 +237,13 @@ fn index_stderr_warns_only_for_skipped_files() {
 }
 
 #[test]
-fn missing_index_uniform_error_across_read_commands() {
+fn no_auto_index_uniform_error_across_read_commands() {
     let tmp = full_fixture();
     let root = tmp.path();
     for sub in [
-        vec!["symbols", "x"],
-        vec!["status"],
-        vec!["status", "--fast"],
+        vec!["--no-auto-index", "symbols", "x"],
+        vec!["--no-auto-index", "status"],
+        vec!["--no-auto-index", "status", "--fast"],
     ] {
         let out = cmd_at(root)
             .args(&sub)
