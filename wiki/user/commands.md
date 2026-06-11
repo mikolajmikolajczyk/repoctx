@@ -152,7 +152,7 @@ Matching: exact name (case-sensitive), any kind. Ranking when there are more hit
 
 For each match, the source window is read **from disk** (not the DB) so you get current bytes. The window is `start_line - C .. end_line + C`, clamped to file bounds (top-of-file → empty `before`, bottom-of-file → empty `after`).
 
-Each item carries a `stale` flag. `stale: true` means the file's current `(mtime_ns, size)` no longer matches what the index recorded — likely the file was edited since the last `repoctx index`. The `body` and surrounding lines you're looking at may have shifted relative to the indexed `location`. Remedy: re-run `repoctx index` (or just any other read command, which auto-indexes) and retry.
+Each item carries a `stale` flag. `stale: true` means the file's current `(mtime_ns, size)` no longer matches what the index recorded — typically the file was edited since the last `repoctx index`. The `body` and surrounding lines you're looking at are read fresh from disk, but the `location` line/column came from the index, so they may have drifted apart. Remedy: re-run `repoctx index` and retry. (Other read commands do NOT auto-reindex when the DB already exists — they only auto-index when there's no DB at all. Plain `repoctx index` is the way back to a fresh index.)
 
 If the file was deleted since indexing, the match is dropped with a `WARN` line on stderr and remaining matches still print.
 
