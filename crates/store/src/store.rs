@@ -203,6 +203,29 @@ impl Store {
         Ok(out)
     }
 
+    /// Whether a file row exists for `path`.
+    pub fn file_exists(&self, path: &str) -> Result<bool> {
+        let n: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM files WHERE path = ?1",
+            params![path],
+            |r| r.get(0),
+        )?;
+        Ok(n > 0)
+    }
+
+    /// `(mtime_ns, size)` for one file, if indexed.
+    pub fn file_stat(&self, path: &str) -> Result<Option<(i64, i64)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT mtime_ns, size FROM files WHERE path = ?1")?;
+        let mut rows = stmt.query(params![path])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some((row.get(0)?, row.get(1)?)))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Symbols in one file, ordered by `(start_line, start_column)`.
     pub fn symbols_by_file(&self, path: &str) -> Result<Vec<SymbolRecord>> {
         let mut stmt = self.conn.prepare(

@@ -10,6 +10,7 @@ M0 functional surface, all 9 languages indexed.
 
 - `repoctx index` — incremental walk + Tree-sitter parse + SQLite upsert; rayon parses, single sequential writer; skip rules per epic contract (gitignored, `> 2 MiB`, non-UTF-8, `.git`, `.repoctx`); `--force` reparses all; deleted files pruned. ~80 ms cold / ~7 ms no-op on this repo.
 - `repoctx symbols <query>` — case-insensitive substring across the index; `--kind`, `--lang`, `--limit` filters; deterministic `ORDER BY name COLLATE NOCASE, file_path, start_line`; empty result = exit 0 + `count: 0`.
+- `repoctx outline <file>` — document symbols for one file. Indented containment tree (human) or flat `{count, items}` (machine). Path arg accepts repo-relative or absolute; normalized through `to_db_path`. File-not-in-index → exit 1 with a prescriptive error.
 - `repoctx status` — files, symbols, per-language counts, db size, schema version, staleness `{changed, new, deleted}` from a stat-walk; `--fast` omits staleness.
 - Three output formats over one set of typed records (ADR-0008): human (TTY default), TOON (non-TTY default), JSON (`--json`). `--json` / `--toon` clap-mutually-exclusive.
 - Missing-index error uniform across read commands: `no index found — run 'repoctx index'`, exit 1, empty stdout.
@@ -31,7 +32,7 @@ None known.
 ## Not started
 
 - Release engineering (`bc9da7c`) + README polish (`c14348e`).
-- M1 navigation commands (`outline`, `definition`, `context`) — epic `8ce08ce`.
+- M1 navigation commands: `definition`, `context` — epic `8ce08ce` (outline landed).
 - M2 daemon + LSP — placeholder epic `58b45d5`. **Do not pre-empt.**
 
 See `rad issue list` filtered by milestone.

@@ -8,6 +8,7 @@ use tracing_subscriber::EnvFilter;
 mod gain;
 mod gain_cmd;
 mod index_cmd;
+mod outline_cmd;
 mod output;
 mod output_symbols;
 #[cfg(test)]
@@ -72,6 +73,11 @@ enum Cmd {
         /// Skip the staleness stat-walk.
         #[arg(long)]
         fast: bool,
+    },
+    /// Print the symbol tree of one file.
+    Outline {
+        /// File path (repo-relative or absolute).
+        file: PathBuf,
     },
     /// Search indexed symbols by case-insensitive substring.
     Symbols {
@@ -144,6 +150,9 @@ fn main() -> Result<()> {
 
     match cli.cmd {
         Cmd::Index { force } => index_cmd::run(&repo_root, force, render),
+        Cmd::Outline { file } => {
+            outline_cmd::run(&repo_root, file, render, gain_opts, no_auto_index)
+        }
         Cmd::Status { fast } => status_cmd::run(&repo_root, fast, render, no_auto_index),
         Cmd::Symbols {
             query,
