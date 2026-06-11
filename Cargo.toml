@@ -4,6 +4,7 @@ members = [
     "crates/repoctx",
     "crates/backend",
     "crates/index",
+    "crates/integrations",
     "crates/store",
 ]
 
@@ -27,6 +28,7 @@ thiserror = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toon-format = "0.5"
+toml = "0.8"
 
 # Storage
 rusqlite = { version = "0.32", features = ["bundled"] }
@@ -58,6 +60,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Internal crates
 repoctx-backend = { path = "crates/backend" }
 repoctx-index = { path = "crates/index" }
+repoctx-integrations = { path = "crates/integrations" }
 repoctx-store = { path = "crates/store" }
 
 # Dev
