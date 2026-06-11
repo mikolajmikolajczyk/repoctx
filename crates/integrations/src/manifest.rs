@@ -97,7 +97,10 @@ impl File {
             return invalid(path, "file.dest is empty");
         }
         let dest = PathBuf::from(&self.dest);
-        if dest.is_absolute() {
+        // Reject anything Windows or Unix would call absolute, plus a
+        // leading `/` or `\` which is "rooted" on the foreign platform
+        // (PathBuf::is_absolute on Windows says `/etc/x` is relative).
+        if dest.is_absolute() || self.dest.starts_with('/') || self.dest.starts_with('\\') {
             return invalid(path, &format!("file.dest must be relative: {}", self.dest));
         }
         if dest
