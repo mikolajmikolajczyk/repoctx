@@ -192,4 +192,3 @@ fn is_utf8(path: &Path) -> bool {
         Err(_) => false,
     }
 }
-

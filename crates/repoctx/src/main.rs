@@ -10,7 +10,9 @@ mod output;
 mod output_symbols;
 #[cfg(test)]
 mod output_tests;
+mod read_cmd;
 mod repo_root;
+mod symbols_cmd;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -89,6 +91,11 @@ fn main() -> Result<()> {
     match cli.cmd {
         Cmd::Index { force } => index_cmd::run(&repo_root, force, render),
         Cmd::Status { .. } => bail!("not implemented"),
-        Cmd::Symbols { .. } => bail!("not implemented"),
+        Cmd::Symbols {
+            query,
+            kind,
+            lang,
+            limit,
+        } => symbols_cmd::run(&repo_root, query, kind, lang, limit, render),
     }
 }
