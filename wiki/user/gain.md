@@ -60,7 +60,7 @@ symbols:
   91.6% reduction · 11.8K tokens saved · 4 call(s)
 ```
 
-With M1's `outline` / `definition` / `context` recording alongside `symbols`, this view tells you which command is doing the most work for you. Example after a mixed session:
+With `outline` / `definition` / `context` recording alongside `symbols`, this view tells you which command is doing the most work for you. Example after a mixed session:
 
 ```text
 context:
@@ -136,7 +136,7 @@ To start counting fresh:
 sqlite3 .repoctx/index.db 'DELETE FROM usage'
 ```
 
-(There's no dedicated `repoctx gain reset` command in M0 — `DELETE FROM usage` is the supported path; the table is recreated automatically on the next recorded invocation.)
+(There's no dedicated `repoctx gain reset` command — `DELETE FROM usage` is the supported path; the table is recreated automatically on the next recorded invocation.)
 
 ## See also
 

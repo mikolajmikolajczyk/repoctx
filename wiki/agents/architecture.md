@@ -4,7 +4,7 @@ Repo shape, data flow, key modules. Keep this **descriptive of the current state
 
 ## Status
 
-v0.2.0 shipped 2026-06-11. M0 + M1 + M1.5 functional surface in place. M2 (LSP daemon) deferred — see [`status.md`](status.md) and the M2 epic in Radicle.
+v0.2.0 shipped 2026-06-11. CLI surface complete: indexing, search, navigation, per-agent install. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
 
 ## Current layout
 
@@ -21,7 +21,7 @@ scripts/           # build / dev / bench helpers
 .github/workflows/ # ci (3-OS matrix), release (4-target binary build)
 ```
 
-Future (post-M0, when ADR-0005 lands):
+Future, when ADR-0005 lands:
 
 ```
 crates/
@@ -32,18 +32,18 @@ crates/
 
 ## Commands
 
-Milestone split lives in Radicle issues (M0 epic `e408787`, M1 epic `8ce08ce`, M1.5 epic `b497f7f`, M2 placeholder `58b45d5`).
+Tracked across the foundation epic `e408787`, navigation epic `8ce08ce`, integrations epic `b497f7f`, daemon placeholder `58b45d5`.
 
-| Command | Milestone | Backend / module | Notes |
-|---------|-----------|------------------|-------|
-| `repoctx index`             | M0   | walks tree, parses, writes `store` | full or incremental (ADR-0006, ADR-0007) |
-| `repoctx status`            | M0   | reads `store` | counts, freshness, index health |
-| `repoctx symbols <query>`   | M0   | `workspace_symbols` | case-insensitive substring across all files |
-| `repoctx gain` / `gain top` | M0   | `store::gain` | navigation cost avoided, aggregates only |
-| `repoctx outline <file>`    | M1   | `document_symbols` | indented tree (human) / flat (machine) |
-| `repoctx definition <name>` | M1   | `workspace_symbols` + exact-name + kind whitelist | name-based; position-based `definition` waits for LSP |
-| `repoctx context <symbol>`  | M1   | composite | symbol + source window read from disk + `stale` flag |
-| `repoctx hook list / status / install <agent>` | M1.5 | `integrations` crate | per-agent install via GitHub raw + XDG cache |
+| Command | Backend / module | Notes |
+|---------|------------------|-------|
+| `repoctx index`             | walks tree, parses, writes `store` | full or incremental (ADR-0006, ADR-0007) |
+| `repoctx status`            | reads `store` | counts, freshness, index health |
+| `repoctx symbols <query>`   | `workspace_symbols` | case-insensitive substring across all files |
+| `repoctx gain` / `gain top` | `store::gain` | navigation cost avoided, aggregates only |
+| `repoctx outline <file>`    | `document_symbols` | indented tree (human) / flat (machine) |
+| `repoctx definition <name>` | `workspace_symbols` + exact-name + kind whitelist | name-based; position-based `definition` waits for LSP |
+| `repoctx context <symbol>`  | composite | symbol + source window read from disk + `stale` flag |
+| `repoctx hook list / status / install <agent>` | `integrations` crate | per-agent install via GitHub raw + XDG cache |
 
 Every command emits **TOON** by default for non-TTY output, **`--json`** for JSON, **`--toon`** to force TOON on a TTY (ADR-0008).
 
@@ -55,15 +55,15 @@ Future (ADR-0005, via `repoctxd`):
 
 ## Data flow
 
-### Read path (M0 + M1)
+### Read path
 
 1. **Index** — `repoctx index` walks the repo (respecting `.gitignore` via the `ignore` crate), hands files to `index` (Tree-sitter, parallelized with `rayon`), and writes symbols into `store` (SQLite). Per-file `(mtime_ns, size)` is recorded.
-2. **Query** — `repoctx symbols|outline|definition|context` opens the `store`, executes the request via the `CodeIntelBackend` (Tree-sitter-backed in M0/M1), and emits human / TOON / JSON.
+2. **Query** — `repoctx symbols|outline|definition|context` opens the `store`, executes the request via the `CodeIntelBackend` (Tree-sitter-backed today), and emits human / TOON / JSON.
 3. **Incremental update** — on subsequent `repoctx index` runs, `(mtime_ns, size)` comparison against `store.files` decides which files to reparse (ADR-0006). Only changed files are re-indexed; CASCADE on `files.path` drops their old symbols inside the same transaction (ADR-0007). Deleted paths are detected by absence and pruned.
 4. **Auto-index** — read commands (`symbols`, `outline`, `definition`, `context`, `status`, `gain`) check for `.repoctx/index.db` at start. Missing → silently run `index` first (one progress line on stderr). `--no-auto-index` opts out.
 5. **Gain recording** — each read command tail-records a `usage` row in `store` (aggregates only — no filenames, no query body unless `--record-query`). `repoctx gain` aggregates those rows. ADR-0003 schema v2.
 
-### Hook (M1.5) — install path
+### Hook install path
 
 1. CLI dispatches to `integrations::Fetcher`. Fetcher checks XDG cache (`<XDG_CACHE_HOME>/repoctx/integrations/<ref>/<agent>/`) — override via `REPOCTX_INTEGRATIONS_CACHE_DIR`.
 2. On cache miss, ureq + rustls GETs `https://raw.githubusercontent.com/mikolajmikolajczyk/repoctx/<ref>/integrations/<agent>/<path>`. Default `<ref> = v<CARGO_PKG_VERSION>`; `--ref` overrides.
@@ -78,7 +78,7 @@ Future (ADR-0005, via `repoctxd`):
 - **`backend`** — `CodeIntelBackend` trait + query/result types (`SymbolQuery`, `PositionQuery`, `Symbol`, `Location`, `HoverInfo`). One impl: `TreeSitterBackend`, reading from `store`.
 - **`integrations`** — `repoctx hook` support. Manifest schema (TOML), HTTP fetcher (ureq + rustls + XDG cache), installer (three modes + template substitution). Public `AGENTS` constant lists supported agents.
 
-Post-M0:
+Future:
 
 - **`repoctxd`** — workspace registry + LSP lifecycle, listens on a unix socket.
 - **`lsp`** — `CodeIntelBackend` impl that proxies to a managed LSP server; lives inside `repoctxd`.

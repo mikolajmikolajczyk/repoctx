@@ -67,7 +67,7 @@ Full list in [`wiki/agents/commands.md`](wiki/agents/commands.md).
 
 - **Never commit without explicit user request.** Even mid-task, after accepting a plan, stop and ask. Acceptance of plan ≠ acceptance of commit.
 - **Don't add features, refactor, or introduce abstractions beyond what the task requires.** Bug fix = bug fix, not surrounding cleanup.
-- **Don't pre-empt later milestones.** If something is tagged `milestone:m5`, don't half-implement it during M2 work.
+- **Don't pre-empt later milestones.** If something carries a future `milestone:*` Radicle label, don't half-implement it while working on the current one.
 - **All project docs live under `wiki/`.** If you find a `docs/` folder, move its contents to `wiki/` and delete the old folder.
 
 ## Code ownership

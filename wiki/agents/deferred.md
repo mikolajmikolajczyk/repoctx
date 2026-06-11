@@ -16,13 +16,13 @@ Things **deliberately not implemented**. If something seems missing and is liste
 
 ### LSP backend, `repoctxd` daemon, `refs`/`hover`/`callers`
 
-- **Why deferred:** semantic queries need warm long-lived LSP servers; ADR-0005 puts that in a separate daemon. M0/M1 are Tree-sitter-only by design.
-- **Revisit when:** M0 + M1 are solved and merged.
-- **Tracked in:** `58b45d5` (M2 placeholder epic).
+- **Why deferred:** semantic queries need warm long-lived LSP servers; ADR-0005 puts that in a separate daemon. The current Tree-sitter backend is the by-design first cut.
+- **Revisit when:** Tree-sitter surface (index / symbols / outline / definition / context) is shipped and validated by real agent use.
+- **Tracked in:** `58b45d5` (LSP-daemon placeholder epic).
 
 ### Fuzzy symbol matching
 
-- **Why deferred:** M0 `symbols` is case-insensitive substring via SQL LIKE — deterministic, cheap, good enough for agent callers. Fuzzy ranking adds a scoring dependency and nondeterministic ordering for unclear gain.
+- **Why deferred:** `symbols` is case-insensitive substring via SQL LIKE — deterministic, cheap, good enough for agent callers. Fuzzy ranking adds a scoring dependency and nondeterministic ordering for unclear gain.
 - **Revisit when:** real agent transcripts show substring misses being a problem.
 - **Tracked in:** none.
 
@@ -34,13 +34,13 @@ Things **deliberately not implemented**. If something seems missing and is liste
 
 ### Nested keys for JSON/YAML/TOML
 
-- **Why deferred:** M0 extracts top-level keys only (kind `key`). Nested/dotted-path extraction multiplies symbol volume and needs a naming scheme nobody has asked for yet.
+- **Why deferred:** extractor pulls top-level keys only (kind `key`). Nested/dotted-path extraction multiplies symbol volume and needs a naming scheme nobody has asked for yet.
 - **Revisit when:** an agent use case needs sub-document navigation in data files.
 - **Tracked in:** none.
 
 ### Configurable file-size cap / skip rules
 
-- **Why deferred:** 2 MiB cap and non-UTF-8 skip are hardcoded in M0. Config surface (file or flags) is premature before real-world hits.
+- **Why deferred:** 2 MiB cap and non-UTF-8 skip are hardcoded. Config surface (file or flags) is premature before real-world hits.
 - **Revisit when:** the cap skips files users actually want indexed.
 - **Tracked in:** none.
 
@@ -53,5 +53,5 @@ Things **deliberately not implemented**. If something seems missing and is liste
 ### Watch mode / filesystem notifications
 
 - **Why deferred:** requires a daemon (`notify` crate + lifecycle); CLI-first per ADR-0001. Incremental `index` runs are cheap enough to call per-session.
-- **Revisit when:** `repoctxd` exists (M2) — natural host for a watcher.
+- **Revisit when:** `repoctxd` exists — natural host for a watcher.
 - **Tracked in:** `58b45d5`.

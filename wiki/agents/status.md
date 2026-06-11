@@ -6,7 +6,7 @@ Update this when a feature lands, breaks, or gets pulled. Stale status is worse 
 
 ## Works (as of v0.2.0, 2026-06-11)
 
-M0 + M1 + M1.5 functional surface complete on Linux, macOS, and Windows. All 9 languages indexed.
+CLI surface complete on Linux, macOS, and Windows. All 9 languages indexed.
 
 - `repoctx index` — incremental walk + Tree-sitter parse + SQLite upsert; rayon parses, single sequential writer; skip rules per epic contract (gitignored, `> 2 MiB`, non-UTF-8, `.git`, `.repoctx`); `--force` reparses all; deleted files pruned. ~80 ms cold / ~7 ms no-op on this repo.
 - `repoctx symbols <query>` — case-insensitive substring across the index; `--kind`, `--lang`, `--limit` filters; deterministic `ORDER BY name COLLATE NOCASE, file_path, start_line`; empty result = exit 0 + `count: 0`.
@@ -14,7 +14,7 @@ M0 + M1 + M1.5 functional surface complete on Linux, macOS, and Windows. All 9 l
 - `repoctx definition <name>` — exact-name (case-sensitive) lookup over the workspace, kind-whitelisted to `{function, method, class, interface, type, module, macro, constant}`. `--lang`, `--limit` (default 50). Zero hits = exit 0, `count: 0`.
 - `repoctx context <symbol>` — exact-name lookup (any kind) + the source window around each hit (`--context` lines either side, default 5; `--limit` matches, default 3). Reads source from disk and sets `stale: true` when the file's current `(mtime_ns, size)` differs from the indexed tuple. File deleted since indexing: warn and skip. Human mode prints a numbered listing per match; machine mode emits `{symbol, kind, location, before, body, after, stale}` rows.
 - `repoctx status` — files, symbols, per-language counts, db size, schema version, staleness `{changed, new, deleted}` from a stat-walk; `--fast` omits staleness.
-- `repoctx gain` / `gain top` — token-savings analytics. Records every M0/M1 read command (no `index`, no `gain`); aggregates only; `--since`, `--all`, `--history` window controls.
+- `repoctx gain` / `gain top` — token-savings analytics. Records every read command except `index`/`gain`/`hook`; aggregates only; `--since`, `--all`, `--history` window controls.
 - `repoctx hook list` / `hook status` / `hook install <agent>` — per-agent install machinery for Claude Code / Codex / opencode. Pulls manifests + content from the GitHub mirror at a pinned git ref (default `v<binary version>`), caches under XDG (override via `REPOCTX_INTEGRATIONS_CACHE_DIR`). Three modes (`write`, `append`, `merge-section`). `--dry-run`/`--force`/`--ref`/`--no-cache` flags. No `uninstall` — install prints a per-file removal recipe.
 - Three output formats over one set of typed records (ADR-0008): human (TTY default), TOON (non-TTY default), JSON (`--json`). `--json` / `--toon` clap-mutually-exclusive.
 - Missing-index error uniform across read commands. Auto-index on by default; `--no-auto-index` opts out.
@@ -58,7 +58,7 @@ None known.
 
 ## Not started
 
-- M2 daemon + LSP — placeholder epic `58b45d5`. **Do not pre-empt.**
+- Long-lived daemon + LSP backend — placeholder epic `58b45d5`. **Do not pre-empt.**
 - Linux aarch64 / linux-musl release artifacts (current release workflow ships x86_64-gnu only on Linux).
 - crates.io publish (deferred until API stabilizes; track CHANGELOG).
 

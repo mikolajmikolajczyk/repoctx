@@ -27,7 +27,7 @@ Generic conventions that apply regardless of stack. Stack-specific rules (langua
 
 ## Phase / scope discipline
 
-- Don't pre-empt later milestones. If something is tagged `milestone:m5`, don't half-implement it during M2 work.
+- Don't pre-empt later milestones. If something carries a future `milestone:*` Radicle label, don't half-implement it while working on the current one.
 - If a refactor would be cleaner alongside a bug fix but isn't required, defer it — open a Radicle issue instead.
 - Don't add error handling, fallbacks, or validation for scenarios that can't happen at the call site. Trust internal code; validate only at system boundaries (user input, external APIs).
 
@@ -57,23 +57,27 @@ Generic conventions that apply regardless of stack. Stack-specific rules (langua
 - **Machine output**: default is **TOON** ([toon-format/toon](https://github.com/toon-format/toon)) for non-TTY output; `--json` opts into JSON; `--toon` forces TOON on a TTY. Both shapes are stable, both derive from the same typed `backend` records. See [ADR-0008](../adr/0008-toon-default-machine-output.md).
 - **Tests**: unit tests next to source (`#[cfg(test)] mod tests`); cross-crate / CLI tests under `tests/`. Prefer real SQLite (in-memory or tempdir) over mocks for storage code.
 
-### Stack (M0)
+### Direct dependencies
 
-Direct dependencies expected in M0:
+CLI binary + workspace today:
 
 - `clap` — CLI parsing
 - `serde` + `serde_json` — output shapes, config (JSON encoder)
-- TOON encoder — Rust impl per the [TOON spec](https://github.com/toon-format/spec); default machine output (ADR-0008)
+- `toon-format` — default machine output per [TOON spec](https://github.com/toon-format/spec) (ADR-0008)
 - `anyhow` — top-level error handling at CLI boundary
-- `rusqlite` — SQLite (ADR-0003)
+- `thiserror` — typed library errors
+- `rusqlite` (bundled) — SQLite (ADR-0003)
 - `tree-sitter` + per-language grammar crates — indexing (ADR-0002)
 - `ignore` + `walkdir` — gitignore-aware tree walk
 - `rayon` — parallel file parsing
+- `tiktoken-rs` — gain tokenizer (cl100k_base)
 - `tracing` + `tracing-subscriber` — structured logging
+- `ureq` (rustls) + `directories` — `repoctx hook` fetcher + XDG cache
+- `toml` — `repoctx hook` manifest parser
 
-Deferred to post-M0:
+Deferred until the daemon arrives (ADR-0005):
 
-- `tokio` — only needed once `repoctxd` arrives (ADR-0005)
+- `tokio` — only needed once `repoctxd` arrives
 - `notify` — filesystem watching, future
 - `tower-lsp` (or equivalent) — LSP client inside `repoctxd`, future
 

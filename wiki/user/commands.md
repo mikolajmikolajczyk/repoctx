@@ -1,6 +1,6 @@
 # Commands reference
 
-M0 + M1 surface: `index`, `symbols`, `status`, `outline`, `definition`, `context`, `gain`. All examples below were verified against the binary built from this repo on 2026-06-11.
+Eight commands: `index`, `symbols`, `outline`, `definition`, `context`, `status`, `hook`, `gain`. All examples below were verified against the v0.2.0 binary on 2026-06-11.
 
 ## Global flags
 
