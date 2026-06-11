@@ -82,7 +82,32 @@ staleness:      changed=0 new=0 deleted=0
 
 The `staleness` line tells you whether the index is up to date with the working tree (`changed` = edited files, `new` = files appeared since the last index, `deleted` = indexed files that vanished). Pass `--fast` to skip the staleness walk when you only need counts.
 
-## 4. See what `repoctx` saved you
+## 4. Pull a symbol with its surrounding source
+
+The flagship agent query — definition site plus a code window, in one call:
+
+```sh
+repoctx context resolve_window --context 2 --limit 1
+```
+
+```text
+# crates/repoctx/src/main.rs:241  resolve_window  function
+  239  }
+  240
+  241  fn resolve_window(since: Option<&str>, all: bool) -> Result<gain_cmd::Window> {
+  242      if all {
+  243          return Ok(gain_cmd::Window::All);
+  244      }
+  245      match since {
+  246          Some(s) => Ok(gain_cmd::Window::Since(gain_cmd::parse_since(s)?)),
+  247          None => Ok(gain_cmd::default_window()),
+  248      }
+  249  }
+```
+
+Need the file's full structure instead? `repoctx outline crates/repoctx/src/main.rs` prints the indented symbol tree. Want only canonical definitions, no substring noise? `repoctx definition resolve_window` returns exact-name hits.
+
+## 5. See what `repoctx` saved you
 
 `repoctx` records one row per read command (default on; turn off per-invocation with `--no-record` or per shell with `RUST_REPOCTX_NO_RECORD=1`). After a few queries:
 

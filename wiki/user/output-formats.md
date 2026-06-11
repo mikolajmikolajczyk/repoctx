@@ -56,7 +56,7 @@ items[4]:
 
 ## Token cost — why TOON
 
-JSON pays for every comma, brace, and quoted key. TOON drops the structural noise and uses an indentation/colon shape that LLM tokenizers compress well. The savings dominate at scale — long lists of homogeneous records, the exact shape `repoctx symbols`/`outline`/`definition` returns. For one-off small payloads (1–2 records, nested shapes) the two are roughly even; the policy still defaults to TOON for non-TTY callers because (a) bulk queries are common and (b) format flag toggling complicates agent prompts.
+JSON pays for every comma, brace, and quoted key. TOON drops the structural noise and uses an indentation/colon shape that LLM tokenizers compress well. The savings dominate at scale — long lists of homogeneous records, the exact shape `repoctx symbols`/`outline`/`definition`/`context` returns. For one-off small payloads (1–2 records, nested shapes) the two are roughly even; the policy still defaults to TOON for non-TTY callers because (a) bulk queries are common and (b) format flag toggling complicates agent prompts.
 
 If your call site is parsing the result with `jq` or `serde_json`, pass `--json` — TOON's a different grammar.
 
@@ -78,6 +78,13 @@ about this repo.
 
 - `repoctx symbols <name>` — case-insensitive substring search. Add
   `--kind` (`function`/`class`/`section`/…) or `--lang` to narrow.
+- `repoctx definition <name>` — exact-name lookup, definition kinds
+  only. Prefer over `symbols` when you know the identifier.
+- `repoctx outline <file>` — symbol tree for one file. Prefer over
+  reading the whole file when you only need structure.
+- `repoctx context <symbol>` — exact-name match + source window
+  around each hit. Prefer over `definition` + a follow-up Read when
+  you'd open the file anyway.
 - `repoctx status` — counts + staleness; cheap, run before deep work.
 - `repoctx gain` — show the navigation tokens repoctx has saved.
 

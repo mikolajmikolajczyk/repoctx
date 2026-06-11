@@ -1,8 +1,6 @@
 # Commands reference
 
-The M0 surface: `index`, `symbols`, `status`, `gain`. All examples below were verified against the binary built from this repo on 2026-06-11.
-
-> M1 commands (`outline`, `definition`, `context`) land with Radicle issue `38865bb`.
+M0 + M1 surface: `index`, `symbols`, `status`, `outline`, `definition`, `context`, `gain`. All examples below were verified against the binary built from this repo on 2026-06-11.
 
 ## Global flags
 
@@ -85,6 +83,111 @@ constant type variable field macro section key other
 | JSON/YAML/TOML top-level keys | `key` | Custom query — root-level keys only; nested keys not surfaced. |
 
 Filter and tweak as needed: `--kind class --lang rust` to walk every Rust struct/enum/type alias, `--kind section --lang markdown` for a table-of-contents view, etc.
+
+## `repoctx outline <file>`
+
+Document-symbol view of a single file. Human mode prints an indented containment tree (a method's range sits inside its impl's range, so the method nests). Machine mode is a flat `{count, items}` list with full 0-based ranges, so downstream tools don't have to reconstruct the tree.
+
+Path argument accepts both forms:
+
+- Repo-relative: `repoctx outline crates/repoctx/src/main.rs`
+- Absolute: `repoctx outline /full/path/to/main.rs`
+
+Both are canonicalized and re-anchored against the repo root before lookup. A path outside the repo bails with `path is outside repo: …`.
+
+If the file isn't in the index, you get:
+
+```text
+crates/foo/bar.rs is not in the index — file may be new, ignored, oversized
+(>2 MiB), non-UTF-8, or in an unsupported language. Run `repoctx index` to refresh.
+```
+
+Exit 1. Those four causes are the entire set — no other reason exists for a file to be missing once `index` succeeds.
+
+```sh
+repoctx outline --json crates/repoctx/src/outline_cmd.rs
+```
+
+```json
+{"count":7,"items":[{"name":"OutlineReport","kind":"class","location":{"path":"crates/repoctx/src/outline_cmd.rs","start_line":15,"start_column":0,"end_line":20,"end_column":1}}, …]}
+```
+
+## `repoctx definition <name>`
+
+Exact-name (case-sensitive) lookup. **Contrast with `symbols`**: `symbols foo` matches any name containing `foo` (substring, case-insensitive); `definition foo` matches only names that are exactly `foo`. Use `definition` when you know the identifier and want the canonical site; use `symbols` to explore.
+
+| Flag | Effect |
+|---|---|
+| `--lang <slug>` | Restrict to one language slug. |
+| `--limit <N>` | Cap results at `N` (default `50`). |
+
+The kind filter is fixed — **only** these kinds can be a "definition":
+
+```text
+function method class interface type module macro constant
+```
+
+Variables, fields, sections, keys, and `other` are excluded so a search for `path` doesn't drown in struct-field hits. Rust `struct`/`enum`/`trait` reach this set via upstream `tags.scm` mapping (see the kind quirks table under `symbols`).
+
+Multiple hits are normal (think `run` defined in many modules) — the command lists all of them; the agent picks. Zero hits is a clean exit 0 with `count: 0`.
+
+```sh
+repoctx definition --json main --lang rust
+```
+
+```json
+{"count":1,"items":[{"name":"main","kind":"function","location":{"path":"crates/repoctx/src/main.rs","start_line":161,"start_column":0,"end_line":238,"end_column":1}}]}
+```
+
+## `repoctx context <symbol>`
+
+The flagship agent query: "where is X defined AND what does it look like?". One call returns every exact-name match plus a window of surrounding source.
+
+| Flag | Effect |
+|---|---|
+| `--context <C>` | Lines of leading and trailing context. Default `5`. `0` returns body only. |
+| `--limit <N>` | Maximum number of matches. Default `3`. |
+
+Matching: exact name (case-sensitive), any kind. Ranking when there are more hits than `--limit`: shorter file path first, then `(start_line, start_column)`. So a top-level `main` in `src/main.rs` ranks above a vendored copy in `vendor/lib/src/main.rs`.
+
+For each match, the source window is read **from disk** (not the DB) so you get current bytes. The window is `start_line - C .. end_line + C`, clamped to file bounds (top-of-file → empty `before`, bottom-of-file → empty `after`).
+
+Each item carries a `stale` flag. `stale: true` means the file's current `(mtime_ns, size)` no longer matches what the index recorded — likely the file was edited since the last `repoctx index`. The `body` and surrounding lines you're looking at may have shifted relative to the indexed `location`. Remedy: re-run `repoctx index` (or just any other read command, which auto-indexes) and retry.
+
+If the file was deleted since indexing, the match is dropped with a `WARN` line on stderr and remaining matches still print.
+
+Machine shape per match:
+
+```json
+{
+  "symbol": "main",
+  "kind": "function",
+  "location": {"path": "crates/repoctx/src/main.rs",
+               "start_line": 161, "start_column": 0,
+               "end_line": 238, "end_column": 1},
+  "before": "…",
+  "body": "fn main() -> Result<()> {\n    let cli = Cli::parse();\n    …\n}",
+  "after": "…",
+  "stale": false
+}
+```
+
+Wrapper: `{count, items}`. Human mode prints `# path:line  name  kind` per match, an optional `(stale …)` line, then a numbered listing.
+
+```sh
+repoctx context resolve_window --context 2 --limit 1
+```
+
+```text
+# crates/repoctx/src/main.rs:241  resolve_window  function
+  239  }
+  240
+  241  fn resolve_window(since: Option<&str>, all: bool) -> Result<gain_cmd::Window> {
+  242      if all {
+  243          return Ok(gain_cmd::Window::All);
+  244      }
+  …
+```
 
 ## `repoctx status`
 
