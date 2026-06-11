@@ -56,3 +56,7 @@ What the devShell provides:
 - `pre-commit`, `shellcheck`, `gitleaks`, `markdownlint-cli`
 
 Non-Nix fallback (not actively supported): install a recent stable Rust via `rustup`, plus `sqlite` and `pkg-config` from your distro. You'll need to install the pre-commit tooling separately and reproducibility is on you.
+
+## CI + GitHub mirror
+
+Canonical forge is Radicle. A read-only mirror lives at <https://github.com/mikolajmikolajczyk/repoctx> for CI and discoverability only — patches/issues are not monitored there. CI lives in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml): plain `cargo` (no nix) across `ubuntu-latest`, `macos-latest`, `windows-latest`, running `fmt --check`, `build`, `test`, `clippy -D warnings`. To sync: `git push origin main` after a merge.

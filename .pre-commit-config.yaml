@@ -68,7 +68,6 @@ repos:
         entry: cargo clippy --all-targets -- -D warnings
         files: '\.rs$'
         pass_filenames: false
-        stages: [manual]
 
       - id: cargo-test
         name: cargo test
