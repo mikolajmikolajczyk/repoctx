@@ -27,12 +27,13 @@
 
 **SQLite is the source of truth.** All durable metadata — files, symbols, mtimes, schema version — lives in a single SQLite database under `.repoctx/` at the repo root.
 
-### MVP schema sketch
+### Schema v1
 
 ```sql
 CREATE TABLE files (
-    path     TEXT PRIMARY KEY,
-    mtime    INTEGER NOT NULL,
+    path     TEXT PRIMARY KEY,   -- repo-root-relative, '/' separators
+    mtime_ns INTEGER NOT NULL,   -- unix epoch nanoseconds
+    size     INTEGER NOT NULL,   -- bytes; (mtime_ns, size) is the invalidation tuple (ADR-0006)
     language TEXT NOT NULL
 );
 
@@ -41,17 +42,22 @@ CREATE TABLE symbols (
     file_path    TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
     name         TEXT NOT NULL,
     kind         TEXT NOT NULL,
-    start_line   INTEGER NOT NULL,
-    start_column INTEGER NOT NULL,
+    start_line   INTEGER NOT NULL,   -- 0-based (tree-sitter native); human output renders 1-based
+    start_column INTEGER NOT NULL,   -- 0-based
     end_line     INTEGER NOT NULL,
     end_column   INTEGER NOT NULL
 );
 
 CREATE INDEX symbols_name_idx      ON symbols(name);
 CREATE INDEX symbols_file_path_idx ON symbols(file_path);
+
+CREATE TABLE meta (
+    key   TEXT PRIMARY KEY,   -- holds 'schema_version'; greppable via sqlite3, extensible
+    value TEXT
+);
 ```
 
-Schema is owned by the `store` crate; migrations are versioned and applied on open. Anything richer (cross-file refs, semantic facts) lands in additional tables, not by mutating these.
+Schema is owned by the `store` crate; migrations are versioned and applied on open (`meta.schema_version`). Anything richer (cross-file refs, semantic facts) lands in additional tables, not by mutating these.
 
 ## Positive consequences
 
@@ -68,5 +74,5 @@ Schema is owned by the `store` crate; migrations are versioned and applied on op
 ## Links
 
 - ADR-0001 (CLI-first) — SQLite is what makes stateless invocations viable.
-- ADR-0006 (mtime invalidation) — `files.mtime` column is the invalidation signal.
+- ADR-0006 (mtime invalidation) — `(files.mtime_ns, files.size)` tuple is the invalidation signal.
 - ADR-0007 (incremental file-local updates) — implemented as transactional upserts keyed on `files.path`.

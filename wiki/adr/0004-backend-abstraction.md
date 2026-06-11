@@ -12,7 +12,7 @@ Tree-sitter (ADR-0002) answers structural questions; LSP (ADR-0005, future) answ
 ## Decision drivers
 
 - Callers (CLI commands) shouldn't know which backend answered.
-- Backends differ in capability — Tree-sitter can do `symbols`/`outline`/`definition` (best-effort); LSP adds `references`/`hover`/etc.
+- Backends differ in capability — Tree-sitter can do `symbols`/`outline`; LSP adds position-based `definition`, `references`, `hover`, etc.
 - Adding a backend should not require touching CLI code.
 - Trait should be small, query shapes should be reusable.
 
@@ -38,7 +38,7 @@ pub trait CodeIntelBackend {
 }
 ```
 
-Tree-sitter implements `workspace_symbols`, `document_symbols`, and a best-effort `definition`. `references` / `hover` return a typed `Unsupported` for the Tree-sitter backend and are only meaningful once `LspBackend` is wired in.
+Tree-sitter implements `workspace_symbols` and `document_symbols`. `definition` / `references` / `hover` take a `PositionQuery` (file:line:col) and return a typed `Unsupported` for the Tree-sitter backend — position-based resolution needs semantics and is only meaningful once `LspBackend` is wired in. The name-based `repoctx definition <name>` command is CLI-layer composition: `workspace_symbols` + exact-name filter + definition-kind whitelist, no trait change.
 
 `SymbolQuery`, `PositionQuery`, `Symbol`, `Location`, `HoverInfo` are owned by the `backend` crate. The shapes are the public contract — adding fields is fine, renaming/removing is breaking (per ADR-0008's stability stance for `--json` output).
 

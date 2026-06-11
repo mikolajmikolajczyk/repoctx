@@ -6,16 +6,16 @@ Update this when a feature lands, breaks, or gets pulled. Stale status is worse 
 
 ## Works
 
-<TBD>
+Nothing yet — pre-code. First implementation issue: workspace scaffold (`ac467c5`).
 
 ## In flight
 
-<TBD: link to in-progress issues via `rad issue list --label state:in-progress`>
+Nothing as of 2026-06-11. Check: `rad issue list --label state:in-progress`.
 
 ## Broken / regressions
 
-<TBD>
+None.
 
 ## Not started
 
-See `rad issue list` filtered by milestone. Don't duplicate the issue list here.
+All of M0/M1/M2 — see `rad issue list` filtered by milestone. M0 epic `e408787`'s description is the binding implementation contract for all child issues. Don't duplicate the issue list here.

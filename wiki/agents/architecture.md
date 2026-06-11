@@ -27,16 +27,18 @@ crates/
   ipc/            # CLI ↔ repoctxd protocol over unix socket
 ```
 
-## Commands (M0)
+## Commands
 
-| Command | Backend method | Notes |
-|---------|----------------|-------|
-| `repoctx index`            | walks tree, parses, writes `store` | full or incremental (ADR-0006, ADR-0007) |
-| `repoctx status`           | reads `store` | counts, freshness, index health |
-| `repoctx symbols <query>`  | `workspace_symbols` | substring/fuzzy match across all files |
-| `repoctx definition <q>`   | `definition` | best-effort from Tree-sitter; richer with LSP |
-| `repoctx outline <file>`   | `document_symbols` | structured file contents |
-| `repoctx context <symbol>` | composite | symbol + surrounding code window for agents |
+Milestone split lives in Radicle issues (M0 epic `e408787`, M1 epic `8ce08ce`).
+
+| Command | Milestone | Backend method | Notes |
+|---------|-----------|----------------|-------|
+| `repoctx index`            | M0 | walks tree, parses, writes `store` | full or incremental (ADR-0006, ADR-0007) |
+| `repoctx status`           | M0 | reads `store` | counts, freshness, index health |
+| `repoctx symbols <query>`  | M0 | `workspace_symbols` | case-insensitive substring match across all files |
+| `repoctx outline <file>`   | M1 | `document_symbols` | structured file contents |
+| `repoctx definition <name>`| M1 | `workspace_symbols` + exact-name filter | name-based; position-based `definition` waits for LSP |
+| `repoctx context <symbol>` | M1 | composite | symbol + surrounding code window for agents |
 
 Every command emits **TOON** by default for non-TTY output, **`--json`** for JSON, **`--toon`** to force TOON on a TTY (ADR-0008).
 
@@ -49,7 +51,7 @@ Future (ADR-0005, via `repoctxd`):
 ## Data flow
 
 1. **Index** — `repoctx index` walks the repo (respecting `.gitignore` via the `ignore` crate), hands files to `index` (Tree-sitter, parallelized with `rayon`), and writes symbols into `store` (SQLite). Per-file mtime is recorded.
-2. **Query** — `repoctx symbols|definition|outline|context` opens the `store`, executes the request via the appropriate `CodeIntelBackend` (Tree-sitter-backed in M0), and emits human or JSON output.
+2. **Query** — `repoctx symbols|definition|outline|context` opens the `store`, executes the request via the appropriate `CodeIntelBackend` (Tree-sitter-backed in M0), and emits human, TOON, or JSON output (ADR-0008).
 3. **Incremental update** — on subsequent `repoctx index` runs, mtime comparison against `store.files` decides which files to reparse (ADR-0006). Only changed files are re-indexed; CASCADE on `files.path` drops their old symbols inside the same transaction (ADR-0007). Deleted paths are detected by absence and pruned.
 
 ## Key modules

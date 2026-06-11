@@ -31,7 +31,7 @@ pre-commit run --all-files --hook-stage manual      # run staged-as-manual hooks
 
 ## Radicle
 
-See [`../skills/radicle.md`](../skills/radicle.md) for the canonical CLI cheat-sheet. Most-used:
+See [`../../.agents/skills/radicle/SKILL.md`](../../.agents/skills/radicle/SKILL.md) for the canonical CLI cheat-sheet. Most-used:
 
 ```sh
 rad issue list --all

@@ -35,6 +35,7 @@ Each file's mtime (and size as a tiebreaker) is persisted in SQLite. A re-index 
 ## Negative consequences
 
 - mtime can lie (clock skew, `touch` without content change, FS quirks). For an AI-context tool, the failure mode is "stale answer" rather than "wrong code shipped" — acceptable.
+- mtime granularity varies by filesystem (some report whole seconds). A same-size edit within one granularity window can be missed; the `size` tiebreaker catches most real edits, `--force` catches the rest. We store nanoseconds and use whatever precision the platform gives.
 - If users hit mtime-skew issues, a `--force` reindex escape hatch is the answer, not switching to hashes by default.
 
 ## Links

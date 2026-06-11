@@ -46,4 +46,5 @@ What would make us re-open this decision.
 
 ## Index
 
-(none yet — first entry lands when a non-ADR cross-cutting decision gets made)
+- [2026-06-11 — Grammar crates: toml-ng + md, core 0.25.x](2026-06-11-grammar-crate-selection.md)
+- [2026-06-11 — Platform-agnostic from the start: Linux, macOS, Windows](2026-06-11-platform-agnostic.md)

@@ -1,6 +1,6 @@
 # Working on issues
 
-Project-specific addendum to the [radboard skill](../skills/radboard.md). Radboard covers the universal lifecycle (open → in-progress → review → solved + hex7 patch linking). This page covers what **this project** specifically does on top.
+Project-specific addendum to the [radboard skill](../../.agents/skills/radboard/SKILL.md). Radboard covers the universal lifecycle (open → in-progress → review → solved + hex7 patch linking). This page covers what **this project** specifically does on top.
 
 ## Columns we use
 

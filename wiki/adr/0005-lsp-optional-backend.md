@@ -48,6 +48,8 @@ repoctxd
 
 The CLI can run with no daemon at all — Tree-sitter answers what it can, semantic-only queries return a typed "no LSP backend available" error and the agent can act on it.
 
+The CLI↔daemon transport is abstracted per platform: unix domain socket on unix, named pipe on Windows (the project is platform-agnostic — see `wiki/decisions/2026-06-11-platform-agnostic.md`). The framed-JSON protocol is transport-independent.
+
 ### Why not a feature flag in the CLI
 
 Per-invocation LSP spawning forfeits the whole reason to use LSP. A long-lived process is required, and once we accept that, separating it from the CLI is cleaner than half-living state inside short-lived binaries.

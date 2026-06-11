@@ -14,11 +14,44 @@ Things **deliberately not implemented**. If something seems missing and is liste
 
 ## Entries
 
-<TBD: filled as decisions accumulate. Examples of typical entries:
+### LSP backend, `repoctxd` daemon, `refs`/`hover`/`callers`
 
-- error retry / backoff machinery (premature without observed flakiness)
-- plugin sandbox (trust model not yet defined)
-- i18n (single-locale project for now)
-- telemetry / analytics (privacy decision pending)
-- DB layer (in-memory is enough for current scope)
->
+- **Why deferred:** semantic queries need warm long-lived LSP servers; ADR-0005 puts that in a separate daemon. M0/M1 are Tree-sitter-only by design.
+- **Revisit when:** M0 + M1 are solved and merged.
+- **Tracked in:** `58b45d5` (M2 placeholder epic).
+
+### Fuzzy symbol matching
+
+- **Why deferred:** M0 `symbols` is case-insensitive substring via SQL LIKE — deterministic, cheap, good enough for agent callers. Fuzzy ranking adds a scoring dependency and nondeterministic ordering for unclear gain.
+- **Revisit when:** real agent transcripts show substring misses being a problem.
+- **Tracked in:** none.
+
+### Content-hash cache invalidation
+
+- **Why deferred:** `(mtime_ns, size)` is O(stat) and the failure mode is "stale answer", acceptable for a context tool (ADR-0006). `repoctx index --force` is the escape hatch.
+- **Revisit when:** users report mtime-skew problems in practice.
+- **Tracked in:** none — ADR-0006 records the call.
+
+### Nested keys for JSON/YAML/TOML
+
+- **Why deferred:** M0 extracts top-level keys only (kind `key`). Nested/dotted-path extraction multiplies symbol volume and needs a naming scheme nobody has asked for yet.
+- **Revisit when:** an agent use case needs sub-document navigation in data files.
+- **Tracked in:** none.
+
+### Configurable file-size cap / skip rules
+
+- **Why deferred:** 2 MiB cap and non-UTF-8 skip are hardcoded in M0. Config surface (file or flags) is premature before real-world hits.
+- **Revisit when:** the cap skips files users actually want indexed.
+- **Tracked in:** none.
+
+### Dynamic grammar loading / plugin system
+
+- **Why deferred:** ADR-0002 statically links the 9 grammars; plugin loading adds a trust and ABI surface with no current demand.
+- **Revisit when:** a language outside the initial set is needed by a real consumer.
+- **Tracked in:** none — ADR-0002 records the call.
+
+### Watch mode / filesystem notifications
+
+- **Why deferred:** requires a daemon (`notify` crate + lifecycle); CLI-first per ADR-0001. Incremental `index` runs are cheap enough to call per-session.
+- **Revisit when:** `repoctxd` exists (M2) — natural host for a watcher.
+- **Tracked in:** `58b45d5`.

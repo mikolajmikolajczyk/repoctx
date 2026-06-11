@@ -28,6 +28,13 @@
 
 **Tree-sitter is the primary indexing backend.** Grammars are statically linked into the `repoctx` binary — no plugin system in MVP. Symbol extraction reuses each grammar's upstream `tags.scm` (and `locals.scm` where helpful); custom queries are introduced only when an upstream query is missing or actively wrong.
 
+Two consequences of "reuse upstream", accepted deliberately:
+
+- **Kind vocabulary is upstream's, as-is.** Upstream tags queries collapse kinds (Rust struct/enum/union/type emit `@definition.class`; Go struct/interface emit `@definition.type`). We map captures to our `SymbolKind` without re-tagging — Rust `struct` indexes as kind `class`. Amending upstream queries per-language is the escape hatch if this ever hurts in practice.
+- **Data/doc languages get minimal custom queries** (the "missing upstream query" case): Markdown → headings (kind `section`), JSON/YAML/TOML → top-level keys (kind `key`). Vendored under `crates/index/queries/` with provenance comments.
+
+Concrete crate selection and version pins live in the decision log (`wiki/decisions/2026-06-11-grammar-crate-selection.md`) — they churn faster than this ADR.
+
 ### Initial language set (MVP)
 
 - Go
