@@ -5,10 +5,12 @@ use clap::{ArgAction, Parser, Subcommand};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
+mod index_cmd;
 mod output;
 mod output_symbols;
 #[cfg(test)]
 mod output_tests;
+mod repo_root;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -81,10 +83,11 @@ fn init_tracing(verbose: u8) {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     init_tracing(cli.verbose);
-    let _render = output::resolve(cli.json, cli.toon);
+    let render = output::resolve(cli.json, cli.toon);
+    let repo_root = repo_root::resolve(cli.repo)?;
 
     match cli.cmd {
-        Cmd::Index { .. } => bail!("not implemented"),
+        Cmd::Index { force } => index_cmd::run(&repo_root, force, render),
         Cmd::Status { .. } => bail!("not implemented"),
         Cmd::Symbols { .. } => bail!("not implemented"),
     }
