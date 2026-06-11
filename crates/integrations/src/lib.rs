@@ -1,4 +1,5 @@
 //! `repoctx-integrations` — per-agent install machinery.
+#![allow(clippy::result_large_err)] // Windows PathBuf inflates IntegrationsError; not hot-path.
 //!
 //! M1.5 scope: manifest schema + parser only. Fetcher, installer, and
 //! per-agent content land in sibling issues. The agent name set is the
