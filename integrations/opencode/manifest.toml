@@ -1,5 +1,10 @@
 name = "opencode"
-description = "opencode CLI guidance via merge-section block in AGENTS.md."
+description = "opencode skill at .agents/skills/repoctx/SKILL.md + AGENTS.md guidance block."
+
+[[file]]
+src = "../shared/SKILL.md"
+dest = ".agents/skills/repoctx/SKILL.md"
+mode = "write"
 
 [[file]]
 src = "../shared/AGENTS.md.fragment"

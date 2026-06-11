@@ -8,10 +8,12 @@
 |---|---|---|
 | `claude` | `.claude/skills/repoctx/SKILL.md` | write |
 | `claude` | `CLAUDE.md` (merge-section block) | merge-section |
+| `codex` | `.agents/skills/repoctx/SKILL.md` | write |
 | `codex` | `AGENTS.md` (merge-section block) | merge-section |
+| `opencode` | `.agents/skills/repoctx/SKILL.md` | write |
 | `opencode` | `AGENTS.md` (merge-section block) | merge-section |
 
-Codex + opencode share the same `AGENTS.md` fragment, so installing both into the same repo is a no-op on the second pass.
+`SKILL.md` is shared content — one source of truth at `integrations/shared/SKILL.md`, three different destinations. Codex + opencode also share the `AGENTS.md` fragment, so installing both into one repo is a no-op on the second pass.
 
 ## Quick start
 

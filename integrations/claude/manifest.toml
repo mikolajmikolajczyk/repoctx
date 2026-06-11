@@ -2,7 +2,7 @@ name = "claude"
 description = "Claude Code skill at .claude/skills/repoctx/SKILL.md + a CLAUDE.md guidance block."
 
 [[file]]
-src = "SKILL.md"
+src = "../shared/SKILL.md"
 dest = ".claude/skills/repoctx/SKILL.md"
 mode = "write"
 
