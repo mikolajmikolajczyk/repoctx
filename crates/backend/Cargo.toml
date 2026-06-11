@@ -12,3 +12,6 @@ description = "CodeIntelBackend trait + public output types for repoctx."
 repoctx-store.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
