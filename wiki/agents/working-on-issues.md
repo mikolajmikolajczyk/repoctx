@@ -94,6 +94,20 @@ rad issue state --solved <hex7>
 
 If a patch covers multiple issues, **don't `--solved` them until the default branch actually contains the merge**. Solving early misleads the board.
 
+## Release flow
+
+Tagged releases are rare — once per minor-version's worth of solved issues. Steps:
+
+1. Confirm the release-engineering issue (e.g. `bc9da7c` for v0.1.0) is solved and the bench harness is green (`scripts/bench.sh`).
+2. Pre-flight: `cargo build --release && cargo test && cargo clippy --all-targets -- -D warnings`. CI must be green on `main` for ubuntu/macos/windows.
+3. Bump `workspace.package.version` in the root `Cargo.toml` and the `version` literal in `flake.nix`'s `buildRustPackage` call. Move the `[Unreleased]` block in `CHANGELOG.md` into `[X.Y.Z] — YYYY-MM-DD` and add a new empty `[Unreleased]`.
+4. Commit as `release: vX.Y.Z` (Conventional Commits). One commit per release.
+5. Annotated, GPG-signed tag: `git tag -s vX.Y.Z -m "vX.Y.Z"`.
+6. Push: `git push rad main`, then `git push rad vX.Y.Z`, then `git push origin main --tags`.
+7. (Optional, post-release) draft a GitHub release pointing at the tag — the mirror exists for discoverability, not as the canonical home.
+
+**Never tag without explicit user request.** The CHANGELOG bump + flake version bump can land first as a normal patch; the tag is a separate, deliberate action.
+
 ## Decision capture inside an issue
 
 For decisions tied to one issue, **comment on the issue**, don't open an ADR.

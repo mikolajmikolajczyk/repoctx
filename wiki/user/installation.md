@@ -1,20 +1,35 @@
 # Installation
 
-`repoctx` is a single Rust binary, distributed as source today (no pre-built downloads — see [the M0 release issue `bc9da7c`](https://github.com/mikolajmikolajczyk/repoctx/issues)). Two install paths:
+`repoctx` is a single Rust binary, distributed as source. Pick the path that fits:
 
 ## Nix flake (recommended)
 
-Pinned toolchain + SQLite headers come from the flake. Requires Nix with flakes enabled.
+The flake exposes both a `devShell` (pinned toolchain + SQLite + bench tooling) and a `packages.default` that builds the release binary. Requires Nix with flakes enabled.
+
+One-shot run without installing anything:
+
+```sh
+nix run github:mikolajmikolajczyk/repoctx -- --help
+```
+
+Install into your Nix profile:
+
+```sh
+nix profile install github:mikolajmikolajczyk/repoctx
+repoctx --help
+```
+
+Local clone + build (useful for development):
 
 ```sh
 git clone https://github.com/mikolajmikolajczyk/repoctx
 cd repoctx
-nix develop              # one-shot devShell (or `direnv allow` for auto-load)
+nix develop              # pinned dev environment (or `direnv allow` for auto-load)
 cargo build --release
 ./target/release/repoctx --help
 ```
 
-To install `repoctx` into `~/.cargo/bin` so it's on `PATH` everywhere:
+To put a development build on `PATH` system-wide:
 
 ```sh
 nix develop --command cargo install --path crates/repoctx
@@ -47,6 +62,6 @@ repoctx --help
 
 You should see the version line plus the `index`, `symbols`, `status`, and `gain` subcommands. Once that's working, head to [`quickstart.md`](quickstart.md).
 
-## No binary releases yet
+## Pre-built binaries + crates.io
 
-Pre-1.0. Once the v0.1.0 release ships ([Radicle issue `bc9da7c`](https://github.com/mikolajmikolajczyk/repoctx/issues)), this page will gain `nix profile install`, `cargo install repoctx` (crates.io decision pending), and platform binaries from GitHub Releases.
+Not yet. crates.io publishing is deferred until the API stabilizes (the binary install paths above are the supported ones for now), and platform binaries on GitHub Releases will land alongside the first tagged release. Track [CHANGELOG.md](../../CHANGELOG.md) for the current version.
