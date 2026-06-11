@@ -1,9 +1,12 @@
 //! End-to-end coverage for `repoctx hook install`.
 //!
-//! Strategy: redirect the binary's XDG cache via `XDG_CACHE_HOME` to a
-//! tempdir, pre-seed the cache with a tiny in-tree agent, then drive
-//! the CLI. The Fetcher serves from cache on every call, so these
-//! tests never touch the network.
+//! Strategy: redirect the integrations cache root via
+//! `REPOCTX_INTEGRATIONS_CACHE_DIR` to a tempdir, pre-seed it with a
+//! tiny in-tree agent, then drive the CLI. The Fetcher serves from
+//! cache on every call, so these tests never touch the network.
+//!
+//! XDG_CACHE_HOME is NOT used — `directories` ignores it on macOS,
+//! which broke CI on macos-latest.
 
 use std::fs;
 use std::path::Path;
@@ -15,10 +18,7 @@ use tempfile::TempDir;
 const REF: &str = "test-ref";
 
 fn seed_cache(cache_root: &Path, agent: &str, files: &[(&str, &str)]) {
-    let dir = cache_root
-        .join("repoctx/integrations")
-        .join(REF)
-        .join(agent);
+    let dir = cache_root.join(REF).join(agent);
     fs::create_dir_all(&dir).unwrap();
     for (name, body) in files {
         let path = dir.join(name);
@@ -30,17 +30,14 @@ fn seed_cache(cache_root: &Path, agent: &str, files: &[(&str, &str)]) {
 }
 
 fn seed_shared(cache_root: &Path, file: &str, body: &str) {
-    let dir = cache_root
-        .join("repoctx/integrations")
-        .join(REF)
-        .join("shared");
+    let dir = cache_root.join(REF).join("shared");
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join(file), body).unwrap();
 }
 
 fn run(cache_root: &Path, target: &Path, extra_args: &[&str]) -> assert_cmd::assert::Assert {
     let mut cmd = Command::cargo_bin("repoctx").unwrap();
-    cmd.env("XDG_CACHE_HOME", cache_root)
+    cmd.env("REPOCTX_INTEGRATIONS_CACHE_DIR", cache_root)
         .env("RUST_REPOCTX_NO_RECORD", "1")
         .args(["--json", "hook"])
         .args(extra_args)
@@ -156,8 +153,8 @@ fn ref_override_picks_a_different_cache_subdir() {
     // Two refs in cache; --ref selects which to read.
     let cache = tempfile::tempdir().unwrap();
     let target = tempfile::tempdir().unwrap();
-    let a_dir = cache.path().join("repoctx/integrations/aaa/claude");
-    let b_dir = cache.path().join("repoctx/integrations/bbb/claude");
+    let a_dir = cache.path().join("aaa/claude");
+    let b_dir = cache.path().join("bbb/claude");
     fs::create_dir_all(&a_dir).unwrap();
     fs::create_dir_all(&b_dir).unwrap();
     fs::write(a_dir.join("manifest.toml"), WRITE_MANIFEST).unwrap();
@@ -166,7 +163,7 @@ fn ref_override_picks_a_different_cache_subdir() {
     fs::write(b_dir.join("SKILL.md"), "FROM_BBB").unwrap();
 
     let mut cmd = Command::cargo_bin("repoctx").unwrap();
-    cmd.env("XDG_CACHE_HOME", cache.path())
+    cmd.env("REPOCTX_INTEGRATIONS_CACHE_DIR", cache.path())
         .env("RUST_REPOCTX_NO_RECORD", "1")
         .args(["--json", "hook", "install", "claude"])
         .arg("--dir")
@@ -200,7 +197,7 @@ fn unknown_agent_errors_with_known_list() {
     let cache = tempfile::tempdir().unwrap();
     let target = tempfile::tempdir().unwrap();
     let mut cmd = Command::cargo_bin("repoctx").unwrap();
-    cmd.env("XDG_CACHE_HOME", cache.path())
+    cmd.env("REPOCTX_INTEGRATIONS_CACHE_DIR", cache.path())
         .env("RUST_REPOCTX_NO_RECORD", "1")
         .args(["hook", "install", "aider"])
         .arg("--dir")
@@ -217,7 +214,7 @@ fn unknown_agent_errors_with_known_list() {
 fn hook_list_returns_three_agents() {
     let cache = tempfile::tempdir().unwrap();
     let mut cmd = Command::cargo_bin("repoctx").unwrap();
-    cmd.env("XDG_CACHE_HOME", cache.path())
+    cmd.env("REPOCTX_INTEGRATIONS_CACHE_DIR", cache.path())
         .env("RUST_REPOCTX_NO_RECORD", "1")
         .args(["--json", "hook", "list", "--ref", REF, "--no-cache"]);
     // No fixtures and --no-cache → manifest fetches will 404; descriptions

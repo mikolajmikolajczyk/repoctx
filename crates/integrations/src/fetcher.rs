@@ -196,7 +196,16 @@ fn default_ref() -> String {
     format!("v{}", env!("CARGO_PKG_VERSION"))
 }
 
+/// Environment variable override for the cache root. Tests + power users
+/// set this to point the fetcher at a controlled location, bypassing the
+/// platform-specific `ProjectDirs` lookup (which on macOS lives at
+/// `~/Library/Caches/...`, ignoring XDG_CACHE_HOME).
+const ENV_CACHE_DIR: &str = "REPOCTX_INTEGRATIONS_CACHE_DIR";
+
 fn default_cache_dir() -> Result<PathBuf> {
+    if let Some(v) = std::env::var_os(ENV_CACHE_DIR) {
+        return Ok(PathBuf::from(v));
+    }
     let dirs =
         ProjectDirs::from("dev", "repoctx", "repoctx").ok_or_else(|| IntegrationsError::Cache {
             path: PathBuf::new(),
