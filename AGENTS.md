@@ -4,9 +4,6 @@ Repo-specific notes for coding agents (Claude Code, Cursor, Aider, Copilot, …)
 
 > **CLAUDE.md** at repo root is `@AGENTS.md` plus Claude-only overrides. Other agents read this file directly.
 
-## ⚠️ First-time setup
-
-If `BOOTSTRAP.md` still exists in repo root, this project hasn't been bootstrapped yet. **Read `BOOTSTRAP.md` first** and follow its instructions before doing anything else. It will walk the user through ~8 questions, fill the `<TBD>` placeholders in this file and across `wiki/`, then delete itself.
 
 ## What this is
 

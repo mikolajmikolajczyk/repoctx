@@ -2,7 +2,8 @@
 //!
 //! Skip rules per epic contract: ignore::WalkBuilder with hidden(false),
 //! git_ignore on, follow_links(false), always skip `.git` and `.repoctx`,
-//! skip files > 2 MiB.
+//! skip files > 2 MiB, skip non-UTF-8 files. Index logs warnings on each
+//! skip; status counts silently — both see the same set of indexable files.
 
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
@@ -23,29 +24,18 @@ pub struct Candidate {
     pub size: i64,
 }
 
-/// Walker yielding candidates that index_cmd is willing to parse:
-/// size cap enforced, non-UTF-8 files dropped with a warning.
+/// Walker used by `index`: emits a tracing warning per skipped file.
 pub fn collect_indexable(repo_root: &Path) -> Result<Vec<Candidate>> {
-    let mut out = Vec::new();
-    for c in iter(repo_root) {
-        // Materialize once; re-stat avoided.
-        if !is_utf8(&c.abs) {
-            warn!(path = %c.abs.display(), "skipping non-UTF-8 file");
-            continue;
-        }
-        out.push(c);
-    }
-    Ok(out)
+    collect(repo_root, true)
 }
 
-/// Cheaper variant for `status` staleness counting: same skip rules but
-/// without the UTF-8 read (just stat + extension). The (mtime_ns, size)
-/// tuple is the invalidation key, and that is all status compares.
+/// Walker used by `status`: same skip rules, but silent (no warnings on
+/// stderr). Keeps status output clean.
 pub fn collect_stat(repo_root: &Path) -> Result<Vec<Candidate>> {
-    Ok(iter(repo_root).collect())
+    collect(repo_root, false)
 }
 
-fn iter(repo_root: &Path) -> impl Iterator<Item = Candidate> + use<'_> {
+fn collect(repo_root: &Path, warn_on_skip: bool) -> Result<Vec<Candidate>> {
     let walker = WalkBuilder::new(repo_root)
         .hidden(false)
         .follow_links(false)
@@ -58,35 +48,50 @@ fn iter(repo_root: &Path) -> impl Iterator<Item = Candidate> + use<'_> {
         })
         .build();
 
-    walker.flatten().filter_map(move |dent| {
+    let mut out = Vec::new();
+    for dent in walker.flatten() {
         if !dent.file_type().is_some_and(|t| t.is_file()) {
-            return None;
+            continue;
         }
         let abs = dent.path().to_path_buf();
-        let language = Language::from_path(&abs)?;
-        let rel = abs.strip_prefix(repo_root).ok()?;
+        let Some(language) = Language::from_path(&abs) else {
+            continue;
+        };
+        let rel = match abs.strip_prefix(repo_root) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
         let rel_db = repoctx_store::to_db_path(rel);
         let meta = match dent.metadata() {
             Ok(m) => m,
             Err(e) => {
                 debug!(path = %abs.display(), error = %e, "stat failed");
-                return None;
+                continue;
             }
         };
         let size = meta.len();
         if size > MAX_FILE_BYTES {
-            warn!(path = %abs.display(), size, "skipping file > 2 MiB");
-            return None;
+            if warn_on_skip {
+                warn!(path = %abs.display(), size, "skipping file > 2 MiB");
+            }
+            continue;
+        }
+        if !is_utf8(&abs) {
+            if warn_on_skip {
+                warn!(path = %abs.display(), "skipping non-UTF-8 file");
+            }
+            continue;
         }
         let mtime_ns = mtime_to_ns(&meta);
-        Some(Candidate {
+        out.push(Candidate {
             abs,
             rel: rel_db,
             language,
             mtime_ns,
             size: size as i64,
-        })
-    })
+        });
+    }
+    Ok(out)
 }
 
 fn mtime_to_ns(meta: &std::fs::Metadata) -> i64 {

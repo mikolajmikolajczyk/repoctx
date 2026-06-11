@@ -4,18 +4,33 @@ Snapshot of what works, what's in flight, what's broken. **Not the roadmap** —
 
 Update this when a feature lands, breaks, or gets pulled. Stale status is worse than no status — if you can't keep it fresh, link straight to Radicle issue filters instead.
 
-## Works
+## Works (as of 2026-06-11)
 
-Nothing yet — pre-code. First implementation issue: workspace scaffold (`ac467c5`).
+M0 functional surface, all 9 languages indexed.
+
+- `repoctx index` — incremental walk + Tree-sitter parse + SQLite upsert; rayon parses, single sequential writer; skip rules per epic contract (gitignored, `> 2 MiB`, non-UTF-8, `.git`, `.repoctx`); `--force` reparses all; deleted files pruned. ~80 ms cold / ~7 ms no-op on this repo.
+- `repoctx symbols <query>` — case-insensitive substring across the index; `--kind`, `--lang`, `--limit` filters; deterministic `ORDER BY name COLLATE NOCASE, file_path, start_line`; empty result = exit 0 + `count: 0`.
+- `repoctx status` — files, symbols, per-language counts, db size, schema version, staleness `{changed, new, deleted}` from a stat-walk; `--fast` omits staleness.
+- Three output formats over one set of typed records (ADR-0008): human (TTY default), TOON (non-TTY default), JSON (`--json`). `--json` / `--toon` clap-mutually-exclusive.
+- Missing-index error uniform across read commands: `no index found — run 'repoctx index'`, exit 1, empty stdout.
+- Languages with full coverage: Go, Rust (struct/enum/union/type → `class` per upstream tags.scm), TypeScript (interface + abstract class + method_signature; plain class/function untagged upstream), TSX, JavaScript, Python, JSON, YAML (multi-doc), TOML (root pairs + `[table]` + `[[array]]`), Markdown (ATX + setext headings).
+
+Test coverage: 56 tests across the workspace (5 store unit + 11 store integration + 7 backend serde-shape + 5 output + 11 index parsing + repo_root unit + 7 index_cmd e2e + 8 symbols_cmd e2e + 4 status_cmd e2e + 5 combined e2e).
 
 ## In flight
 
-Nothing as of 2026-06-11. Check: `rad issue list --label state:in-progress`.
+`rad issue list --label state:in-progress` is the source of truth. None active at the close of M0 functional work.
 
 ## Broken / regressions
 
-None.
+None known.
 
 ## Not started
 
-All of M0/M1/M2 — see `rad issue list` filtered by milestone. M0 epic `e408787`'s description is the binding implementation contract for all child issues. Don't duplicate the issue list here.
+- Non-functional M0 hardening: CI (`72acdcc`), concurrency/corruption (`da5f6cc`), platform-agnostic enforcement (`bb6d7f7`).
+- M1 navigation commands (`outline`, `definition`, `context`) — epic `8ce08ce`.
+- Gain analytics — epic `4dd57c8`.
+- User docs — epic `4fc80f5`.
+- M2 daemon + LSP — placeholder epic `58b45d5`. **Do not pre-empt.**
+
+See `rad issue list` filtered by milestone.
