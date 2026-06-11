@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::{ArgAction, Parser, Subcommand};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
@@ -12,7 +12,9 @@ mod output_symbols;
 mod output_tests;
 mod read_cmd;
 mod repo_root;
+mod status_cmd;
 mod symbols_cmd;
+mod walk;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -90,7 +92,7 @@ fn main() -> Result<()> {
 
     match cli.cmd {
         Cmd::Index { force } => index_cmd::run(&repo_root, force, render),
-        Cmd::Status { .. } => bail!("not implemented"),
+        Cmd::Status { fast } => status_cmd::run(&repo_root, fast, render),
         Cmd::Symbols {
             query,
             kind,
