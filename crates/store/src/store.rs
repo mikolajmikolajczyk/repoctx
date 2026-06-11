@@ -49,10 +49,7 @@ impl Store {
         let flags = OpenFlags::SQLITE_OPEN_READ_WRITE
             | OpenFlags::SQLITE_OPEN_CREATE
             | OpenFlags::SQLITE_OPEN_URI;
-        let mut conn = match Connection::open_with_flags(path, flags) {
-            Ok(c) => c,
-            Err(e) => return Err(classify_open_error(e)),
-        };
+        let mut conn = Connection::open_with_flags(path, flags)?;
         Self::configure(&mut conn)?;
         migrations::migrate(&mut conn)?;
         Ok(Self { conn })
@@ -258,16 +255,6 @@ impl Store {
     }
 }
 
-fn classify_open_error(e: rusqlite::Error) -> StoreError {
-    use rusqlite::ffi::ErrorCode;
-    if let rusqlite::Error::SqliteFailure(ref err, _) = e {
-        match err.code {
-            ErrorCode::DatabaseCorrupt | ErrorCode::NotADatabase => {
-                return StoreError::Corrupted(e)
-            }
-            ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked => return StoreError::Locked(e),
-            _ => {}
-        }
-    }
-    StoreError::Sqlite(e)
-}
+// Classification lives on `impl From<rusqlite::Error> for StoreError`, so
+// every `?` on a rusqlite Result picks up the typed Locked/Corrupted
+// variants automatically (including the initial open path below).

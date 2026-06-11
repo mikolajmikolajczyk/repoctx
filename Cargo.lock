@@ -1353,6 +1353,7 @@ dependencies = [
  "repoctx-backend",
  "repoctx-index",
  "repoctx-store",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",

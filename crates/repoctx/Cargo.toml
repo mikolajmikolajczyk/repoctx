@@ -28,6 +28,7 @@ ignore.workspace = true
 rayon.workspace = true
 
 [dev-dependencies]
+rusqlite.workspace = true
 assert_cmd.workspace = true
 predicates.workspace = true
 tempfile.workspace = true
