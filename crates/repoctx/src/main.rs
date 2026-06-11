@@ -6,6 +6,7 @@ use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
 mod gain;
+mod gain_cmd;
 mod index_cmd;
 mod output;
 mod output_symbols;
@@ -76,6 +77,39 @@ enum Cmd {
         #[arg(long, default_value_t = 50)]
         limit: usize,
     },
+    /// Surface navigation cost avoided by querying through repoctx.
+    Gain {
+        /// Lower bound: `7d`, `2h`, `30m`, `120s`. Defaults to 30 days.
+        #[arg(long, conflicts_with = "all")]
+        since: Option<String>,
+
+        /// Drop the window entirely (all-time totals).
+        #[arg(long)]
+        all: bool,
+
+        /// Show the N most recent invocations in the window (default: 20 with no value).
+        #[arg(long, num_args = 0..=1, default_missing_value = "20")]
+        history: Option<usize>,
+
+        #[command(subcommand)]
+        sub: Option<GainSub>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum GainSub {
+    /// Per-command breakdown ranked by savings (default) or reduction ratio.
+    Top {
+        /// `saved` (default) or `ratio`.
+        #[arg(long, default_value = "saved")]
+        by: String,
+
+        #[arg(long, conflicts_with = "all")]
+        since: Option<String>,
+
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 fn init_tracing(verbose: u8) {
@@ -109,5 +143,39 @@ fn main() -> Result<()> {
             lang,
             limit,
         } => symbols_cmd::run(&repo_root, query, kind, lang, limit, render, gain_opts),
+        Cmd::Gain {
+            since,
+            all,
+            history,
+            sub,
+        } => {
+            let window = resolve_window(since.as_deref(), all)?;
+            match sub {
+                Some(GainSub::Top {
+                    by,
+                    since: sub_since,
+                    all: sub_all,
+                }) => {
+                    let window = if sub_since.is_some() || sub_all {
+                        resolve_window(sub_since.as_deref(), sub_all)?
+                    } else {
+                        window
+                    };
+                    let by = gain_cmd::TopBy::parse(&by)?;
+                    gain_cmd::run_top(&repo_root, window, by, render)
+                }
+                None => gain_cmd::run_summary(&repo_root, window, render, history),
+            }
+        }
+    }
+}
+
+fn resolve_window(since: Option<&str>, all: bool) -> Result<gain_cmd::Window> {
+    if all {
+        return Ok(gain_cmd::Window::All);
+    }
+    match since {
+        Some(s) => Ok(gain_cmd::Window::Since(gain_cmd::parse_since(s)?)),
+        None => Ok(gain_cmd::default_window()),
     }
 }
