@@ -30,6 +30,10 @@ serde_json = "1"
 toon-format = "0.5"
 toml = "0.8"
 
+# Integrations (hook command)
+ureq = { version = "2", default-features = false, features = ["tls"] }
+directories = "5"
+
 # Storage
 rusqlite = { version = "0.32", features = ["bundled"] }
 

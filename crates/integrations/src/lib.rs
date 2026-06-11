@@ -5,9 +5,11 @@
 //! contract — adding an agent is an additive change; removing is breaking.
 
 mod error;
+mod fetcher;
 mod manifest;
 
 pub use error::{IntegrationsError, Result};
+pub use fetcher::{cache_dir_for_diagnostics, Fetcher, HttpFetch, UreqFetch};
 pub use manifest::{Agent, File, Mode};
 
 /// Agents available to the `repoctx hook` family. Order is the display
