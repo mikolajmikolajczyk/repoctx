@@ -31,6 +31,10 @@ pub struct Store {
 }
 
 impl Store {
+    pub(crate) fn conn(&self) -> &Connection {
+        &self.conn
+    }
+
     /// Open (or create) the per-repo index DB at `<repo_root>/.repoctx/index.db`.
     ///
     /// Applies pragmas (WAL, foreign_keys=ON, busy_timeout) and migrations.

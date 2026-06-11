@@ -48,3 +48,4 @@ What would make us re-open this decision.
 
 - [2026-06-11 — Grammar crates: toml-ng + md, core 0.25.x](2026-06-11-grammar-crate-selection.md)
 - [2026-06-11 — Platform-agnostic from the start: Linux, macOS, Windows](2026-06-11-platform-agnostic.md)
+- [2026-06-11 — Gain analytics: tokenizer = cl100k_base, baseline = candidate_bytes/4](2026-06-11-gain-tokenizer-and-baseline.md)

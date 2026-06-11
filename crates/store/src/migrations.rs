@@ -8,7 +8,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::error::{Result, StoreError};
 
 /// Highest schema version this binary supports.
-pub const SUPPORTED_VERSION: u32 = 1;
+pub const SUPPORTED_VERSION: u32 = 2;
 
 /// Migration scripts indexed by target version. Position N is the SQL to
 /// move the DB from version N-1 to version N.
@@ -40,6 +40,26 @@ const MIGRATIONS: &[&str] = &[
         key   TEXT PRIMARY KEY,
         value TEXT
     );
+    "#,
+    // -> v2 (gain analytics; epic 4dd57c8)
+    //
+    // Aggregates only — no filenames, no symbol names, no content. `query`
+    // is NULL unless the caller passed `--record-query`.
+    r#"
+    CREATE TABLE usage (
+        id                        INTEGER PRIMARY KEY,
+        ts_unix_ns                INTEGER NOT NULL,
+        command                   TEXT    NOT NULL,
+        candidate_files           INTEGER NOT NULL,
+        candidate_bytes           INTEGER NOT NULL,
+        estimated_baseline_tokens INTEGER NOT NULL,
+        returned_tokens           INTEGER NOT NULL,
+        output_format             TEXT    NOT NULL,
+        query                     TEXT
+    );
+
+    CREATE INDEX usage_ts_idx      ON usage(ts_unix_ns);
+    CREATE INDEX usage_command_idx ON usage(command);
     "#,
 ];
 
