@@ -4,10 +4,6 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
-### Changed
-
-- **Read commands auto-index by default** (`fa8faed`). When `repoctx symbols` / `status` / `gain` runs in a repo without `.repoctx/index.db`, the missing-index error becomes a single stderr notice (`no index found — indexing now (pass --no-auto-index to skip)...`) followed by an inline index pass. Scripts that want the old `bail with exit 1` behavior can pass the new global `--no-auto-index` flag. Concurrency safety unchanged — the existing `BEGIN IMMEDIATE` migration covers parallel auto-indexers.
-
 ## [0.1.0] — 2026-06-11
 
 First tagged release. M0 functional surface complete on Linux, macOS, and Windows.
@@ -18,6 +14,7 @@ First tagged release. M0 functional surface complete on Linux, macOS, and Window
 - **`repoctx symbols <query>`** — case-insensitive substring search across the index with `--kind`, `--lang`, `--limit` filters and deterministic ordering. Empty result is exit 0 with `count: 0`.
 - **`repoctx status`** — file/symbol counts, per-language breakdown, db size, schema version, and `(changed, new, deleted)` staleness from a stat walk. `--fast` skips the staleness walk.
 - **`repoctx gain`** + **`repoctx gain top [--by saved|ratio]`** — surface the navigation tokens repoctx has avoided. Default window: last 30 days; `--since Nd|Nh|Nm|Ns` overrides; `--all` removes the window. `--history [N]` swaps the summary for the most recent rows.
+- **Auto-index by default** — read commands (`symbols`, `status`, `gain`, `gain top`) auto-index when `.repoctx/index.db` is missing, printing one progress line to stderr. Scripts that want the old "bail with exit 1" can pass the new global `--no-auto-index` flag.
 - **Output formats** — human (TTY default), [TOON](https://github.com/toon-format/toon) (non-TTY default), JSON (`--json`). `--json` and `--toon` are clap-mutually-exclusive. All three are encodings of the same typed records.
 - **Backend abstraction** — `CodeIntelBackend` trait + `TreeSitterBackend` impl. Position-based methods (`definition`, `references`, `hover`) return a typed `Unsupported` until the M2 LSP backend lands.
 - **Storage** — SQLite (`rusqlite` bundled). Schema v2: `files`, `symbols`, `meta`, `usage`. Migrations apply on open under `BEGIN IMMEDIATE` so two `repoctx index` processes on a fresh DB serialize cleanly. `busy_timeout` = 5 s; WAL on; `foreign_keys` ON.
