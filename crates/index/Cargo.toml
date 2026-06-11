@@ -22,3 +22,6 @@ tree-sitter-toml-ng.workspace = true
 tree-sitter-md.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+repoctx-store.workspace = true
