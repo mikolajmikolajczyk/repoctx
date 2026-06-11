@@ -5,6 +5,7 @@ use clap::{ArgAction, Parser, Subcommand};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
+mod context_cmd;
 mod definition_cmd;
 mod gain;
 mod gain_cmd;
@@ -88,6 +89,16 @@ enum Cmd {
         #[arg(long, default_value_t = 50)]
         limit: usize,
     },
+    /// Print a symbol plus surrounding source lines.
+    Context {
+        symbol: String,
+        /// Lines of leading and trailing context. Default 5.
+        #[arg(long, default_value_t = 5)]
+        context: usize,
+        /// Maximum number of matches. Default 3.
+        #[arg(long, default_value_t = 3)]
+        limit: usize,
+    },
     /// Search indexed symbols by case-insensitive substring.
     Symbols {
         query: String,
@@ -166,6 +177,19 @@ fn main() -> Result<()> {
             &repo_root,
             name,
             lang,
+            limit,
+            render,
+            gain_opts,
+            no_auto_index,
+        ),
+        Cmd::Context {
+            symbol,
+            context,
+            limit,
+        } => context_cmd::run(
+            &repo_root,
+            symbol,
+            context,
             limit,
             render,
             gain_opts,
