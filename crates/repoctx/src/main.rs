@@ -5,6 +5,7 @@ use clap::{ArgAction, Parser, Subcommand};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
+mod gain;
 mod index_cmd;
 mod output;
 mod output_symbols;
@@ -38,6 +39,14 @@ struct Cli {
     /// Verbosity: -v = info, -vv = debug. `RUST_LOG` overrides.
     #[arg(short, long, global = true, action = ArgAction::Count)]
     verbose: u8,
+
+    /// Skip gain analytics recording for this invocation.
+    #[arg(long, global = true)]
+    no_record: bool,
+
+    /// Persist the query string in the usage row (off by default).
+    #[arg(long, global = true)]
+    record_query: bool,
 
     #[command(subcommand)]
     cmd: Cmd,
@@ -89,6 +98,7 @@ fn main() -> Result<()> {
     init_tracing(cli.verbose);
     let render = output::resolve(cli.json, cli.toon);
     let repo_root = repo_root::resolve(cli.repo)?;
+    let gain_opts = gain::GainOpts::from_cli(cli.no_record, cli.record_query);
 
     match cli.cmd {
         Cmd::Index { force } => index_cmd::run(&repo_root, force, render),
@@ -98,6 +108,6 @@ fn main() -> Result<()> {
             kind,
             lang,
             limit,
-        } => symbols_cmd::run(&repo_root, query, kind, lang, limit, render),
+        } => symbols_cmd::run(&repo_root, query, kind, lang, limit, render, gain_opts),
     }
 }

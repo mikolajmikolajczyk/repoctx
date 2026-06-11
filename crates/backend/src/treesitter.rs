@@ -21,6 +21,13 @@ impl TreeSitterBackend {
     pub fn new(store: Store) -> Self {
         Self { store }
     }
+
+    /// Take ownership of the underlying store back. Useful when a command
+    /// needs the store for follow-on work (e.g. gain recording) after the
+    /// query is done.
+    pub fn into_store(self) -> Store {
+        self.store
+    }
 }
 
 impl CodeIntelBackend for TreeSitterBackend {

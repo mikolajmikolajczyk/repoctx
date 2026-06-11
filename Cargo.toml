@@ -48,6 +48,9 @@ ignore = "0.4"
 walkdir = "2"
 rayon = "1"
 
+# Tokenizer (gain analytics)
+tiktoken-rs = "0.9"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
