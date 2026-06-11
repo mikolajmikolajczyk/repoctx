@@ -1,0 +1,38 @@
+# repoctx
+
+`repoctx` is an indexed code-navigation CLI. Use it instead of `grep`,
+`find`, or wholesale file reads when answering structural questions
+about this repository. The index is built incrementally over Tree-sitter
+parses across nine languages (Go, Rust, TypeScript, TSX, JavaScript,
+Python, JSON, YAML, TOML, Markdown).
+
+Read commands auto-build the index on first run; nothing to set up.
+
+## When to prefer which command
+
+- **`{REPOCTX_BIN} symbols <substring>`** — case-insensitive substring
+  search across every indexed symbol. Use it to explore (`--kind`,
+  `--lang`, `--limit` narrow the result set).
+- **`{REPOCTX_BIN} definition <name>`** — exact-name lookup limited to
+  definition kinds (`function`, `method`, `class`, `interface`, `type`,
+  `module`, `macro`, `constant`). Prefer over `symbols` when you know
+  the identifier — answers the "where is X defined" question without
+  field/variable noise.
+- **`{REPOCTX_BIN} context <symbol>`** — exact-name match plus the
+  source window around each hit (`--context` lines either side, default
+  5; `--limit` matches, default 3). One call returns "where + what",
+  beating a `definition` + `Read` round trip.
+- **`{REPOCTX_BIN} outline <file>`** — document-symbol tree for a single
+  file. Prefer over reading the whole file when you only need the
+  structure.
+- **`{REPOCTX_BIN} status`** — file/symbol counts + staleness. Cheap
+  one-line health check before deeper work.
+- **`{REPOCTX_BIN} gain`** — surface how many navigation tokens
+  `repoctx` has saved across recent invocations.
+
+## Output
+
+All commands default to TOON for piped reads (token-efficient) and human
+for TTYs. Pass `--json` when the caller is `jq` or `serde_json`.
+
+Working tree: `{REPO_ROOT}`.
