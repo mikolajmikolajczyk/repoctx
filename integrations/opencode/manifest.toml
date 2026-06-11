@@ -1,0 +1,9 @@
+name = "opencode"
+description = "opencode CLI guidance via merge-section block in AGENTS.md."
+
+[[file]]
+src = "../shared/AGENTS.md.fragment"
+dest = "AGENTS.md"
+mode = "merge-section"
+start_marker = "<!-- repoctx:start -->"
+end_marker = "<!-- repoctx:end -->"
