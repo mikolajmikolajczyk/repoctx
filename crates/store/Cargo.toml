@@ -12,3 +12,6 @@ description = "SQLite-backed metadata store for repoctx (source of truth for fil
 rusqlite.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -1394,6 +1394,7 @@ name = "repoctx-store"
 version = "0.1.0"
 dependencies = [
  "rusqlite",
+ "tempfile",
  "thiserror 1.0.69",
  "tracing",
 ]
