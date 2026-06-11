@@ -37,3 +37,6 @@ Cargo.lock.bak
 *.db-journal
 *.sqlite
 *.sqlite-journal
+
+# repoctx per-repo index lives at <repo-root>/.repoctx/index.db
+.repoctx/

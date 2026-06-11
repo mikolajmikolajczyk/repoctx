@@ -1,0 +1,14 @@
+[package]
+name = "repoctx-store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "SQLite-backed metadata store for repoctx (source of truth for files + symbols)."
+
+[dependencies]
+rusqlite.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
