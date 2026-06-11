@@ -4,8 +4,8 @@
 
 ## Contents
 
-- [Installation](installation.md) — Nix (recommended) or plain Cargo.
-- [Quickstart](quickstart.md) — `index` → `symbols` → `status` → `gain` in five minutes.
+- [Installation](installation.md) — pre-built binaries, Nix, or Cargo from source.
+- [Quickstart](quickstart.md) — five-minute walk-through of every read command.
 - [Commands reference](commands.md) — full M0 + M1 surface, flags, exit codes.
 - [Hook — per-agent install](hook.md) — `repoctx hook install <agent>` for Claude Code / Codex / opencode.
 - [Output formats + agent integration](output-formats.md) — TOON vs JSON vs human; CLAUDE.md recipe, jq snippets.

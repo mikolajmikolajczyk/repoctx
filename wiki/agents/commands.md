@@ -10,6 +10,8 @@ cargo build --release                             # release build
 cargo run -- <args>                               # run repoctx CLI
 cargo test                                        # unit + integration tests
 cargo test -p <crate>                             # scope to one workspace member
+cargo test --test hook_e2e                        # hook CLI e2e suite alone
+bash scripts/bench.sh                             # 5k-file synthetic perf bench
 ```
 
 ## Typecheck / lint / format
@@ -27,6 +29,36 @@ cargo fmt --check                                 # CI-style format check
 pre-commit install                                  # one-time, per clone
 pre-commit run --all-files                          # run active hooks
 pre-commit run --all-files --hook-stage manual      # run staged-as-manual hooks too
+```
+
+## Releasing
+
+```sh
+# 1. Bump workspace version in Cargo.toml + write CHANGELOG.md [<new>] block.
+# 2. Pre-flight on a release branch:
+cargo build --release
+cargo fmt --check
+cargo clippy --all-targets --locked -- -D warnings
+cargo test --locked
+# 3. Commit + tag (GPG-signed) + push:
+git commit -am "release: v<new>"
+git push rad HEAD:refs/patches                    # land via radicle workflow
+git tag -s v<new> -m "repoctx <new>"
+git tag --verify v<new>                           # verify GPG sig
+git push rad v<new>
+git push origin v<new>                            # triggers .github/workflows/release.yml
+```
+
+GitHub Releases workflow builds + uploads 4-target archives + sha256 sidecars automatically.
+
+## Hook (integrations)
+
+```sh
+cargo run -- hook list                            # enumerate agents
+cargo run -- hook status                          # which dests exist
+cargo run -- hook install <agent> --ref main --no-cache --dry-run
+# Override cache (useful for local dev against unreleased manifests):
+REPOCTX_INTEGRATIONS_CACHE_DIR=/tmp/rcx cargo run -- hook install claude --ref main
 ```
 
 ## Radicle

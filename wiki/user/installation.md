@@ -1,12 +1,52 @@
 # Installation
 
-`repoctx` is a single Rust binary, distributed as source. Pick the path that fits:
+Four install paths. Pick the one that fits.
 
-## Nix flake (recommended)
+## Pre-built binaries (fastest)
 
-The flake exposes both a `devShell` (pinned toolchain + SQLite + bench tooling) and a `packages.default` that builds the release binary. Requires Nix with flakes enabled.
+Every `v*` tag publishes archives for four targets at <https://github.com/mikolajmikolajczyk/repoctx/releases>.
 
-One-shot run without installing anything:
+| Target | Asset |
+|---|---|
+| Linux x86_64 | `repoctx-<version>-x86_64-unknown-linux-gnu.tar.gz` |
+| macOS Apple Silicon | `repoctx-<version>-aarch64-apple-darwin.tar.gz` |
+| macOS Intel | `repoctx-<version>-x86_64-apple-darwin.tar.gz` |
+| Windows x86_64 | `repoctx-<version>-x86_64-pc-windows-msvc.zip` |
+
+Each archive carries a `.sha256` sidecar. Verify before unpacking, then drop `repoctx` (or `repoctx.exe`) anywhere on `PATH`.
+
+```sh
+VERSION=0.2.0
+TARGET=x86_64-unknown-linux-gnu
+curl -LO https://github.com/mikolajmikolajczyk/repoctx/releases/download/v${VERSION}/repoctx-${VERSION}-${TARGET}.tar.gz
+curl -LO https://github.com/mikolajmikolajczyk/repoctx/releases/download/v${VERSION}/repoctx-${VERSION}-${TARGET}.tar.gz.sha256
+shasum -a 256 -c repoctx-${VERSION}-${TARGET}.tar.gz.sha256
+tar xzf repoctx-${VERSION}-${TARGET}.tar.gz
+sudo mv repoctx-${VERSION}-${TARGET}/repoctx /usr/local/bin/
+repoctx --version
+```
+
+Windows (PowerShell):
+
+```powershell
+$Version = "0.2.0"
+$Target  = "x86_64-pc-windows-msvc"
+Invoke-WebRequest "https://github.com/mikolajmikolajczyk/repoctx/releases/download/v$Version/repoctx-$Version-$Target.zip" -OutFile "repoctx.zip"
+Invoke-WebRequest "https://github.com/mikolajmikolajczyk/repoctx/releases/download/v$Version/repoctx-$Version-$Target.zip.sha256" -OutFile "repoctx.zip.sha256"
+# Compare hash manually against the sidecar
+(Get-FileHash repoctx.zip -Algorithm SHA256).Hash.ToLower()
+Get-Content repoctx.zip.sha256
+Expand-Archive repoctx.zip -DestinationPath .
+# Move repoctx.exe somewhere on PATH (e.g. into a directory you've added to $env:Path)
+```
+
+The archive also contains `README.md`, `LICENSE`, and `CHANGELOG.md` for the matching version.
+
+## Nix flake (reproducible)
+
+The flake exposes both a `devShell` (pinned toolchain + SQLite + bench tooling) and a `packages.default` that builds the release binary.
+
+One-shot run:
 
 ```sh
 nix run github:mikolajmikolajczyk/repoctx -- --help
@@ -19,12 +59,12 @@ nix profile install github:mikolajmikolajczyk/repoctx
 repoctx --help
 ```
 
-Local clone + build (useful for development):
+Local clone + dev shell:
 
 ```sh
 git clone https://github.com/mikolajmikolajczyk/repoctx
 cd repoctx
-nix develop              # pinned dev environment (or `direnv allow` for auto-load)
+nix develop                  # or `direnv allow` for auto-load
 cargo build --release
 ./target/release/repoctx --help
 ```
@@ -35,14 +75,22 @@ To put a development build on `PATH` system-wide:
 nix develop --command cargo install --path crates/repoctx
 ```
 
-## Plain Cargo (without Nix)
+## Cargo (from source, no Nix)
 
 You need:
 
-- A stable Rust toolchain (the flake currently uses **rustc 1.95** — older toolchains may work but aren't tested; check `flake.nix` for the pinned baseline)
-- System SQLite + `pkg-config` headers (Ubuntu/Debian: `apt install libsqlite3-dev pkg-config`; macOS Homebrew: `brew install sqlite pkg-config`; Windows: `rusqlite`'s bundled feature is already enabled, so no extra step)
+- A stable Rust toolchain (the flake currently uses **rustc 1.95** — older toolchains may work but aren't tested; check `flake.nix` for the pinned baseline).
+- A C compiler — needed for the Tree-sitter grammars. Linux: `gcc` from your distro. macOS: `xcode-select --install`. Windows: Visual Studio Build Tools (the `x86_64-pc-windows-msvc` target).
 
-Then:
+SQLite is bundled via the `rusqlite` crate's `bundled` feature — no system SQLite required on any platform.
+
+Pin to a release:
+
+```sh
+cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.2.0
+```
+
+Or from a clone:
 
 ```sh
 git clone https://github.com/mikolajmikolajczyk/repoctx
@@ -51,17 +99,15 @@ cargo install --path crates/repoctx
 repoctx --help
 ```
 
-## Verifying
+## crates.io
 
-After install:
+Not yet — publishing is deferred until the API stabilizes. Track [CHANGELOG.md](../../CHANGELOG.md) for the current version.
+
+## Verifying the install
 
 ```sh
 repoctx --version
 repoctx --help
 ```
 
-You should see the version line plus the `index`, `symbols`, `status`, and `gain` subcommands. Once that's working, head to [`quickstart.md`](quickstart.md).
-
-## Pre-built binaries + crates.io
-
-Not yet. crates.io publishing is deferred until the API stabilizes (the binary install paths above are the supported ones for now), and platform binaries on GitHub Releases will land alongside the first tagged release. Track [CHANGELOG.md](../../CHANGELOG.md) for the current version.
+You should see `repoctx 0.2.0` (or newer) plus the `index`, `symbols`, `outline`, `definition`, `context`, `status`, `hook`, and `gain` subcommands. Then head to [`quickstart.md`](quickstart.md).

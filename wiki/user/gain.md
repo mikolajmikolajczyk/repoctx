@@ -60,19 +60,31 @@ symbols:
   91.6% reduction · 11.8K tokens saved · 4 call(s)
 ```
 
-When you have more than one read command in the window (e.g. once M1 lands and `outline` / `definition` / `context` start recording too), this view tells you which command is doing the most work for you.
+With M1's `outline` / `definition` / `context` recording alongside `symbols`, this view tells you which command is doing the most work for you. Example after a mixed session:
+
+```text
+context:
+  78.4% reduction · 9.9K tokens saved · 9 call(s)
+outline:
+  77.3% reduction · 8.1K tokens saved · 6 call(s)
+definition:
+  96.0% reduction · 5.0K tokens saved · 5 call(s)
+symbols:
+  91.6% reduction · 11.8K tokens saved · 4 call(s)
+```
 
 ## Baseline per command
 
 | Command | Candidates = files whose `size` is summed | Baseline tokens |
 |---|---|---|
 | `symbols <q>` | Files containing at least one matching symbol | `Σ files.size / 4` |
-| `outline <file>` *(M1)* | The single file | `files.size / 4` |
-| `definition <name>` *(M1)* | Files containing at least one hit | `Σ files.size / 4` |
-| `context <name>` *(M1)* | Files containing the matched symbols | `Σ files.size / 4` |
+| `outline <file>` | The single file | `files.size / 4` |
+| `definition <name>` | Files containing at least one hit | `Σ files.size / 4` |
+| `context <name>` | Files containing the matched symbols | `Σ files.size / 4` |
 | `status` | not recorded | — |
 | `index` | not recorded | — |
 | `gain` / `gain top` | not recorded | — |
+| `hook list` / `status` / `install` | not recorded | — |
 
 The `bytes / 4` divisor is the standard rough approximation for English-like text under cl100k_base. We deliberately do NOT re-tokenize candidate files at record time — that would eat the very IO `repoctx` is meant to avoid. Decision and revisit triggers: [`../decisions/2026-06-11-gain-tokenizer-and-baseline.md`](../decisions/2026-06-11-gain-tokenizer-and-baseline.md).
 
