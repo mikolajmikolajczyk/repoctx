@@ -1,40 +1,63 @@
 # repoctx
 
-AI-oriented repository intelligence CLI. Fast semantic code navigation using **Tree-sitter** and optional **LSP** backends, with **SQLite** as the source of truth for indexed metadata.
+AI-oriented repository intelligence CLI. **Tree-sitter** parses, **SQLite** stores, queries answer in milliseconds. Output defaults to [TOON](https://github.com/toon-format/toon) so the LLM on the other end of the pipe pays the fewest tokens for the same answer; `--json` for scripts.
 
-Built for coding agents and humans who need answers like _"where is symbol X defined?"_, _"what calls Y?"_, _"give me the surrounding context for line Z"_ — without spinning up an editor or paying full re-index cost on every query.
+## What works (M0)
 
-## Status
+- `repoctx index` — incremental walk + parse + persist; mtime-based invalidation; `--force` reparses everything.
+- `repoctx symbols <query>` — case-insensitive substring search; `--kind`, `--lang`, `--limit` filters; deterministic ordering.
+- `repoctx status` — counts, per-language breakdown, freshness (`{changed, new, deleted}`).
+- `repoctx gain` — surface the navigation tokens repoctx has saved.
+- Three output formats over one set of typed records (human / TOON / JSON).
+- 9 languages out of the box: Go, Rust, TypeScript, TSX, JavaScript, Python, JSON, YAML, TOML, Markdown.
+- CI green on Linux + macOS + Windows.
 
-Pre-alpha. Scaffolding only. See Radicle issues for the active milestone (`rad issue list --label milestone:m0-foundation`).
+Bench baseline on a 5,000-file synthetic corpus: cold index 318 ms, no-op incremental 50 ms, warm `symbols` query 3 ms.
 
-## Getting started
-
-Requires [Nix](https://nixos.org/download) (with flakes enabled) and [direnv](https://direnv.net/) for the recommended workflow.
+## Quickstart
 
 ```sh
-git clone <repo-url> repoctx
+git clone https://github.com/mikolajmikolajczyk/repoctx
 cd repoctx
-direnv allow                      # or: nix develop
-cargo build
-cargo run -- --help
+nix develop                          # pinned toolchain + SQLite + bench tooling
+cargo install --path crates/repoctx  # or: cargo build --release
+cd /path/to/your/own/repo
+repoctx index                         # one-time
+repoctx symbols UserService           # query
 ```
 
-Without Nix: install a recent stable Rust toolchain (see `flake.nix` for the pinned version) and run the same `cargo` commands.
+```text
+$ repoctx symbols Render --limit 3
+count: 3
+items[3]:
+  - name: HumanRender
+    kind: interface
+    location:
+      path: crates/repoctx/src/output.rs
+      start_line: 48
+      ...
+```
 
-Full install + first-query walkthrough: [`wiki/user/index.md`](wiki/user/index.md).
+Pipe-friendly TOON by default; pass `--json` for jq:
+
+```sh
+repoctx --json symbols main | jq '.items[].location.path'
+```
+
+Full walk-through (install, status, gain, output formats, agent integration): [`wiki/user/`](wiki/user/index.md).
 
 ## Contributing
 
-Canonical forge is **Radicle**. GitHub mirror exists for discoverability only.
+Canonical forge is **Radicle**. GitHub mirror exists for CI and discoverability only — patches and issues there aren't monitored.
 
 ```sh
-rad clone <rid>                   # RID printed after first publish
+rad clone rad:z3ZAf4PfKZnuurn2YNz3t7cTLLUgB
+cd repoctx
 rad issue list --all
 git push rad HEAD:refs/patches    # submit a patch
 ```
 
-GitHub PRs may not be monitored. Prefer Radicle issues/patches; otherwise open an issue describing what you'd like to send.
+If Radicle isn't your thing, open a GitHub issue describing what you'd like to send and we'll figure it out.
 
 ## License
 
