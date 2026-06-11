@@ -4,6 +4,35 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-06-11
+
+Indexing now self-manages on every read; `--no-auto-index` removed; large docs sweep.
+
+### Changed
+
+- **Read commands auto-reindex before answering.** `symbols`, `outline`, `definition`, and `context` now run an incremental `index` pass before serving the answer — cheap on the no-op path (only files whose `(mtime_ns, size)` tuple changed get reparsed), quiet on stderr unless work happened. `status` and `gain` keep the lighter "build DB if missing, never reindex on top" behavior. Practical effect: `context`'s `stale: true` flag is effectively always `false` in normal use; the indexed `location` matches the on-disk source the agent reads.
+- **`stale: true` documented honestly.** Previous wording suggested any read command would auto-fix staleness; in 0.2.0 only the missing-DB case triggered a reindex. The wording now matches the new behavior and points at `repoctx index` for edge cases.
+
+### Removed
+
+- **`--no-auto-index` global flag.** Indexing is what `repoctx` does; a flag to bypass it surfaces a "stale: true" edge case that wasn't useful in practice. Anyone who needs to assert "the index already exists, error otherwise" can `test -f .repoctx/index.db` in a script. This drops `Cli::no_auto_index` plus the `no_auto_index: bool` parameter on every read-command `run()` and removes four tests that asserted the bail path.
+
+### Docs
+
+- **README** — flagship `context` sample on top, three install paths (pre-built binaries with sha256 verification, `cargo install --git --tag`, `nix run` / `nix profile install`), quickstart spanning every read command, "Wire it into your coding agent" section advertising `hook install`, documentation index linking every wiki page.
+- **`wiki/user/installation.md`** — rewritten. Pre-built binaries first with per-target table + curl + PowerShell snippets + sha256 step. Nix path simplified. Cargo path notes that `rusqlite` ships bundled SQLite. Verifying section names every shipped subcommand.
+- **`wiki/agents/architecture.md`** — was labeled "Pre-alpha scaffold"; now reflects v0.2.x reality (current crate layout including `integrations`, command table covers every shipped command, data-flow includes hook install path and gain recording, distribution names the release workflow).
+- **`wiki/agents/status.md`** — `Works` section includes hook + release CI; `Not started` now lists daemon/LSP + linux arm/musl + crates.io.
+- **`wiki/agents/commands.md`** — bench + hook-e2e added to the test block; new Releasing section + Hook section for local dev with `REPOCTX_INTEGRATIONS_CACHE_DIR`.
+- **`wiki/user/{commands,quickstart,gain,index,hook}.md`** — refreshed; `v0.1.0` example refs bumped to `v0.2.0`.
+- **Removed milestone jargon** (`M0`/`M1`/`M1.5`/`M2`) from user-facing and agent-facing docs; the Radicle `milestone:*` labels are the source of truth. CHANGELOG and ADRs deliberately kept as-is.
+- **`AGENTS.md`** — opener lists Codex and opencode alongside Claude Code; points at `wiki/user/hook.md`.
+
+### Notes
+
+- The `stale` field stays in the `context` machine output schema. It survives because the read-then-disk-read window isn't atomic — a file edited between the auto-reindex and the source read still flags. Effectively always `false` in normal use, but the field is the agent's safety net.
+- Net change: `-149 lines` across the source tree; behavior simplification more than feature work.
+
 ## [0.2.0] — 2026-06-11
 
 M1 navigation surface, M1.5 per-agent installer, gain wired everywhere, release-binary CI.
@@ -71,6 +100,7 @@ First tagged release. M0 functional surface complete on Linux, macOS, and Window
 - Release binary size: ~14 MB on x86_64-linux (9 statically-linked Tree-sitter grammars, accepted cost per ADR-0002).
 - TypeScript upstream `tags.scm` covers interface / abstract class / method signatures only; plain `class`/`function` are not tagged. Documented in [`wiki/user/commands.md`](wiki/user/commands.md).
 
-[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.2.1
 [0.2.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.2.0
 [0.1.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.1.0

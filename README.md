@@ -30,15 +30,15 @@ Grab a release tarball from [releases](https://github.com/mikolajmikolajczyk/rep
 Each archive ships a `.sha256` sidecar — verify before unpacking:
 
 ```sh
-shasum -a 256 -c repoctx-0.2.0-x86_64-unknown-linux-gnu.tar.gz.sha256
-tar xzf repoctx-0.2.0-x86_64-unknown-linux-gnu.tar.gz
-sudo mv repoctx-0.2.0-x86_64-unknown-linux-gnu/repoctx /usr/local/bin/
+shasum -a 256 -c repoctx-0.2.1-x86_64-unknown-linux-gnu.tar.gz.sha256
+tar xzf repoctx-0.2.1-x86_64-unknown-linux-gnu.tar.gz
+sudo mv repoctx-0.2.1-x86_64-unknown-linux-gnu/repoctx /usr/local/bin/
 ```
 
 ### Cargo (from source)
 
 ```sh
-cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.2.0
+cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.2.1
 ```
 
 ### Nix

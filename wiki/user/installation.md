@@ -16,7 +16,7 @@ Every `v*` tag publishes archives for four targets at <https://github.com/mikola
 Each archive carries a `.sha256` sidecar. Verify before unpacking, then drop `repoctx` (or `repoctx.exe`) anywhere on `PATH`.
 
 ```sh
-VERSION=0.2.0
+VERSION=0.2.1
 TARGET=x86_64-unknown-linux-gnu
 curl -LO https://github.com/mikolajmikolajczyk/repoctx/releases/download/v${VERSION}/repoctx-${VERSION}-${TARGET}.tar.gz
 curl -LO https://github.com/mikolajmikolajczyk/repoctx/releases/download/v${VERSION}/repoctx-${VERSION}-${TARGET}.tar.gz.sha256
@@ -29,7 +29,7 @@ repoctx --version
 Windows (PowerShell):
 
 ```powershell
-$Version = "0.2.0"
+$Version = "0.2.1"
 $Target  = "x86_64-pc-windows-msvc"
 Invoke-WebRequest "https://github.com/mikolajmikolajczyk/repoctx/releases/download/v$Version/repoctx-$Version-$Target.zip" -OutFile "repoctx.zip"
 Invoke-WebRequest "https://github.com/mikolajmikolajczyk/repoctx/releases/download/v$Version/repoctx-$Version-$Target.zip.sha256" -OutFile "repoctx.zip.sha256"
@@ -87,7 +87,7 @@ SQLite is bundled via the `rusqlite` crate's `bundled` feature — no system SQL
 Pin to a release:
 
 ```sh
-cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.2.0
+cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.2.1
 ```
 
 Or from a clone:
@@ -110,4 +110,4 @@ repoctx --version
 repoctx --help
 ```
 
-You should see `repoctx 0.2.0` (or newer) plus the `index`, `symbols`, `outline`, `definition`, `context`, `status`, `hook`, and `gain` subcommands. Then head to [`quickstart.md`](quickstart.md).
+You should see `repoctx 0.2.1` (or newer) plus the `index`, `symbols`, `outline`, `definition`, `context`, `status`, `hook`, and `gain` subcommands. Then head to [`quickstart.md`](quickstart.md).
