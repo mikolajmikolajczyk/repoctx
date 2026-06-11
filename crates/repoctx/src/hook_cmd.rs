@@ -1,12 +1,9 @@
-//! `repoctx hook` — per-agent install machinery.
-//!
-//! This file lands `hook list` and `hook status` only. `hook install` is
-//! issue cd147ca.
+//! `repoctx hook` — per-agent install machinery (list / status / install).
 
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use repoctx_integrations::{Fetcher, AGENTS};
+use repoctx_integrations::{Fetcher, InstallResult, Installer, AGENTS};
 use serde::Serialize;
 
 use crate::output::{HumanRender, Render};
@@ -176,7 +173,53 @@ pub fn build_fetcher(ref_: Option<String>, no_cache: bool) -> Result<Fetcher> {
     Fetcher::new(ref_, no_cache).context("fetcher init")
 }
 
-#[allow(dead_code)] // used by `hook status` default-dir resolution + install
 pub fn resolve_dir(dir: Option<PathBuf>, repo_root: &Path) -> PathBuf {
     dir.unwrap_or_else(|| repo_root.to_path_buf())
+}
+
+impl HumanRender for InstallResult {
+    fn human(&self) -> String {
+        let mut out = String::new();
+        out.push_str(&format!(
+            "agent: {}{}\n",
+            self.agent,
+            if self.dry_run { " (dry-run)" } else { "" }
+        ));
+        out.push_str(&format!("dir:   {}\n\n", self.dir.display()));
+        for w in &self.written {
+            out.push_str(&format!(
+                "  {:?}  {}  ({} bytes)\n",
+                w.action,
+                w.path.display(),
+                w.bytes
+            ));
+        }
+        out.push('\n');
+        out.push_str(&self.removal);
+        out
+    }
+}
+
+pub fn run_install(
+    fetcher: &Fetcher,
+    dir: &Path,
+    agent: &str,
+    dry_run: bool,
+    force: bool,
+    repoctx_bin: &Path,
+    render: Render,
+) -> Result<()> {
+    let repo_name = dir
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
+    let result = Installer::new(fetcher, dir.to_path_buf())
+        .force(force)
+        .dry_run(dry_run)
+        .var("REPOCTX_BIN", repoctx_bin.display().to_string())
+        .var("REPO_NAME", repo_name)
+        .var("REPO_ROOT", dir.display().to_string())
+        .install(agent)?;
+    crate::output::emit(&result, render)
 }

@@ -6,10 +6,12 @@
 
 mod error;
 mod fetcher;
+mod installer;
 mod manifest;
 
 pub use error::{IntegrationsError, Result};
 pub use fetcher::{cache_dir_for_diagnostics, Fetcher, HttpFetch, UreqFetch};
+pub use installer::{Action, InstallResult, Installer, WriteAction};
 pub use manifest::{Agent, File, Mode};
 
 /// Agents available to the `repoctx hook` family. Order is the display

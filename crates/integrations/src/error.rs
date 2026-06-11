@@ -26,6 +26,12 @@ pub enum IntegrationsError {
 
     #[error("cache error at {}: {reason}", path.display())]
     Cache { path: PathBuf, reason: String },
+
+    #[error("refusing to write {}: {reason}", path.display())]
+    WriteRefused { path: PathBuf, reason: String },
+
+    #[error("io error at {}: {reason}", path.display())]
+    Io { path: PathBuf, reason: String },
 }
 
 pub type Result<T> = std::result::Result<T, IntegrationsError>;

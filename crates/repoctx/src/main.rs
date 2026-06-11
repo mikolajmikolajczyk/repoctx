@@ -155,6 +155,23 @@ enum HookSub {
         #[arg(long)]
         no_cache: bool,
     },
+    /// Install one agent's files into the target dir.
+    Install {
+        /// Agent name (`claude`, `codex`, `opencode`).
+        agent: String,
+        #[arg(long, value_name = "PATH")]
+        dir: Option<PathBuf>,
+        /// Plan the install without touching the filesystem.
+        #[arg(long)]
+        dry_run: bool,
+        /// Overwrite write-mode destinations even when current content differs.
+        #[arg(long)]
+        force: bool,
+        #[arg(long)]
+        r#ref: Option<String>,
+        #[arg(long)]
+        no_cache: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -253,6 +270,19 @@ fn main() -> Result<()> {
                 let fetcher = hook_cmd::build_fetcher(r#ref, no_cache)?;
                 let target = hook_cmd::resolve_dir(dir, &repo_root);
                 hook_cmd::run_status(&fetcher, &target, render)
+            }
+            HookSub::Install {
+                agent,
+                dir,
+                dry_run,
+                force,
+                r#ref,
+                no_cache,
+            } => {
+                let fetcher = hook_cmd::build_fetcher(r#ref, no_cache)?;
+                let target = hook_cmd::resolve_dir(dir, &repo_root);
+                let bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("repoctx"));
+                hook_cmd::run_install(&fetcher, &target, &agent, dry_run, force, &bin, render)
             }
         },
         Cmd::Gain {
