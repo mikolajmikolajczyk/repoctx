@@ -3,7 +3,7 @@
 //! Schema v1 = ADR-0003 (amended pre-release). New schema versions append
 //! migrations; never mutate prior ones.
 
-use rusqlite::Connection;
+use rusqlite::{Connection, TransactionBehavior};
 
 use crate::error::{Result, StoreError};
 
@@ -65,7 +65,25 @@ pub fn read_version(conn: &Connection) -> Result<u32> {
 }
 
 pub fn migrate(conn: &mut Connection) -> Result<()> {
-    let current = read_version(conn)?;
+    // Fast path: peek before locking. Avoids contention when the DB is
+    // already up to date (the overwhelming case).
+    let peek = read_version(conn)?;
+    if peek == SUPPORTED_VERSION {
+        return Ok(());
+    }
+    if peek > SUPPORTED_VERSION {
+        return Err(StoreError::NewerSchema {
+            db_version: peek,
+            supported: SUPPORTED_VERSION,
+        });
+    }
+
+    // Acquire a write lock NOW; if another process is mid-migration the
+    // busy_timeout (5s) covers serialization. Then re-read the version
+    // inside the transaction so we don't reapply a migration the winner
+    // already committed.
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let current = read_version_tx(&tx)?;
     if current > SUPPORTED_VERSION {
         return Err(StoreError::NewerSchema {
             db_version: current,
@@ -74,14 +92,34 @@ pub fn migrate(conn: &mut Connection) -> Result<()> {
     }
     for target in (current + 1)..=SUPPORTED_VERSION {
         let sql = MIGRATIONS[(target - 1) as usize];
-        let tx = conn.transaction()?;
         tx.execute_batch(sql)?;
         tx.execute(
             "INSERT INTO meta(key, value) VALUES('schema_version', ?1)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
             [target.to_string()],
         )?;
-        tx.commit()?;
     }
+    tx.commit()?;
     Ok(())
+}
+
+fn read_version_tx(tx: &rusqlite::Transaction<'_>) -> Result<u32> {
+    let exists: bool = tx
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta'",
+            [],
+            |_| Ok(true),
+        )
+        .unwrap_or(false);
+    if !exists {
+        return Ok(0);
+    }
+    let v: Option<String> = tx
+        .query_row(
+            "SELECT value FROM meta WHERE key='schema_version'",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
+    Ok(v.and_then(|s| s.parse().ok()).unwrap_or(0))
 }
