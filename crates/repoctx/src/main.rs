@@ -53,12 +53,6 @@ struct Cli {
     #[arg(long, global = true)]
     record_query: bool,
 
-    /// Don't auto-run `index` when a read command finds no index;
-    /// bail with `no index found` instead. Useful for scripts that
-    /// want to assert the index is already present.
-    #[arg(long, global = true)]
-    no_auto_index: bool,
-
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -212,51 +206,24 @@ fn main() -> Result<()> {
     let repo_root = repo_root::resolve(cli.repo)?;
     let gain_opts = gain::GainOpts::from_cli(cli.no_record, cli.record_query);
 
-    let no_auto_index = cli.no_auto_index;
-
     match cli.cmd {
         Cmd::Index { force } => index_cmd::run(&repo_root, force, render),
-        Cmd::Outline { file } => {
-            outline_cmd::run(&repo_root, file, render, gain_opts, no_auto_index)
+        Cmd::Outline { file } => outline_cmd::run(&repo_root, file, render, gain_opts),
+        Cmd::Definition { name, lang, limit } => {
+            definition_cmd::run(&repo_root, name, lang, limit, render, gain_opts)
         }
-        Cmd::Definition { name, lang, limit } => definition_cmd::run(
-            &repo_root,
-            name,
-            lang,
-            limit,
-            render,
-            gain_opts,
-            no_auto_index,
-        ),
         Cmd::Context {
             symbol,
             context,
             limit,
-        } => context_cmd::run(
-            &repo_root,
-            symbol,
-            context,
-            limit,
-            render,
-            gain_opts,
-            no_auto_index,
-        ),
-        Cmd::Status { fast } => status_cmd::run(&repo_root, fast, render, no_auto_index),
+        } => context_cmd::run(&repo_root, symbol, context, limit, render, gain_opts),
+        Cmd::Status { fast } => status_cmd::run(&repo_root, fast, render),
         Cmd::Symbols {
             query,
             kind,
             lang,
             limit,
-        } => symbols_cmd::run(
-            &repo_root,
-            query,
-            kind,
-            lang,
-            limit,
-            render,
-            gain_opts,
-            no_auto_index,
-        ),
+        } => symbols_cmd::run(&repo_root, query, kind, lang, limit, render, gain_opts),
         Cmd::Hook { sub } => match sub {
             HookSub::List { r#ref, no_cache } => {
                 let fetcher = hook_cmd::build_fetcher(r#ref, no_cache)?;
@@ -304,9 +271,9 @@ fn main() -> Result<()> {
                         window
                     };
                     let by = gain_cmd::TopBy::parse(&by)?;
-                    gain_cmd::run_top(&repo_root, window, by, render, no_auto_index)
+                    gain_cmd::run_top(&repo_root, window, by, render)
                 }
-                None => gain_cmd::run_summary(&repo_root, window, render, history, no_auto_index),
+                None => gain_cmd::run_summary(&repo_root, window, render, history),
             }
         }
     }

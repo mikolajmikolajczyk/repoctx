@@ -115,15 +115,8 @@ fn normalize_logical(p: &Path) -> PathBuf {
     out
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn run(
-    repo_root: &Path,
-    file_arg: PathBuf,
-    render: Render,
-    gain_opts: GainOpts,
-    no_auto_index: bool,
-) -> Result<()> {
-    read_cmd::ensure_fresh(repo_root, no_auto_index)?;
+pub fn run(repo_root: &Path, file_arg: PathBuf, render: Render, gain_opts: GainOpts) -> Result<()> {
+    read_cmd::ensure_fresh(repo_root)?;
     let db_path = normalize_path(repo_root, &file_arg)?;
 
     let store = Store::open(repo_root).context("open store")?;

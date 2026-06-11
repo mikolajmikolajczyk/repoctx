@@ -18,7 +18,7 @@ repoctx index
 indexed 81 files (0 unchanged, 0 removed) in 69 ms
 ```
 
-…but you don't have to. `symbols` / `outline` / `definition` / `context` run an incremental reindex automatically before answering — first run builds the DB, every later run cheaply reparses only the files whose `(mtime, size)` tuple changed. `status` and `gain` only auto-build a missing DB (they never auto-reindex on top of an existing one). Pass `--no-auto-index` to opt out entirely.
+…but you don't have to. `symbols` / `outline` / `definition` / `context` run an incremental reindex automatically before answering — first run builds the DB, every later run cheaply reparses only the files whose `(mtime, size)` tuple changed. `status` and `gain` only auto-build a missing DB (they never auto-reindex on top of an existing one, since `status`'s job is to report staleness).
 
 What just happened:
 

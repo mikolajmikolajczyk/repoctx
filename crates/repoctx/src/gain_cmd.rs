@@ -206,9 +206,8 @@ pub fn run_summary(
     window: Window,
     render: Render,
     history: Option<usize>,
-    no_auto_index: bool,
 ) -> Result<()> {
-    read_cmd::ensure_db(repo_root, no_auto_index)?;
+    read_cmd::ensure_db(repo_root)?;
     let store = Store::open(repo_root).context("open store")?;
     let totals = store.gain_totals(window.since_ns())?;
     let label = window.label();
@@ -232,14 +231,8 @@ pub fn run_summary(
     crate::output::emit(&summary, render)
 }
 
-pub fn run_top(
-    repo_root: &Path,
-    window: Window,
-    by: TopBy,
-    render: Render,
-    no_auto_index: bool,
-) -> Result<()> {
-    read_cmd::ensure_db(repo_root, no_auto_index)?;
+pub fn run_top(repo_root: &Path, window: Window, by: TopBy, render: Render) -> Result<()> {
+    read_cmd::ensure_db(repo_root)?;
     let store = Store::open(repo_root).context("open store")?;
     let rows = store.gain_per_command(window.since_ns())?;
     let mut items: Vec<CommandRow> = rows.into_iter().map(to_command_row).collect();

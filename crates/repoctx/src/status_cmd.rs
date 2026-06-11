@@ -59,8 +59,8 @@ impl HumanRender for StatusReport {
     }
 }
 
-pub fn run(repo_root: &Path, fast: bool, render: Render, no_auto_index: bool) -> Result<()> {
-    read_cmd::ensure_db(repo_root, no_auto_index)?;
+pub fn run(repo_root: &Path, fast: bool, render: Render) -> Result<()> {
+    read_cmd::ensure_db(repo_root)?;
     let store = Store::open(repo_root).context("open store")?;
     let counts = store.counts().context("counts")?;
     let schema_version = store.schema_version().context("schema_version")?;

@@ -237,30 +237,6 @@ fn index_stderr_warns_only_for_skipped_files() {
 }
 
 #[test]
-fn no_auto_index_uniform_error_across_read_commands() {
-    let tmp = full_fixture();
-    let root = tmp.path();
-    for sub in [
-        vec!["--no-auto-index", "symbols", "x"],
-        vec!["--no-auto-index", "status"],
-        vec!["--no-auto-index", "status", "--fast"],
-    ] {
-        let out = cmd_at(root)
-            .args(&sub)
-            .assert()
-            .failure()
-            .get_output()
-            .clone();
-        assert!(out.stdout.is_empty(), "{sub:?} stdout: {out:?}");
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        assert!(
-            stderr.contains("no index found"),
-            "{sub:?} stderr: {stderr}"
-        );
-    }
-}
-
-#[test]
 fn force_reparses_every_file() {
     let tmp = full_fixture();
     let root = tmp.path();

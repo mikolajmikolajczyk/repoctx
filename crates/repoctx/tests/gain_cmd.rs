@@ -53,26 +53,6 @@ fn run(root: &Path, args: &[&str]) -> Value {
 }
 
 #[test]
-fn no_auto_index_flag_preserves_error() {
-    let tmp = fixture();
-    let out = Command::cargo_bin("repoctx")
-        .unwrap()
-        .args([
-            "--repo",
-            tmp.path().to_str().unwrap(),
-            "--no-auto-index",
-            "gain",
-        ])
-        .assert()
-        .failure()
-        .get_output()
-        .clone();
-    assert!(out.stdout.is_empty());
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("no index found"), "{stderr}");
-}
-
-#[test]
 fn missing_index_auto_indexes_then_runs_gain() {
     let tmp = fixture();
     let v = run(tmp.path(), &["gain", "--all"]);

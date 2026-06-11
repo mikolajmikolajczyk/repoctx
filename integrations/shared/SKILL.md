@@ -94,8 +94,8 @@ Surface the navigation tokens this skill has actually saved. `gain top
 
 - An empty result set is exit 0 with `count: 0`. Check exit codes, not
   stderr strings.
-- Missing index auto-recovers — read commands silently run `index`
-  first. Pass `--no-auto-index` to opt out.
+- The index manages itself — read commands silently build the DB if
+  needed and incrementally reindex changed files before answering.
 - File arguments must be inside the repo root (`{REPO_ROOT}`).
 
 ## Gotchas

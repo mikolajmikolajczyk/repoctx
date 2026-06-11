@@ -84,7 +84,6 @@ impl HumanRender for ContextReport {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn run(
     repo_root: &Path,
     symbol: String,
@@ -92,9 +91,8 @@ pub fn run(
     limit: usize,
     render: Render,
     gain_opts: GainOpts,
-    no_auto_index: bool,
 ) -> Result<()> {
-    read_cmd::ensure_fresh(repo_root, no_auto_index)?;
+    read_cmd::ensure_fresh(repo_root)?;
     let store = Store::open(repo_root).context("open store")?;
     let backend = TreeSitterBackend::new(store);
 

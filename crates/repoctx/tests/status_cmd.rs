@@ -32,26 +32,6 @@ fn status_json(root: &Path, extra: &[&str]) -> Value {
 }
 
 #[test]
-fn no_auto_index_flag_preserves_error() {
-    let tmp = fixture();
-    let out = Command::cargo_bin("repoctx")
-        .unwrap()
-        .args([
-            "--repo",
-            tmp.path().to_str().unwrap(),
-            "--no-auto-index",
-            "status",
-        ])
-        .assert()
-        .failure()
-        .get_output()
-        .clone();
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("no index found"), "{stderr}");
-    assert!(out.stdout.is_empty());
-}
-
-#[test]
 fn missing_index_auto_indexes_then_runs_status() {
     let tmp = fixture();
     let v = status_json(tmp.path(), &[]);

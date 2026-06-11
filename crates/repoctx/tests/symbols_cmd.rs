@@ -60,28 +60,6 @@ fn missing_index_auto_indexes_then_answers() {
 }
 
 #[test]
-fn no_auto_index_flag_preserves_error() {
-    let tmp = fixture();
-    let out = Command::cargo_bin("repoctx")
-        .unwrap()
-        .args([
-            "--repo",
-            tmp.path().to_str().unwrap(),
-            "--no-auto-index",
-            "symbols",
-            "main",
-        ])
-        .assert()
-        .failure()
-        .get_output()
-        .clone();
-    assert!(out.stdout.is_empty(), "stdout should be empty: {out:?}");
-    let stderr = String::from_utf8_lossy(&out.stderr);
-    assert!(stderr.contains("no index found"), "{stderr}");
-    assert!(!tmp.path().join(".repoctx/index.db").exists());
-}
-
-#[test]
 fn substring_finds_case_insensitive() {
     let tmp = fixture();
     index(tmp.path());
