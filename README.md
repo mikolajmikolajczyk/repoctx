@@ -22,6 +22,8 @@ cargo run -- --help
 
 Without Nix: install a recent stable Rust toolchain (see `flake.nix` for the pinned version) and run the same `cargo` commands.
 
+Full install + first-query walkthrough: [`wiki/user/index.md`](wiki/user/index.md).
+
 ## Contributing
 
 Canonical forge is **Radicle**. GitHub mirror exists for discoverability only.
