@@ -69,6 +69,13 @@ repos:
         files: '\.rs$'
         pass_filenames: false
 
+      - id: platform-check
+        name: platform-check (no unix-only APIs)
+        language: system
+        entry: scripts/platform-check.sh
+        files: '\.rs$'
+        pass_filenames: false
+
       - id: cargo-test
         name: cargo test
         language: system

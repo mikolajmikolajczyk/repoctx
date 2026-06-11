@@ -28,6 +28,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: platform-check (no unix-only APIs)
+        if: runner.os != 'Windows'
+        run: bash scripts/platform-check.sh
+
       - name: cargo fmt --check
         run: cargo fmt --check
 
