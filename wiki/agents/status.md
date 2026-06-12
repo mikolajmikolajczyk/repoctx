@@ -4,9 +4,9 @@ Snapshot of what works, what's in flight, what's broken. **Not the roadmap** —
 
 Update this when a feature lands, breaks, or gets pulled. Stale status is worse than no status — if you can't keep it fresh, link straight to Radicle issue filters instead.
 
-## Works (as of v0.5.1, 2026-06-12)
+## Works (as of v0.5.2, 2026-06-12)
 
-CLI surface complete on Linux, macOS, and Windows. 9 languages indexed (7 full coverage + 3 partial). Claude Code transparent rewrite hook + per-repo config layer + agent-coverage advisory all live.
+CLI surface complete on Linux, macOS, and Windows. 9 languages indexed (7 full coverage + 3 partial). Claude Code transparent rewrite hook + per-repo config layer + agent-coverage advisory all live. `gain` token figures are bytes/4 estimates (method-consistent ratio); precise BPE counting lives in the bench suite.
 
 - `repoctx index` — incremental walk + Tree-sitter parse + SQLite upsert; rayon parses, single sequential writer; skip rules per epic contract (gitignored, `> 2 MiB`, non-UTF-8, `.git`, `.repoctx`); `--force` reparses all; deleted files pruned. ~80 ms cold / ~7 ms no-op on this repo.
 - `repoctx symbols <query>` — case-insensitive substring across the index; `--kind`, `--lang`, `--limit` filters; deterministic `ORDER BY name COLLATE NOCASE, file_path, start_line`; empty result = exit 0 + `count: 0`.

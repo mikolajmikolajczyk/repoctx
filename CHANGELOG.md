@@ -4,6 +4,29 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-06-12
+
+Read-surface polish: honest gain numbers, a prettier `gain` view, case-mismatch advisories, and clean error output. No hook/install behavior change.
+
+### Added
+
+- **Beautiful `gain` / `gain top`.** Human output gains a header + box rule, human-size units (`29.7K`), a 24-cell efficiency meter, and a ranked per-command table with impact bars. The summary embeds the top-5 commands. Machine output (JSON/TOON) is byte-for-byte unchanged — the table rides a `#[serde(skip)]` field, so the totals-only contract holds. Issue `5dd6f41`.
+- **Case-insensitive near-miss advisory on `definition`.** `definition` is exact-case; `symbols` is case-insensitive. A zero-hit lookup that has a case variant (you typed `store`, `Store` exists) now carries an `advisory` naming up to three variants and suggesting the exact casing or `repoctx symbols`. Previously this looked like "doesn't exist" — a false negative for agents following the AGENTS.md rule. Fragment + SKILL.md updated. Issue `a8489e7`.
+
+### Changed
+
+- **Token estimation is now method-consistent.** Both sides of the savings ratio use a `bytes / 4` heuristic. Previously the baseline used `bytes / 4` but returned-token counting used tiktoken's `cl100k_base` BPE — a mixed-unit ratio, and `cl100k` is OpenAI's tokenizer (wrong model for Claude/Codex users). Recorded `gain` percentages shift slightly; the ratio is now honest. Precise, per-model BPE counting moves to the bench suite's dedicated `tokens` helper. Issue `3a7fbc1`.
+- **`repoctx` binary ~1.9 MB smaller** (16.1 MB → 14.2 MB stripped Linux) from dropping the tiktoken BPE tables.
+
+### Fixed
+
+- **Clean error output.** Errors print a single `error: …` line to stderr and exit 1, instead of letting anyhow's `Debug` dump a stack backtrace when `RUST_BACKTRACE` is set (common in agent/CI shells). Opt into the full chain + backtrace with `REPOCTX_BACKTRACE=1`. Issue `e925e76`.
+- **Stale reindex hint removed.** `outline` on a not-indexed file no longer says "run `repoctx index`" — read commands auto-index, so the message contradicted the self-managing-index promise. It now explains why the file is not indexable (not on disk, gitignored, oversized, non-UTF-8, unsupported language). Issue `e925e76`.
+
+### Notes
+
+- Purely read-surface. Hook install/doctor, indexing, and the machine-output contract are untouched. Existing installs need no action.
+
 ## [0.5.1] — 2026-06-12
 
 Real-world-setup fixes: stronger Codex stickiness + honest detection of user-global hook conflicts.
