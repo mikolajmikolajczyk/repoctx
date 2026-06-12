@@ -4,9 +4,9 @@ Snapshot of what works, what's in flight, what's broken. **Not the roadmap** —
 
 Update this when a feature lands, breaks, or gets pulled. Stale status is worse than no status — if you can't keep it fresh, link straight to Radicle issue filters instead.
 
-## Works (as of v0.2.0, 2026-06-11)
+## Works (as of v0.5.1, 2026-06-12)
 
-CLI surface complete on Linux, macOS, and Windows. All 9 languages indexed.
+CLI surface complete on Linux, macOS, and Windows. 9 languages indexed (7 full coverage + 3 partial). Claude Code transparent rewrite hook + per-repo config layer + agent-coverage advisory all live.
 
 - `repoctx index` — incremental walk + Tree-sitter parse + SQLite upsert; rayon parses, single sequential writer; skip rules per epic contract (gitignored, `> 2 MiB`, non-UTF-8, `.git`, `.repoctx`); `--force` reparses all; deleted files pruned. ~80 ms cold / ~7 ms no-op on this repo.
 - `repoctx symbols <query>` — case-insensitive substring across the index; `--kind`, `--lang`, `--limit` filters; deterministic `ORDER BY name COLLATE NOCASE, file_path, start_line`; empty result = exit 0 + `count: 0`.
@@ -19,7 +19,7 @@ CLI surface complete on Linux, macOS, and Windows. All 9 languages indexed.
 - Three output formats over one set of typed records (ADR-0008): human (TTY default), TOON (non-TTY default), JSON (`--json`). `--json` / `--toon` clap-mutually-exclusive. Default format also configurable via `output.default` in the per-repo settings table.
 - `repoctx config show/get/set/unset` — per-repo settings (`hook.rewrite`, `hook.ref`, `hook.no_cache`, `hook.chain_commands`, `gain.no_record`, `gain.record_query`, `output.default`). Stored in `.repoctx/index.db` schema v3 settings table. Precedence: CLI flag → env var → settings → default.
 - `repoctx hook claude` — PreToolUse hook handler. Rewrites recognized `rg`/`grep <identifier>` patterns to `repoctx symbols`/`definition --json`; chains through commands saved in `hook.chain_commands` on passthrough. `hook.rewrite = off` disables semantic rewrites (pure chain proxy); `force` relaxes the parser.
-- `repoctx hook install claude` takes ownership of `.claude/settings.json` PreToolUse → Bash matcher (displaces any prior entries into the chain). `repoctx hook doctor` re-runs the takeover idempotently to recover from sibling installers overwriting our entry.
+- `repoctx hook install claude` takes ownership of `.claude/settings.json` PreToolUse → Bash matcher (displaces any prior entries into the chain). `repoctx hook doctor` re-runs the takeover idempotently to recover from sibling installers overwriting our entry. Both also scan `~/.claude/settings.json` and warn (read-only) when a user-global tool (e.g. `rtk init -g`) would parallel-race our project-local entry — Claude Code merges hooks across all scopes by design.
 - No missing-index error surface for users — read commands always build the DB if needed and incrementally reindex changed files before answering.
 - `repoctx languages` — surfaces the per-language coverage matrix; read commands attach an `advisory` field to machine output when the query underperforms because of language coverage limits. Agents fall back to `rg` when present.
 - Languages with full coverage: Go, Rust (struct/enum/union/type → `class` per upstream tags.scm), TypeScript + TSX (full coverage via vendored Aider tags.scm: plain class, plain function, arrow function, method, type alias, enum, interface, abstract class — Apache-2.0), JavaScript, Python, Markdown (ATX + setext headings).
@@ -32,15 +32,14 @@ CLI surface complete on Linux, macOS, and Windows. All 9 languages indexed.
 
 ## Test coverage
 
-70+ tests across the workspace (counts shift across releases; check `cargo test 2>&1 | grep -c "test result: ok"` for the live total). Breakdown by area:
+21 workspace test suites green (live total: `cargo test 2>&1 | grep -c "test result: ok"`). New areas since v0.2.0:
 
-- Store: unit + integration around schema migrations, BEGIN IMMEDIATE race, gain `usage` table API.
-- Backend: serde-shape across `Symbol` / `Location` / `SymbolQuery`.
-- Index: 11 parsing tests covering every language extractor (dedupe, custom Markdown/TOML queries, multi-doc YAML).
-- Output: human / TOON / JSON over `List<T>`, gain reports, outline tree, context window.
-- Repoctx CLI: per-command e2e (`index`, `symbols`, `status`, `outline`, `definition`, `context`, `gain`, `hook`) via `assert_cmd` against the release binary.
-- Integrations: 23 unit (manifest parser, fetcher cache hit/miss, installer modes + idempotency).
-- Hook e2e: 8 CLI-driven cases via `REPOCTX_INTEGRATIONS_CACHE_DIR` (no network).
+- Hook rewrite: 13 unit tests for the rewrite-rule parser (single-ident matchers, quoted-pattern routing, shell metacharacter refusal, regex passthrough).
+- Hook takeover: 11 unit tests for project-local `.claude/settings.json` ownership + user-global scan + warn paths.
+- Config: 7 round-trip + precedence unit tests (CLI > env > settings > default), settings.json hand-edit fallback.
+- Output: 3 new resolve() tests covering the `output.default` config layer.
+- Advisory: 8 advisory generation tests (full/partial language paths, empty-workspace + lang-filter combos).
+- Languages: TS/TSX vendored Aider tags.scm regression tests covering plain class / function / arrow / type alias / enum.
 
 ## Performance baseline
 

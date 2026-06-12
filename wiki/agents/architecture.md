@@ -4,7 +4,7 @@ Repo shape, data flow, key modules. Keep this **descriptive of the current state
 
 ## Status
 
-v0.2.0 shipped 2026-06-11. CLI surface complete: indexing, search, navigation, per-agent install. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
+v0.5.1 shipped 2026-06-12. CLI surface complete: indexing, search, navigation, per-agent install, per-repo config, transparent Claude Code rewrite hook, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
 
 ## Current layout
 
