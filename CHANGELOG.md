@@ -4,6 +4,34 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-06-12
+
+Transparent rewrite hook for Claude Code. Agents stop forgetting to use `repoctx`.
+
+### Added
+
+- **`repoctx hook claude`** — PreToolUse hook handler. Reads Claude Code's tool-use JSON from stdin, rewrites recognized `rg`/`grep` patterns to `repoctx` equivalents, emits the standard `updatedInput` JSON, exits 0. Unmatched patterns chain through any commands saved in `hook.chain_commands` (typically `rtk hook claude` and similar), then fall through to silent passthrough (exit 1).
+- **Conservative rewrite rule set**: `rg <ident>` → `repoctx symbols`, `rg "fn|class|struct|function <ident>"` → `repoctx definition`, same shape for `grep -r`/`grep -rn`. Refuses regex, multi-token patterns, shell metacharacters, paths other than `.`, and quoted single literals (explicit literal-grep intent).
+- **`.claude/settings.json` ownership takeover** — `repoctx hook install claude` now displaces any pre-existing PreToolUse → Bash entries (e.g. `rtk hook claude`) into the new `hook.chain_commands` config key and installs a single `{"command": "repoctx hook claude"}` entry. Solves the parallel-execution race documented in the design doc — Claude Code 2.1.112 runs sibling PreToolUse hooks in parallel with no `updatedInput` precedence ladder, so single-entry ownership is the only reliable design.
+- **`repoctx hook doctor`** — re-runs the takeover step idempotently. Run after `rtk` reinstall (or any other PreToolUse-touching installer) to recover ownership. Additive: merges newly-discovered commands into the existing chain instead of overwriting.
+- **`hook.chain_commands` config key** — `\n`-separated list of hook commands the rewrite handler walks on passthrough. Surfaced in `config show / get / set` like every other config row.
+- **Design doc** at `wiki/decisions/2026-06-12-rewrite-hook-design.md` carries the binding contract: rule set, safety boundaries, chain dispatch semantics, takeover algorithm, Claude Code source-confirmed parallel-execution findings.
+- **`integrations/shared/SKILL.md`** grows a "Transparent rewrite (it may already be happening)" section telling agents which patterns get rewritten and how to bypass for a one-off literal-search.
+- **`wiki/user/hook.md`** grows a "Transparent rewrite" section + "Coexistence with other hook installers" subsection covering the rtk install-order recommendation.
+
+### Changed
+
+- **`hook.rewrite` consumer is live.** The config key plumbed in v0.4.0 now drives behavior: `auto` (default) runs the design, `off` skips semantic rewrites and goes straight to chain, `force` relaxes the parser (debug-only, undocumented in user copy).
+- **`integrations/shared/SKILL.md`** drops the "stop forgetting to use repoctx" implicit guidance in favor of "the rewrite hook may already be handling this for you" honest explanation.
+- **`wiki/agents/architecture.md`** read-path step #6 covers the rewrite hook's runtime + install pipeline.
+- **`wiki/agents/status.md`** Works section names the new `hook claude` + `hook doctor` subcommands.
+
+### Notes
+
+- **Codex + opencode**: their integration tiers are different (rules-only for Codex, plugin file for opencode) and don't need hook takeover — the existing `repoctx hook install <agent>` already does the full integration. A follow-up epic generalizes per-agent extensibility once we ship the next full-hook agent (likely Cursor).
+- **Conflict-free with rtk** via take-ownership-at-install. If rtk is reinstalled later, run `repoctx hook doctor` to re-take ownership and pick up rtk's command into the chain.
+- **No telemetry on rewrites yet** — the rewritten command's own `gain` row already captures the savings when it runs. Adding `hook-rewrite` rows is deferred.
+
 ## [0.4.0] — 2026-06-12
 
 Per-repo config system + a rewritten README that finally explains the agent value story.
@@ -165,7 +193,8 @@ First tagged release. M0 functional surface complete on Linux, macOS, and Window
 - Release binary size: ~14 MB on x86_64-linux (9 statically-linked Tree-sitter grammars, accepted cost per ADR-0002).
 - TypeScript upstream `tags.scm` covers interface / abstract class / method signatures only; plain `class`/`function` are not tagged. Documented in [`wiki/user/commands.md`](wiki/user/commands.md).
 
-[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.5.0
 [0.4.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.4.0
 [0.3.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.3.0
 [0.2.1]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.2.1
