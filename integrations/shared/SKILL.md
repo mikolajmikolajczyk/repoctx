@@ -98,6 +98,30 @@ Surface the navigation tokens this skill has actually saved. `gain top
   needed and incrementally reindex changed files before answering.
 - File arguments must be inside the repo root (`{REPO_ROOT}`).
 
+## Transparent rewrite (it may already be happening)
+
+If `repoctx hook install claude` ran on this repo, some of your
+`rg` / `grep` commands get transparently rewritten to `repoctx`
+equivalents before Claude Code executes them. You don't need to do
+anything — the rewrite is automatic for these patterns:
+
+- `rg <identifier>` → `repoctx symbols <identifier> --json`
+- `rg "fn <name>"` / `class` / `struct` / `function` →
+  `repoctx definition <name> --json`
+- Same shapes for `grep -r` / `grep -rn`
+
+Hard passthrough (your command runs as-is): regex patterns, shell
+metacharacters, multiple identifiers, paths other than `.`, and
+single-quoted literals (`rg "TODO"` stays a literal grep). Any
+other PreToolUse hook the user had installed (rtk, etc.) runs as
+a chain after our rewrite layer — so all your other commands still
+get whatever optimizations were there before.
+
+You'll see the rewrite reflected in the tool input you receive; if
+you want to bypass it for one command, use a pattern that doesn't
+match the rules (e.g. quote it, add a flag, or use a non-`.`
+path).
+
 ## Coverage advisory — when to fall back to ripgrep
 
 Every machine output can carry an optional top-level `advisory`

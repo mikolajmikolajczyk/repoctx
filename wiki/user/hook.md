@@ -114,6 +114,93 @@ Install one agent into the current repo (or `--dir PATH`).
 - `skipped_marker_present` — `append` mode found its marker already.
 - `dry_run` — `--dry-run` was set; nothing written.
 
+## Transparent rewrite (Claude only)
+
+When `repoctx hook install claude` runs, it does two things beyond
+writing the skill + CLAUDE.md fragment:
+
+1. **Takes ownership** of `.claude/settings.json`'s
+   `PreToolUse → Bash` matcher. Any pre-existing hook entries
+   (typically [`rtk`](https://github.com/rtk-ai/rtk) or other agent
+   tooling) are saved into `hook.chain_commands` config and removed
+   from `settings.json`. A single new entry pointing at
+   `repoctx hook claude` is inserted.
+2. **Chains through the displaced hooks at runtime.** When Claude
+   Code fires the hook, `repoctx hook claude`:
+   - Tries our semantic rewrites first (`rg <ident>` →
+     `repoctx symbols <ident>`, `grep -rn "fn <name>" .` →
+     `repoctx definition <name>`, etc.).
+   - On miss, executes each saved chain command in order with the
+     same stdin payload. The first one that returns a rewrite wins.
+   - On all-miss, exits 1 (silent passthrough — Claude Code runs the
+     original command).
+
+### Why ownership-takeover
+
+Claude Code runs multiple PreToolUse hooks **in parallel** when they
+share the same matcher. The last-to-complete `updatedInput` silently
+overwrites everyone else's — non-deterministic. The only reliable
+way to coexist with rtk (and other rewrite hooks) is to be the sole
+entry under the matcher and explicitly chain through everything
+else.
+
+### Rewrite rules (initial set)
+
+| Agent pattern | Rewritten to |
+|---|---|
+| `rg <ident>` | `repoctx symbols <ident> --json` |
+| `rg "fn <ident>"` / `"class <ident>"` / `"struct <ident>"` / `"function <ident>"` | `repoctx definition <ident> --json` |
+| `grep -r <ident> .` (also `-R`) | `repoctx symbols <ident> --json` |
+| `grep -rn "fn <ident>" .` (and `-nr`/`-nR`/`-Rn`; class/struct/function) | `repoctx definition <ident> --json` |
+
+**Hard passthrough**: regex (`.*`, `^`, `$`, `|`, etc.), shell
+metacharacters (`|`, `&`, `;`, `$`, backticks, `>`), multiple
+identifiers, paths other than `.`, quoted single literals
+(`rg "TODO"` — user wanted a string match, not a symbol search),
+and anything else the conservative parser doesn't recognize.
+
+Disable the rewrite layer entirely while keeping the chain: `repoctx
+config set hook.rewrite off`. The hook becomes a pure proxy in front
+of whatever rtk-style chain you have. Default is `auto`. There's
+also `force` (relax the parser) — debug-only, not recommended.
+
+### `repoctx hook doctor`
+
+Run this anytime you suspect another installer (rtk reinstall, manual
+`.claude/settings.json` edit) has added a sibling entry under the
+Bash matcher. It re-runs the takeover step idempotently:
+
+```sh
+repoctx hook doctor             # take ownership, save any new chain
+repoctx hook doctor --dry-run   # preview what would change
+```
+
+Recommendation: run `repoctx hook doctor` after any other
+PreToolUse-touching install. Optional but worth adding to a shell
+alias if you frequently update tooling that wires hooks.
+
+### Removing the rewrite hook
+
+Two steps:
+
+1. Restore the original `.claude/settings.json` entry. The install
+   recipe printed at install time names the commands we saved (or
+   read them from `repoctx config get hook.chain_commands`).
+2. Run `repoctx config unset hook.chain_commands` to drop our
+   record.
+
+Don't forget to remove the `repoctx hook claude` entry from
+`.claude/settings.json` itself if it's still there after restoring
+the original.
+
+### Telemetry
+
+Rewrites don't write a `usage` row today (the rewritten command
+already gets its own row when it runs). If you want to see hook
+activity, check stderr in your Claude Code logs — each rewrite emits
+`repoctx rewrote (<rule>): <orig> → <new>` as the
+`permissionDecisionReason`.
+
 ## Distribution
 
 Per-agent files are NOT baked into the binary. Each `install` / `status` / `list` invocation:
@@ -154,6 +241,22 @@ Follow it by hand. For `merge-section` files, deleting the entire block (markers
 - **`refusing to write … destination exists with different content`** — you've edited the file locally. Re-run with `--force` to overwrite, or merge upstream changes by hand.
 - **`unknown agent: <name>`** — only `claude`, `codex`, and `opencode` are supported in v0.1.x. Open an issue for additional agents.
 - **Cache stale after a release** — `--no-cache` forces a refetch. The cache directory is safe to delete (`rm -rf ~/.cache/repoctx/integrations/`).
+
+## Coexistence with other hook installers
+
+If you use [`rtk`](https://github.com/rtk-ai/rtk) (or another
+PreToolUse-installing tool), follow this order:
+
+1. Install rtk normally.
+2. Install repoctx: `repoctx hook install claude`. It detects rtk's
+   entry, displaces it into `hook.chain_commands`, and inserts our
+   own.
+3. **If you ever reinstall rtk**, it may overwrite our entry. Re-run
+   `repoctx hook doctor` to re-take ownership.
+
+repoctx's rewrite rules are conservative — only `rg <ident>` family
+patterns. Everything else (git/docker/test/lint/etc) falls through to
+rtk's compressing rewrites unchanged.
 
 ## See also
 

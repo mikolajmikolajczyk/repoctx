@@ -125,6 +125,11 @@ pub struct HookConfig {
     pub ref_source: Source,
     pub no_cache: bool,
     pub no_cache_source: Source,
+    /// PreToolUse hooks displaced by `repoctx hook install` so the
+    /// runtime handler can chain through them on passthrough. Stored
+    /// as a `\n`-separated string in the settings table.
+    pub chain_commands: Vec<String>,
+    pub chain_commands_source: Source,
 }
 
 #[derive(Debug, Clone)]
@@ -160,6 +165,8 @@ impl Config {
                 ref_source: Source::Default,
                 no_cache: false,
                 no_cache_source: Source::Default,
+                chain_commands: Vec::new(),
+                chain_commands_source: Source::Default,
             },
             gain: GainConfig {
                 no_record: false,
@@ -195,6 +202,14 @@ impl Config {
                 "hook.ref" => {
                     cfg.hook.r#ref = Some(value);
                     cfg.hook.ref_source = Source::Settings;
+                }
+                "hook.chain_commands" => {
+                    cfg.hook.chain_commands = value
+                        .split('\n')
+                        .filter(|s| !s.trim().is_empty())
+                        .map(str::to_string)
+                        .collect();
+                    cfg.hook.chain_commands_source = Source::Settings;
                 }
                 "hook.no_cache" => match parse_bool(&value) {
                     Ok(v) => {
@@ -308,6 +323,7 @@ pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
     let normalized = match key {
         "hook.rewrite" => HookRewrite::parse(value)?.as_str().to_string(),
         "hook.ref" => value.to_string(),
+        "hook.chain_commands" => value.to_string(),
         "hook.no_cache" | "gain.no_record" | "gain.record_query" => {
             fmt_bool(parse_bool(value)?).to_string()
         }
@@ -324,6 +340,7 @@ pub fn known_keys() -> Vec<(&'static str, String)> {
     vec![
         ("hook.rewrite", HookRewrite::Auto.as_str().to_string()),
         ("hook.ref", String::new()),
+        ("hook.chain_commands", String::new()),
         ("hook.no_cache", fmt_bool(false).to_string()),
         ("gain.no_record", fmt_bool(false).to_string()),
         ("gain.record_query", fmt_bool(false).to_string()),

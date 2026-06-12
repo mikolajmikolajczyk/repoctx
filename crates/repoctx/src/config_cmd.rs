@@ -143,6 +143,12 @@ fn rows(cfg: &Config) -> Vec<ConfigRow> {
             &default_for("hook.no_cache"),
         ),
         row(
+            "hook.chain_commands",
+            &cfg.hook.chain_commands.join("\\n"),
+            cfg.hook.chain_commands_source.as_str(),
+            &default_for("hook.chain_commands"),
+        ),
+        row(
             "gain.no_record",
             bool_str(cfg.gain.no_record),
             cfg.gain.no_record_source.as_str(),

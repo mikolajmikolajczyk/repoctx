@@ -200,9 +200,11 @@ impl HumanRender for InstallResult {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn run_install(
     fetcher: &Fetcher,
     dir: &Path,
+    repo_root: &Path,
     agent: &str,
     dry_run: bool,
     force: bool,
@@ -214,12 +216,94 @@ pub fn run_install(
         .and_then(|s| s.to_str())
         .unwrap_or_default()
         .to_string();
-    let result = Installer::new(fetcher, dir.to_path_buf())
+    let install_result = Installer::new(fetcher, dir.to_path_buf())
         .force(force)
         .dry_run(dry_run)
         .var("REPOCTX_BIN", repoctx_bin.display().to_string())
         .var("REPO_NAME", repo_name)
         .var("REPO_ROOT", dir.display().to_string())
         .install(agent)?;
-    crate::output::emit(&result, render)
+
+    // For Claude, take ownership of `.claude/settings.json` so our
+    // hook handler is the sole PreToolUse → Bash entry. Other agents
+    // don't need this step — they don't have a hooks model we drive.
+    let takeover = if agent == "claude" {
+        Some(crate::hook_takeover::run(dir, dry_run)?)
+    } else {
+        None
+    };
+
+    // Persist displaced chain commands so `hook claude` chains them
+    // on passthrough. Skipped during dry-run.
+    if let Some(report) = &takeover {
+        if !dry_run && !report.displaced_commands.is_empty() {
+            if let Ok(mut store) = repoctx_store::Store::open(repo_root) {
+                let serialized = report.displaced_commands.join("\n");
+                if let Err(e) = crate::config::set(&mut store, "hook.chain_commands", &serialized) {
+                    tracing::warn!(error = %e, "could not save hook.chain_commands");
+                }
+            }
+        }
+    }
+
+    crate::output::emit(&install_result, render)?;
+
+    if let Some(report) = takeover {
+        let banner = if dry_run {
+            "claude settings.json takeover (dry-run)"
+        } else {
+            "claude settings.json takeover"
+        };
+        eprintln!();
+        eprintln!("{banner}: {}", report.settings_path.display());
+        if report.displaced_commands.is_empty() {
+            if report.already_owned {
+                eprintln!("  already owned by repoctx — no changes");
+            } else {
+                eprintln!("  no prior Bash PreToolUse hooks; repoctx now sole owner");
+            }
+        } else {
+            eprintln!(
+                "  displaced {} prior Bash hook(s); chained via hook.chain_commands:",
+                report.displaced_commands.len()
+            );
+            for cmd in &report.displaced_commands {
+                eprintln!("    - {cmd}");
+            }
+            eprintln!("  to restore the prior setup, see the removal recipe above");
+        }
+    }
+    Ok(())
+}
+
+/// `repoctx hook doctor` — re-run the takeover step. Used after any
+/// other installer (rtk reinstall, manual edit) has potentially added
+/// a sibling Bash PreToolUse entry. Idempotent.
+pub fn run_doctor(repo_root: &Path, dir: &Path, dry_run: bool, render: Render) -> Result<()> {
+    let report = crate::hook_takeover::run(dir, dry_run)?;
+    if !dry_run && !report.displaced_commands.is_empty() {
+        if let Ok(mut store) = repoctx_store::Store::open(repo_root) {
+            // Merge with any pre-existing chain (don't blow it away).
+            let existing = store
+                .get_setting("hook.chain_commands")
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            let mut chain: Vec<String> = existing
+                .split('\n')
+                .filter(|s| !s.trim().is_empty())
+                .map(str::to_string)
+                .collect();
+            for cmd in &report.displaced_commands {
+                if !chain.contains(cmd) {
+                    chain.push(cmd.clone());
+                }
+            }
+            let serialized = chain.join("\n");
+            if let Err(e) = crate::config::set(&mut store, "hook.chain_commands", &serialized) {
+                tracing::warn!(error = %e, "could not save hook.chain_commands");
+            }
+        }
+    }
+    crate::output::emit(&report, render)
 }

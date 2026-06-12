@@ -13,6 +13,8 @@ mod definition_cmd;
 mod gain;
 mod gain_cmd;
 mod hook_cmd;
+mod hook_rewrite;
+mod hook_takeover;
 mod index_cmd;
 mod languages_cmd;
 mod outline_cmd;
@@ -174,6 +176,21 @@ enum HookSub {
         #[arg(long)]
         no_cache: bool,
     },
+    /// PreToolUse hook handler — Claude Code calls this with the
+    /// tool-use JSON on stdin. Rewrites recognized `rg`/`grep`
+    /// patterns to `repoctx` commands; chains through any commands
+    /// saved in `hook.chain_commands` on passthrough.
+    Claude,
+    /// Re-take ownership of `.claude/settings.json` PreToolUse → Bash
+    /// matcher if another installer (rtk reinstall, manual edit, …)
+    /// added a sibling entry. Idempotent; safe to run anytime.
+    Doctor {
+        #[arg(long, value_name = "PATH")]
+        dir: Option<PathBuf>,
+        /// Plan the doctor pass; do not write.
+        #[arg(long)]
+        dry_run: bool,
+    },
     /// Install one agent's files into the target dir.
     Install {
         /// Agent name (`claude`, `codex`, `opencode`).
@@ -258,6 +275,14 @@ fn main() -> Result<()> {
             limit,
         } => symbols_cmd::run(&repo_root, query, kind, lang, limit, render, gain_opts),
         Cmd::Hook { sub } => match sub {
+            HookSub::Claude => {
+                let code = hook_rewrite::run(&cfg.hook)?;
+                std::process::exit(code);
+            }
+            HookSub::Doctor { dir, dry_run } => {
+                let target = hook_cmd::resolve_dir(dir, &repo_root);
+                hook_cmd::run_doctor(&repo_root, &target, dry_run, render)
+            }
             HookSub::List { r#ref, no_cache } => {
                 let fetcher = hook_cmd::build_fetcher(
                     r#ref.or_else(|| cfg.hook.r#ref.clone()),
@@ -291,7 +316,9 @@ fn main() -> Result<()> {
                 )?;
                 let target = hook_cmd::resolve_dir(dir, &repo_root);
                 let bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("repoctx"));
-                hook_cmd::run_install(&fetcher, &target, &agent, dry_run, force, &bin, render)
+                hook_cmd::run_install(
+                    &fetcher, &target, &repo_root, &agent, dry_run, force, &bin, render,
+                )
             }
         },
         Cmd::Gain {
