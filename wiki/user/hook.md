@@ -59,7 +59,7 @@ repoctx hook list
 ```
 
 ```text
-ref: v0.2.1
+ref: v0.3.0
 claude    Claude Code skill at .claude/skills/repoctx/SKILL.md + a CLAUDE.md guidance block.
 codex     Codex CLI guidance via merge-section block in AGENTS.md.
 opencode  opencode CLI guidance via merge-section block in AGENTS.md.
@@ -76,7 +76,7 @@ repoctx hook status
 ```
 
 ```text
-ref: v0.2.1
+ref: v0.3.0
 dir: /home/me/my-project
 
 claude:
@@ -122,7 +122,7 @@ Per-agent files are NOT baked into the binary. Each `install` / `status` / `list
 2. On cache miss, GETs `https://raw.githubusercontent.com/mikolajmikolajczyk/repoctx/<ref>/integrations/<agent>/manifest.toml`.
 3. Same dance for each file the manifest references.
 
-Cache layout: `~/.cache/repoctx/integrations/v0.2.1/claude/SKILL.md` (Linux), `~/Library/Caches/dev.repoctx.repoctx/integrations/v0.2.1/...` (macOS), `%LOCALAPPDATA%\repoctx\repoctx\cache\integrations\v0.2.1\...` (Windows). `REPOCTX_INTEGRATIONS_CACHE_DIR` overrides the root. Pre-populating the cache by hand is a supported offline path — the installer doesn't distinguish between "cached because we fetched it" and "cached because you wrote it there".
+Cache layout: `~/.cache/repoctx/integrations/v0.3.0/claude/SKILL.md` (Linux), `~/Library/Caches/dev.repoctx.repoctx/integrations/v0.3.0/...` (macOS), `%LOCALAPPDATA%\repoctx\repoctx\cache\integrations\v0.3.0\...` (Windows). `REPOCTX_INTEGRATIONS_CACHE_DIR` overrides the root. Pre-populating the cache by hand is a supported offline path — the installer doesn't distinguish between "cached because we fetched it" and "cached because you wrote it there".
 
 ## Template variables
 

@@ -4,6 +4,39 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-06-12
+
+Richer TypeScript / TSX coverage + a coverage-advisory layer so agents know when to fall back to `ripgrep`.
+
+### Added
+
+- **`repoctx languages`** — new subcommand surfacing the per-language coverage matrix. Returns `{slug, coverage: "full"|"partial", notes}` per supported language. Agents cache once per session to decide when to fall back to `ripgrep`.
+- **Coverage advisory on every read command.** `outline`, `definition`, `context`, and `symbols` machine output now carries an optional top-level `advisory` field. Omitted in the happy path; populated when (a) the target file's language has `partial` coverage, (b) `--lang <slug>` filters to a `partial` language, or (c) `count == 0` and the workspace contains files in a `partial` language. Human render appends a final `advisory: <text>` line. The advisory always includes a concrete `rg -n <pattern>` fallback.
+- **Richer TypeScript / TSX symbol coverage.** Vendored Aider's `typescript-tags.scm` (Apache-2.0) plus arrow-function patterns from Aider's `javascript-tags.scm` (same source). Plain `class`, plain `function`, arrow-function-assigned-to-`const`, `type` aliases, and `enum` declarations now surface across TS and TSX — they were all silently dropped by upstream `tree-sitter-typescript`. Empirical: a demo TSX file with React-style components went from 3/11 to 11/11 symbols captured.
+- **`Language::coverage()` + `Language::notes()`** in `repoctx-index` — public surface so external callers can build their own routing logic on top of the same data the advisory layer uses.
+- **`Language::from_slug()`** — inverse of `slug()`, used by the advisory layer to round-trip per-language counts from the store.
+- **Coverage matrix in `wiki/user/commands.md`** with a `## repoctx languages` section and a separate "Coverage advisory on read commands" reference.
+
+### Changed
+
+- **TypeScript / TSX `kind` quirks table** in `wiki/user/commands.md` — drops the "plain `class`/`function` not surfaced" row (no longer true with the vendored query) and replaces it with the broader coverage explanation.
+- **`integrations/shared/SKILL.md`** — new "Coverage advisory" section telling agents to check the field on every response and run the suggested `rg` command when present. The TS/TSX upstream-limitation paragraph is gone.
+- **`wiki/agents/status.md`** — Languages line splits into "Full" and "Partial" blocks. Adds the `languages` subcommand + advisory mechanism to the Works section.
+- **Extractor capture matcher** accepts both bare `@name` (upstream convention) and dotted `@name.definition.X` (Aider convention) so vendored queries plug in without rewriting captures. `definition_kind()` now maps `enum`, `struct`, `trait` to their typed kinds so Aider's enum captures land as `SymbolKind::Enum` instead of falling through to `other`.
+- **`TreeSitterBackend::store()`** — new borrow method so command handlers can ask the store for per-language counts (needed by the advisory layer) without consuming the backend mid-pipeline.
+- **`List<T>` output wrapper** — gains `advisory: Option<String>` field + `with_advisory()` builder. Skip-serialized in the happy path so machine output shape is unchanged for queries that don't trigger an advisory.
+
+### Fixed
+
+- **Enum capture mapping** — extractor now recognizes `@definition.enum` (previously fell through to `other`). The Aider-vendored queries depend on this; the same fix benefits any future grammar whose tags.scm uses the standard capture names.
+
+### Notes
+
+- The TS/TSX tags.scm vendor brings an Apache-2.0 dependency. `crates/index/queries/NOTICE` carries the attribution; LGPL-3.0-or-later compatible.
+- Markdown stays at `full` coverage — heading-only is the right model for prose.
+- JSON / YAML / TOML stay at `partial`. The opt-in nested-key extractor lives in issue `2c47040` (deferred to v0.6.0 — needs the config system from v0.4.0 to expose the switch cleanly).
+- The `SymbolKind::Key` → `TopKey` rename (issue `1a19873`) was slated for v0.3.0 but deferred to a follow-up to keep the v0.3.0 surface focused on coverage transparency rather than a breaking-name change.
+
 ## [0.2.1] — 2026-06-11
 
 Indexing now self-manages on every read; `--no-auto-index` removed; large docs sweep.
@@ -100,7 +133,8 @@ First tagged release. M0 functional surface complete on Linux, macOS, and Window
 - Release binary size: ~14 MB on x86_64-linux (9 statically-linked Tree-sitter grammars, accepted cost per ADR-0002).
 - TypeScript upstream `tags.scm` covers interface / abstract class / method signatures only; plain `class`/`function` are not tagged. Documented in [`wiki/user/commands.md`](wiki/user/commands.md).
 
-[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.3.0
 [0.2.1]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.2.1
 [0.2.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.2.0
 [0.1.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.1.0
