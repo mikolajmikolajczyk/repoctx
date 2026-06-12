@@ -1,0 +1,602 @@
+# Rewrite-decision corpus (issue 573eccc).
+#
+# Each [[case]] is one bash command → the decision the hook MUST make.
+# Asserted through BOTH entry points: the pure `try_semantic_rewrite`
+# (unit test in src/hook_rewrite.rs) and the shipping `repoctx hook claude`
+# CLI (tests/rewrite_corpus.rs). The two MUST agree.
+#
+# Fields:
+#   cmd    — the bash command as the agent would run it
+#   expect — "rewrite" | "passthrough"
+#   rule   — (rewrite only) exact RULES[].name that should fire
+#   to     — (rewrite only) the exact rewritten command string
+#   why    — (passthrough only) human note on the reason; not asserted
+#
+# Soundness bias: when in doubt the engine passes through. A rewrite that
+# differs from `to` is a corruption bug; a passthrough that should rewrite
+# is a missed opportunity. Both fail the test.
+#
+# Rule names (must match src/hook_rewrite.rs RULES):
+#   'rg <ident>'
+#   'rg "fn <ident>" / class / struct / function'
+#   'grep -r <ident> .'
+#   'grep -rn "fn <ident>" (and friends)'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST REWRITE — rule: rg <ident>
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'rg foo'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols foo --json'
+
+[[case]]
+cmd = 'rg parseConfig'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols parseConfig --json'
+
+[[case]]
+cmd = 'rg Editor'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols Editor --json'
+
+[[case]]
+cmd = 'rg _private'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols _private --json'
+
+[[case]]
+cmd = 'rg snake_case_name'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols snake_case_name --json'
+
+[[case]]
+cmd = 'rg CamelCase'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols CamelCase --json'
+
+[[case]]
+cmd = 'rg x123'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols x123 --json'
+
+[[case]]
+cmd = 'rg fn'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols fn --json'
+
+[[case]]
+cmd = 'rg HTTPServer'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols HTTPServer --json'
+
+# whitespace normalization still rewrites
+[[case]]
+cmd = 'rg     foo'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols foo --json'
+
+[[case]]
+cmd = '  rg trimmed  '
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols trimmed --json'
+
+# long identifier
+[[case]]
+cmd = 'rg averyveryverylongidentifiername_that_keeps_going_and_going_yes'
+expect = 'rewrite'
+rule = 'rg <ident>'
+to = 'repoctx symbols averyveryverylongidentifiername_that_keeps_going_and_going_yes --json'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST REWRITE — rule: rg "fn <ident>" / class / struct / function
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'rg "fn foo"'
+expect = 'rewrite'
+rule = 'rg "fn <ident>" / class / struct / function'
+to = 'repoctx definition foo --json'
+
+[[case]]
+cmd = 'rg "fn parse_config"'
+expect = 'rewrite'
+rule = 'rg "fn <ident>" / class / struct / function'
+to = 'repoctx definition parse_config --json'
+
+[[case]]
+cmd = 'rg "class Foo"'
+expect = 'rewrite'
+rule = 'rg "fn <ident>" / class / struct / function'
+to = 'repoctx definition Foo --json'
+
+[[case]]
+cmd = 'rg "class UserService"'
+expect = 'rewrite'
+rule = 'rg "fn <ident>" / class / struct / function'
+to = 'repoctx definition UserService --json'
+
+[[case]]
+cmd = 'rg "struct Cat"'
+expect = 'rewrite'
+rule = 'rg "fn <ident>" / class / struct / function'
+to = 'repoctx definition Cat --json'
+
+[[case]]
+cmd = 'rg "struct LinkedList"'
+expect = 'rewrite'
+rule = 'rg "fn <ident>" / class / struct / function'
+to = 'repoctx definition LinkedList --json'
+
+[[case]]
+cmd = 'rg "function handler"'
+expect = 'rewrite'
+rule = 'rg "fn <ident>" / class / struct / function'
+to = 'repoctx definition handler --json'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST REWRITE — rule: grep -r <ident> .
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'grep -r Editor .'
+expect = 'rewrite'
+rule = 'grep -r <ident> .'
+to = 'repoctx symbols Editor --json'
+
+[[case]]
+cmd = 'grep -R Editor .'
+expect = 'rewrite'
+rule = 'grep -r <ident> .'
+to = 'repoctx symbols Editor --json'
+
+[[case]]
+cmd = 'grep -r foo .'
+expect = 'rewrite'
+rule = 'grep -r <ident> .'
+to = 'repoctx symbols foo --json'
+
+[[case]]
+cmd = 'grep -r my_func .'
+expect = 'rewrite'
+rule = 'grep -r <ident> .'
+to = 'repoctx symbols my_func --json'
+
+[[case]]
+cmd = 'grep -R Widget .'
+expect = 'rewrite'
+rule = 'grep -r <ident> .'
+to = 'repoctx symbols Widget --json'
+
+[[case]]
+cmd = 'grep -r HttpClient .'
+expect = 'rewrite'
+rule = 'grep -r <ident> .'
+to = 'repoctx symbols HttpClient --json'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST REWRITE — rule: grep -rn "fn <ident>" (and friends)
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'grep -rn "fn main" .'
+expect = 'rewrite'
+rule = 'grep -rn "fn <ident>" (and friends)'
+to = 'repoctx definition main --json'
+
+[[case]]
+cmd = 'grep -nr "class Foo" .'
+expect = 'rewrite'
+rule = 'grep -rn "fn <ident>" (and friends)'
+to = 'repoctx definition Foo --json'
+
+[[case]]
+cmd = 'grep -Rn "struct S" .'
+expect = 'rewrite'
+rule = 'grep -rn "fn <ident>" (and friends)'
+to = 'repoctx definition S --json'
+
+[[case]]
+cmd = 'grep -nR "function go" .'
+expect = 'rewrite'
+rule = 'grep -rn "fn <ident>" (and friends)'
+to = 'repoctx definition go --json'
+
+[[case]]
+cmd = 'grep -rn "fn handle_request" .'
+expect = 'rewrite'
+rule = 'grep -rn "fn <ident>" (and friends)'
+to = 'repoctx definition handle_request --json'
+
+[[case]]
+cmd = 'grep -rn "class Service" .'
+expect = 'rewrite'
+rule = 'grep -rn "fn <ident>" (and friends)'
+to = 'repoctx definition Service --json'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — quoted literal strings (explicit "leave it alone")
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'rg "TODO"'
+expect = 'passthrough'
+why = 'quoted literal, not a definition pattern'
+
+[[case]]
+cmd = 'rg "important"'
+expect = 'passthrough'
+why = 'quoted literal'
+
+[[case]]
+cmd = 'rg "hello world"'
+expect = 'passthrough'
+why = 'quoted multi-word literal'
+
+[[case]]
+cmd = 'rg "some text here"'
+expect = 'passthrough'
+why = 'quoted literal'
+
+[[case]]
+cmd = 'rg "fn"'
+expect = 'passthrough'
+why = 'keyword alone, no identifier'
+
+[[case]]
+cmd = 'rg "class"'
+expect = 'passthrough'
+why = 'keyword alone, no identifier'
+
+[[case]]
+cmd = 'rg "error message"'
+expect = 'passthrough'
+why = 'quoted literal'
+
+[[case]]
+cmd = 'rg "fn foo bar"'
+expect = 'passthrough'
+why = 'three tokens inside quotes, not fn <ident>'
+
+[[case]]
+cmd = 'rg "fn "'
+expect = 'passthrough'
+why = 'keyword with trailing space, no ident'
+
+[[case]]
+cmd = 'rg ""'
+expect = 'passthrough'
+why = 'empty quoted pattern'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — non-identifier leading char / not a bare ident
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'rg ^foo'
+expect = 'passthrough'
+why = 'anchored regex; ^ is not a valid identifier start'
+
+[[case]]
+cmd = 'rg 123'
+expect = 'passthrough'
+why = 'starts with a digit'
+
+[[case]]
+cmd = 'rg 3.14'
+expect = 'passthrough'
+why = 'numeric / non-identifier'
+
+[[case]]
+cmd = 'rg foo-bar'
+expect = 'passthrough'
+why = 'hyphen is not an identifier char'
+
+[[case]]
+cmd = 'rg foo.bar'
+expect = 'passthrough'
+why = 'dot is not an identifier char'
+
+[[case]]
+cmd = 'rg .'
+expect = 'passthrough'
+why = 'a single dot is not an identifier'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — shell metacharacters (tokenizer refuses)
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'rg foo.*'
+expect = 'passthrough'
+why = 'glob/regex star'
+
+[[case]]
+cmd = 'rg foo$'
+expect = 'passthrough'
+why = 'dollar metachar'
+
+[[case]]
+cmd = 'rg foo|bar'
+expect = 'passthrough'
+why = 'pipe metachar'
+
+[[case]]
+cmd = 'rg foo && ls'
+expect = 'passthrough'
+why = 'command chaining'
+
+[[case]]
+cmd = 'rg foo; ls'
+expect = 'passthrough'
+why = 'command separator'
+
+[[case]]
+cmd = 'rg foo > out'
+expect = 'passthrough'
+why = 'redirect'
+
+[[case]]
+cmd = 'rg foo < in'
+expect = 'passthrough'
+why = 'redirect'
+
+[[case]]
+cmd = 'rg $FOO'
+expect = 'passthrough'
+why = 'variable expansion'
+
+[[case]]
+cmd = 'rg `cmd`'
+expect = 'passthrough'
+why = 'command substitution'
+
+[[case]]
+cmd = 'rg "a*b"'
+expect = 'passthrough'
+why = 'star inside quotes still a metachar to the tokenizer'
+
+[[case]]
+cmd = 'rg a?b'
+expect = 'passthrough'
+why = 'question-mark glob'
+
+[[case]]
+cmd = 'rg foo*'
+expect = 'passthrough'
+why = 'trailing star'
+
+[[case]]
+cmd = 'rg "a\"b"'
+expect = 'passthrough'
+why = 'backslash metachar / escaped quote'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — rg flags change semantics
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'rg -n foo'
+expect = 'passthrough'
+why = 'line numbers requested'
+
+[[case]]
+cmd = 'rg -l foo'
+expect = 'passthrough'
+why = 'files-with-matches'
+
+[[case]]
+cmd = 'rg -c foo'
+expect = 'passthrough'
+why = 'count mode'
+
+[[case]]
+cmd = 'rg -v foo'
+expect = 'passthrough'
+why = 'invert match'
+
+[[case]]
+cmd = 'rg -i foo'
+expect = 'passthrough'
+why = 'case-insensitive flag'
+
+[[case]]
+cmd = 'rg -w foo'
+expect = 'passthrough'
+why = 'word-boundary flag'
+
+[[case]]
+cmd = 'rg --json foo'
+expect = 'passthrough'
+why = 'rg json output'
+
+[[case]]
+cmd = 'rg -A 3 foo'
+expect = 'passthrough'
+why = 'trailing context lines'
+
+[[case]]
+cmd = 'rg -B 2 foo'
+expect = 'passthrough'
+why = 'leading context lines'
+
+[[case]]
+cmd = 'rg -C 2 foo'
+expect = 'passthrough'
+why = 'surrounding context lines'
+
+[[case]]
+cmd = 'rg --files-with-matches foo'
+expect = 'passthrough'
+why = 'long flag'
+
+[[case]]
+cmd = 'rg -F foo'
+expect = 'passthrough'
+why = 'fixed-strings flag'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — multiple patterns / extra args
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'rg foo bar'
+expect = 'passthrough'
+why = 'two positional args'
+
+[[case]]
+cmd = 'rg foo bar baz'
+expect = 'passthrough'
+why = 'three positional args'
+
+[[case]]
+cmd = 'rg foo src/'
+expect = 'passthrough'
+why = 'pattern + path scope'
+
+[[case]]
+cmd = 'rg foo .'
+expect = 'passthrough'
+why = 'pattern + explicit path'
+
+[[case]]
+cmd = 'rg'
+expect = 'passthrough'
+why = 'no pattern'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — different tools entirely
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'find . -name foo'
+expect = 'passthrough'
+why = 'find, not rg/grep'
+
+[[case]]
+cmd = 'fd foo'
+expect = 'passthrough'
+why = 'fd, not rg/grep'
+
+[[case]]
+cmd = 'ag foo'
+expect = 'passthrough'
+why = 'the silver searcher'
+
+[[case]]
+cmd = 'cat README.md'
+expect = 'passthrough'
+why = 'cat'
+
+[[case]]
+cmd = 'ls -la'
+expect = 'passthrough'
+why = 'ls'
+
+[[case]]
+cmd = 'git status'
+expect = 'passthrough'
+why = 'git'
+
+[[case]]
+cmd = 'sed s/a/b/'
+expect = 'passthrough'
+why = 'sed'
+
+[[case]]
+cmd = 'echo hello'
+expect = 'passthrough'
+why = 'echo'
+
+[[case]]
+cmd = 'rgfoo bar'
+expect = 'passthrough'
+why = 'program is rgfoo, not rg'
+
+[[case]]
+cmd = 'RG foo'
+expect = 'passthrough'
+why = 'case-sensitive program name'
+
+[[case]]
+cmd = 'Rg foo'
+expect = 'passthrough'
+why = 'case-sensitive program name'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — grep shapes that do not match the rules
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'grep foo'
+expect = 'passthrough'
+why = 'no -r flag'
+
+[[case]]
+cmd = 'grep -r foo'
+expect = 'passthrough'
+why = 'missing the . path arg'
+
+[[case]]
+cmd = 'grep -r foo src/'
+expect = 'passthrough'
+why = 'path is not .'
+
+[[case]]
+cmd = 'grep -rn foo .'
+expect = 'passthrough'
+why = 'foo is not an fn/class/struct/function pattern'
+
+[[case]]
+cmd = 'grep -rn "fn foo" src/'
+expect = 'passthrough'
+why = 'path is not .'
+
+[[case]]
+cmd = 'grep -n foo .'
+expect = 'passthrough'
+why = '-n is not -r/-R'
+
+[[case]]
+cmd = 'grep -i foo .'
+expect = 'passthrough'
+why = '-i is not -r/-R'
+
+[[case]]
+cmd = 'grep -r "fn foo" .'
+expect = 'passthrough'
+why = 'grep -r expects a bare ident, "fn foo" has a space'
+
+[[case]]
+cmd = 'grep -E "fn.*" .'
+expect = 'passthrough'
+why = 'extended-regex flag + metachars'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — adversarial / edge
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = ''
+expect = 'passthrough'
+why = 'empty command'
+
+[[case]]
+cmd = '   '
+expect = 'passthrough'
+why = 'whitespace only'
+
+[[case]]
+cmd = 'rg café'
+expect = 'passthrough'
+why = 'non-ASCII identifier'
+
+[[case]]
+cmd = 'rg "fn café"'
+expect = 'passthrough'
+why = 'non-ASCII identifier in definition pattern'
+
+[[case]]
+cmd = 'rg --help'
+expect = 'passthrough'
+why = 'help flag, not a search'

@@ -481,4 +481,90 @@ mod tests {
         assert!(try_semantic_rewrite("git status").is_none());
         assert!(try_semantic_rewrite("cat README.md").is_none());
     }
+
+    // ── Rewrite-decision corpus (issue 573eccc) ──────────────────────
+    //
+    // Drives the *pure* decision function over a shared data file. The
+    // same corpus is run through the `repoctx hook claude` CLI in
+    // `tests/rewrite_corpus.rs`; the two must agree.
+
+    #[derive(serde::Deserialize)]
+    struct Corpus {
+        case: Vec<Case>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Case {
+        cmd: String,
+        expect: String,
+        #[serde(default)]
+        rule: String,
+        #[serde(default)]
+        to: Option<String>,
+    }
+
+    fn load_corpus() -> Vec<Case> {
+        let text = include_str!("../tests/fixtures/rewrite_corpus.toml");
+        let c: Corpus = toml::from_str(text).expect("corpus parses");
+        c.case
+    }
+
+    #[test]
+    fn corpus_pure_decisions_match() {
+        let cases = load_corpus();
+        assert!(
+            cases.len() >= 100,
+            "corpus has {} rows, expected >= 100",
+            cases.len()
+        );
+        for c in &cases {
+            let got = try_semantic_rewrite(&c.cmd);
+            match c.expect.as_str() {
+                "rewrite" => {
+                    let (cmd, rule) = got.unwrap_or_else(|| {
+                        panic!("expected REWRITE for `{}`, got passthrough", c.cmd)
+                    });
+                    let want =
+                        c.to.as_deref()
+                            .unwrap_or_else(|| panic!("rewrite row `{}` missing `to`", c.cmd));
+                    assert_eq!(cmd, want, "rewritten command mismatch for `{}`", c.cmd);
+                    assert_eq!(rule, c.rule, "rule mismatch for `{}`", c.cmd);
+                }
+                "passthrough" => {
+                    assert!(
+                        got.is_none(),
+                        "expected PASSTHROUGH for `{}`, got rewrite {:?}",
+                        c.cmd,
+                        got.map(|(cmd, _)| cmd)
+                    );
+                }
+                other => panic!("bad `expect` value `{other}` for `{}`", c.cmd),
+            }
+        }
+    }
+
+    #[test]
+    fn corpus_covers_every_rule_at_least_five_times() {
+        use std::collections::HashMap;
+        let cases = load_corpus();
+        let mut counts: HashMap<&str, usize> = HashMap::new();
+        for c in &cases {
+            if c.expect == "rewrite" {
+                *counts.entry(c.rule.as_str()).or_default() += 1;
+            }
+        }
+        for rule in RULES {
+            let n = counts.get(rule.name).copied().unwrap_or(0);
+            assert!(
+                n >= 5,
+                "rule `{}` is under-covered ({n} rows, need >= 5)",
+                rule.name
+            );
+        }
+        // Every rule named in the corpus must be a real rule (typo guard).
+        let known: Vec<&str> = RULES.iter().map(|r| r.name).collect();
+        for r in counts.keys() {
+            assert!(known.contains(r), "corpus references unknown rule `{r}`");
+        }
+    }
 }
