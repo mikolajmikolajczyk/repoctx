@@ -48,11 +48,23 @@ pub fn run(
     };
     let lang_filter = q.language.clone();
     let mut hits = backend.workspace_symbols(&q)?;
+    // `workspace_symbols` is case-insensitive substring; capture exact-case
+    // near-misses (same name modulo ASCII case, definition-shaped) before
+    // the exact-case retain drops them, so a 0-hit can advise instead of
+    // looking like "doesn't exist".
+    let case_candidates = case_near_misses(&hits, &name);
     hits.retain(|s| s.name == name && is_definition_kind(s.kind));
     hits.truncate(limit);
 
     let candidate_paths = unique_paths(&hits);
-    let advisory = compute_advisory(&backend, lang_filter.as_deref(), &name, hits.len())?;
+    let advisory = if hits.is_empty() {
+        match crate::advisory::for_case_mismatch(&name, &case_candidates) {
+            Some(a) => Some(a),
+            None => compute_advisory(&backend, lang_filter.as_deref(), &name, hits.len())?,
+        }
+    } else {
+        compute_advisory(&backend, lang_filter.as_deref(), &name, hits.len())?
+    };
     let list = List::new(hits).with_advisory(advisory);
 
     let mut buf = Vec::new();
@@ -70,6 +82,32 @@ pub fn run(
         render.name(),
     );
     Ok(())
+}
+
+/// From the unfiltered (case-insensitive substring) hit set, pick exact
+/// case-insensitive name matches of a definition kind, deduped by name,
+/// capped at 3. Excludes exact-case equals (those are real hits).
+fn case_near_misses(hits: &[Symbol], name: &str) -> Vec<crate::advisory::CaseCandidate> {
+    let mut seen: Vec<String> = Vec::new();
+    let mut out = Vec::new();
+    for s in hits {
+        if s.name != name
+            && s.name.eq_ignore_ascii_case(name)
+            && is_definition_kind(s.kind)
+            && !seen.contains(&s.name)
+        {
+            seen.push(s.name.clone());
+            out.push(crate::advisory::CaseCandidate {
+                name: s.name.clone(),
+                path: s.location.path.clone(),
+                line: s.location.start_line + 1,
+            });
+            if out.len() == 3 {
+                break;
+            }
+        }
+    }
+    out
 }
 
 fn unique_paths(symbols: &[Symbol]) -> Vec<String> {

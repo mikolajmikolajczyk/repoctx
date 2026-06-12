@@ -61,6 +61,37 @@ pub fn for_empty_workspace(
     ))
 }
 
+/// A case-insensitive near-miss for a `definition` query: same name
+/// modulo ASCII case, in a definition-shaped kind.
+pub struct CaseCandidate {
+    pub name: String,
+    pub path: String,
+    pub line: u32, // 1-based, for display
+}
+
+/// `definition` is exact-case; `symbols` is case-insensitive. When an
+/// exact lookup returns nothing but a case variant exists, a bare
+/// `count: 0` reads as "doesn't exist" (our own AGENTS.md rule 4) — a
+/// false negative. Surface the variants so the agent retries with the
+/// right casing instead of reaching for `grep`.
+pub fn for_case_mismatch(query: &str, candidates: &[CaseCandidate]) -> Option<String> {
+    if candidates.is_empty() {
+        return None;
+    }
+    let shown: Vec<String> = candidates
+        .iter()
+        .take(3)
+        .map(|c| format!("{} ({}:{})", c.name, c.path, c.line))
+        .collect();
+    Some(format!(
+        "no exact match for '{}'; case-insensitive matches exist: {}. \
+         definition is case-sensitive — retry with exact casing or use: repoctx symbols {}",
+        query,
+        shown.join(", "),
+        query,
+    ))
+}
+
 fn advise_for_lang(lang: Language, query: Option<&str>) -> Option<String> {
     if lang.coverage() == Coverage::Full {
         return None;
@@ -140,6 +171,37 @@ mod tests {
     fn non_empty_result_skips_workspace_advisory() {
         let pl = vec![("yaml".into(), 3u64)];
         assert!(for_empty_workspace(2, &pl, Some("Foo")).is_none());
+    }
+
+    #[test]
+    fn case_mismatch_lists_candidates_and_suggests_symbols() {
+        let cands = vec![CaseCandidate {
+            name: "Store".into(),
+            path: "crates/store/src/store.rs".into(),
+            line: 28,
+        }];
+        let a = for_case_mismatch("store", &cands).unwrap();
+        assert!(a.contains("no exact match for 'store'"));
+        assert!(a.contains("Store (crates/store/src/store.rs:28)"));
+        assert!(a.contains("repoctx symbols store"));
+    }
+
+    #[test]
+    fn case_mismatch_caps_at_three() {
+        let cands: Vec<CaseCandidate> = (0..5)
+            .map(|i| CaseCandidate {
+                name: format!("V{i}"),
+                path: "f.rs".into(),
+                line: i + 1,
+            })
+            .collect();
+        let a = for_case_mismatch("v", &cands).unwrap();
+        assert_eq!(a.matches("f.rs:").count(), 3);
+    }
+
+    #[test]
+    fn case_mismatch_empty_is_silent() {
+        assert!(for_case_mismatch("x", &[]).is_none());
     }
 
     #[test]

@@ -46,7 +46,9 @@ Use this for **exploration** when you don't know the exact identifier.
 Exact-name (case-sensitive) lookup. Auto-filters to definition kinds —
 field/variable/section/key noise is excluded. `--lang`/`--limit` apply.
 Multiple hits are normal; pick the right one. Zero hits returns exit 0
-with `count: 0`.
+with `count: 0` — but because the match is case-sensitive, a 0-hit may
+carry an `advisory` naming case-insensitive near-misses (e.g. you typed
+`store`, `Store` exists). Retry with the exact casing it suggests.
 
 Use this when you **know the name** and want canonical definition
 sites.

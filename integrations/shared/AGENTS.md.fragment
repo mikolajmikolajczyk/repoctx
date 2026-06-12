@@ -23,10 +23,13 @@ involves navigating or understanding code in this repo.
    `"advisory": "..."` in its machine output, the matching files
    are in a partial-coverage language (JSON/YAML/TOML). Then —
    and only then — run the suggested `rg` command.
-4. **Empty results are a real answer.** `count: 0` from a definition
-   or symbols query against a full-coverage language means the
-   identifier doesn't exist in the indexed set. Don't second-guess
-   it with `grep` unless the advisory says to.
+4. **Empty results are a real answer — read the advisory.** `count: 0`
+   with *no* `advisory` field, against a full-coverage language, means
+   the identifier doesn't exist in the indexed set; don't second-guess
+   it with `grep`. If an `advisory` IS present, follow it — e.g.
+   `definition` is case-sensitive, so a 0-hit may carry a
+   case-insensitive near-miss ("matches exist: Store …") telling you to
+   retry with the right casing.
 5. **The index manages itself.** Don't run `repoctx index` first —
    every read command auto-builds and auto-reindexes changed files.
 
