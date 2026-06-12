@@ -18,6 +18,8 @@ pub struct OutlineReport {
     pub file: String,
     pub count: usize,
     pub items: Vec<Symbol>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advisory: Option<String>,
 }
 
 impl HumanRender for OutlineReport {
@@ -26,22 +28,26 @@ impl HumanRender for OutlineReport {
         out.push_str(&format!("# {}\n", self.file));
         if self.items.is_empty() {
             out.push_str("(no symbols)");
-            return out;
-        }
-        let depths = compute_depths(&self.items);
-        for (i, sym) in self.items.iter().enumerate() {
-            if i > 0 {
-                out.push('\n');
+        } else {
+            let depths = compute_depths(&self.items);
+            for (i, sym) in self.items.iter().enumerate() {
+                if i > 0 {
+                    out.push('\n');
+                }
+                let indent = "  ".repeat(depths[i]);
+                out.push_str(&format!(
+                    "{}{}:{}  {}  {}",
+                    indent,
+                    sym.location.path,
+                    sym.location.start_line + 1,
+                    sym.name,
+                    sym.kind.as_str(),
+                ));
             }
-            let indent = "  ".repeat(depths[i]);
-            out.push_str(&format!(
-                "{}{}:{}  {}  {}",
-                indent,
-                sym.location.path,
-                sym.location.start_line + 1,
-                sym.name,
-                sym.kind.as_str(),
-            ));
+        }
+        if let Some(a) = &self.advisory {
+            out.push_str("\n\nadvisory: ");
+            out.push_str(a);
         }
         out
     }
@@ -130,10 +136,12 @@ pub fn run(repo_root: &Path, file_arg: PathBuf, render: Render, gain_opts: GainO
     let backend = TreeSitterBackend::new(store);
     let items = backend.document_symbols(&PathBuf::from(&db_path))?;
 
+    let advisory = crate::advisory::for_file(&db_path);
     let report = OutlineReport {
         file: db_path.clone(),
         count: items.len(),
         items,
+        advisory,
     };
 
     let mut buf = Vec::new();

@@ -5,12 +5,14 @@ use clap::{ArgAction, Parser, Subcommand};
 use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
+mod advisory;
 mod context_cmd;
 mod definition_cmd;
 mod gain;
 mod gain_cmd;
 mod hook_cmd;
 mod index_cmd;
+mod languages_cmd;
 mod outline_cmd;
 mod output;
 mod output_symbols;
@@ -104,6 +106,10 @@ enum Cmd {
         #[arg(long, default_value_t = 50)]
         limit: usize,
     },
+    /// Print the per-language coverage matrix (how well repoctx
+    /// indexes each language). Agents check this before deciding to
+    /// fall back to ripgrep.
+    Languages,
     /// Manage per-agent integration files (skills, AGENTS.md fragments).
     Hook {
         #[command(subcommand)]
@@ -217,6 +223,7 @@ fn main() -> Result<()> {
             context,
             limit,
         } => context_cmd::run(&repo_root, symbol, context, limit, render, gain_opts),
+        Cmd::Languages => languages_cmd::run(render),
         Cmd::Status { fast } => status_cmd::run(&repo_root, fast, render),
         Cmd::Symbols {
             query,

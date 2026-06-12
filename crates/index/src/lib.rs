@@ -7,4 +7,4 @@ mod extractor;
 mod language;
 
 pub use extractor::{parse_file, ExtractError};
-pub use language::Language;
+pub use language::{Coverage, Language, ALL_LANGUAGES};

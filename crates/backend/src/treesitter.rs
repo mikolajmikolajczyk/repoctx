@@ -28,6 +28,13 @@ impl TreeSitterBackend {
     pub fn into_store(self) -> Store {
         self.store
     }
+
+    /// Borrow the underlying store. Useful when a command needs a read
+    /// (e.g. workspace per-language counts for the advisory layer) but
+    /// still wants to keep the backend around for follow-on queries.
+    pub fn store(&self) -> &Store {
+        &self.store
+    }
 }
 
 impl CodeIntelBackend for TreeSitterBackend {

@@ -51,21 +51,31 @@ pub trait HumanRender {
 }
 
 /// Generic list wrapper for commands that return many items. Same logical
-/// shape in TOON and JSON: `{ "count": N, "items": [...] }`.
-#[allow(dead_code)] // consumed when symbols command lands (0c56169)
+/// shape in TOON and JSON: `{ "count": N, "items": [...], "advisory"?: "…" }`.
+///
+/// `advisory` is omitted in the happy path. When present (`Some`) it
+/// tells the agent the current backend is underserving this query and
+/// suggests a fallback (typically a `ripgrep` invocation).
 #[derive(Debug, Clone, Serialize)]
 pub struct List<T: Serialize> {
     pub count: usize,
     pub items: Vec<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advisory: Option<String>,
 }
 
-#[allow(dead_code)] // consumed when symbols command lands (0c56169)
 impl<T: Serialize> List<T> {
     pub fn new(items: Vec<T>) -> Self {
         Self {
             count: items.len(),
             items,
+            advisory: None,
         }
+    }
+
+    pub fn with_advisory(mut self, advisory: Option<String>) -> Self {
+        self.advisory = advisory;
+        self
     }
 }
 

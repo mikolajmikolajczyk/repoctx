@@ -34,10 +34,17 @@ pub fn run(
         language: lang,
         limit,
     };
+    let lang_filter = q.language.clone();
     let symbols = backend.workspace_symbols(&q)?;
 
     let candidate_paths = unique_paths(&symbols);
-    let list = List::new(symbols);
+    let advisory = crate::definition_cmd::compute_advisory(
+        &backend,
+        lang_filter.as_deref(),
+        &query,
+        symbols.len(),
+    )?;
+    let list = List::new(symbols).with_advisory(advisory);
 
     let mut buf = Vec::new();
     crate::output::emit_to(&mut buf, &list, render)?;

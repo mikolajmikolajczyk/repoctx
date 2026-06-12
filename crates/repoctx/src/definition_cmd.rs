@@ -46,12 +46,14 @@ pub fn run(
         language: lang,
         limit: 0, // unlimited; CLI filters + truncates
     };
+    let lang_filter = q.language.clone();
     let mut hits = backend.workspace_symbols(&q)?;
     hits.retain(|s| s.name == name && is_definition_kind(s.kind));
     hits.truncate(limit);
 
     let candidate_paths = unique_paths(&hits);
-    let list = List::new(hits);
+    let advisory = compute_advisory(&backend, lang_filter.as_deref(), &name, hits.len())?;
+    let list = List::new(hits).with_advisory(advisory);
 
     let mut buf = Vec::new();
     crate::output::emit_to(&mut buf, &list, render)?;
@@ -75,6 +77,33 @@ fn unique_paths(symbols: &[Symbol]) -> Vec<String> {
     out.sort();
     out.dedup();
     out
+}
+
+/// Pick the most specific advisory for a `definition` / `context` /
+/// `symbols`-style query:
+///
+/// 1. `--lang` was set and that language has partial coverage → advise.
+/// 2. Otherwise, zero hits + workspace has partial-coverage files →
+///    advise.
+/// 3. Otherwise → no advisory.
+pub(crate) fn compute_advisory(
+    backend: &TreeSitterBackend,
+    lang_filter: Option<&str>,
+    query: &str,
+    hit_count: usize,
+) -> Result<Option<String>> {
+    if let Some(a) = crate::advisory::for_lang_filter(lang_filter, Some(query)) {
+        return Ok(Some(a));
+    }
+    if hit_count == 0 {
+        let counts = backend.store().counts().context("counts")?;
+        return Ok(crate::advisory::for_empty_workspace(
+            hit_count,
+            &counts.per_language,
+            Some(query),
+        ));
+    }
+    Ok(None)
 }
 
 #[cfg(test)]

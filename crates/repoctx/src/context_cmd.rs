@@ -31,12 +31,19 @@ pub struct ContextMatch {
 pub struct ContextReport {
     pub count: usize,
     pub items: Vec<ContextMatch>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advisory: Option<String>,
 }
 
 impl HumanRender for ContextReport {
     fn human(&self) -> String {
         if self.items.is_empty() {
-            return "no matches".to_string();
+            let mut out = String::from("no matches");
+            if let Some(a) = &self.advisory {
+                out.push_str("\n\nadvisory: ");
+                out.push_str(a);
+            }
+            return out;
         }
         let mut out = String::new();
         for (i, m) in self.items.iter().enumerate() {
@@ -79,6 +86,10 @@ impl HumanRender for ContextReport {
         // strip trailing newline so caller adds exactly one.
         if out.ends_with('\n') {
             out.pop();
+        }
+        if let Some(a) = &self.advisory {
+            out.push_str("\n\nadvisory: ");
+            out.push_str(a);
         }
         out
     }
@@ -124,6 +135,7 @@ pub fn run(
     });
     hits.truncate(limit);
 
+    let advisory = crate::definition_cmd::compute_advisory(&backend, None, &symbol, hits.len())?;
     let store = backend.into_store();
 
     let mut items: Vec<ContextMatch> = Vec::with_capacity(hits.len());
@@ -158,6 +170,7 @@ pub fn run(
     let report = ContextReport {
         count: items.len(),
         items,
+        advisory,
     };
 
     let mut buf = Vec::new();

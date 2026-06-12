@@ -98,6 +98,33 @@ Surface the navigation tokens this skill has actually saved. `gain top
   needed and incrementally reindex changed files before answering.
 - File arguments must be inside the repo root (`{REPO_ROOT}`).
 
+## Coverage advisory — when to fall back to ripgrep
+
+Every machine output can carry an optional top-level `advisory`
+field. When present, it means repoctx may be underserving this
+query because of language coverage limits. The advisory text
+suggests a concrete fallback command, typically `rg -n <pattern>`.
+
+Always check `advisory` on your responses. When set, also run the
+suggested `rg` command and merge the results — don't trust
+repoctx's `count: 0` blindly on a partial-coverage language.
+
+To get the full coverage matrix in one call:
+
+```sh
+{REPOCTX_BIN} languages --json
+```
+
+Returns `{slug, coverage: "full"|"partial", notes}` per language.
+Cache this once per session.
+
+Today (v0.3.x): Rust, Go, Python, TypeScript, TSX, JavaScript, and
+Markdown are `full`. JSON, YAML, and TOML are `partial` — only
+top-level keys (or section headers, for TOML) are tagged. A query
+like "where is `containerPort` configured" against a k8s YAML
+will return zero hits even though `rg` would find it. The advisory
+will tell you so.
+
 ## Gotchas
 
 - Rust `struct`/`enum`/`union`/`type` are all reported as `class` per
@@ -107,7 +134,7 @@ Surface the navigation tokens this skill has actually saved. `gain top
   and enums. (Vendored from Aider, Apache-2.0.)
 - Markdown headings (ATX and setext) are reported as `section`.
 - Top-level JSON/YAML/TOML keys are `key`; nested keys are not
-  surfaced.
+  surfaced. The advisory field will warn you when this matters.
 
 ## Examples
 

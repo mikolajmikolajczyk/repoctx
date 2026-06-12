@@ -1,6 +1,6 @@
 # Commands reference
 
-Eight commands: `index`, `symbols`, `outline`, `definition`, `context`, `status`, `hook`, `gain`. All examples below were verified against the v0.2.0 binary on 2026-06-11.
+Nine commands: `index`, `symbols`, `outline`, `definition`, `context`, `status`, `languages`, `hook`, `gain`. All examples below were verified against the v0.2.1 binary on 2026-06-12.
 
 ## Global flags
 
@@ -210,6 +210,41 @@ Output fields:
 | `staleness.deleted` | Files that are in the index but no longer on disk. |
 
 `--fast` drops the entire `staleness` block.
+
+## `repoctx languages`
+
+Print the per-language coverage matrix repoctx uses to advise agents on when to fall back to `ripgrep`. No arguments, no flags.
+
+```sh
+repoctx languages
+```
+
+```text
+rust        full     struct/enum/union/type → class, trait → interface (upstream tags.scm)
+go          full     func / method / type (struct/interface) (upstream tags.scm)
+python      full     def / class (upstream tags.scm)
+typescript  full     interface, class, function (incl. arrow), method, type, enum (vendored Aider tags.scm)
+tsx         full     same coverage as TypeScript (vendored Aider tags.scm)
+javascript  full     class, function (incl. arrow), method (upstream tags.scm)
+markdown    full     ATX (#) and setext headings (custom query)
+toml        partial  root pairs + [table] + [[array]] headers; keys inside tables are not surfaced
+json        partial  top-level keys only; nested keys are not surfaced
+yaml        partial  top-level keys of each document; nested keys are not surfaced
+```
+
+`coverage` is `full` or `partial`. Read commands attach an `advisory` field to their machine output when the query targets a `partial`-coverage language (or the workspace contains files in one and the query returned zero hits). The advisory text suggests a concrete `rg -n` fallback.
+
+## Coverage advisory on read commands
+
+`outline`, `definition`, `context`, and `symbols` may include an `advisory` field in their machine output. Always omitted in the happy path; present when:
+
+- The target file's language is `partial` (`outline` over a YAML/JSON/TOML file).
+- `--lang <slug>` was supplied and that slug is `partial`.
+- `count == 0` and the workspace has at least one file in a `partial` language.
+
+Human render appends a final `advisory: <text>` line. Machine renders include `"advisory": "..."`.
+
+Agents should treat a non-null `advisory` as a hint to also run the suggested `rg` command and merge the results, rather than trusting `count: 0` as authoritative.
 
 ## `repoctx hook`
 
