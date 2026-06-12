@@ -1554,7 +1554,6 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
- "tiktoken-rs",
  "toon-format",
  "tracing",
  "tracing-subscriber",

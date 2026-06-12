@@ -8,7 +8,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use repoctx_store::{Store, UsageRecord};
-use tiktoken_rs::{cl100k_base_singleton, CoreBPE};
 use tracing::debug;
 
 use crate::config::GainConfig;
@@ -70,7 +69,7 @@ impl<'a> Recorder<'a> {
                 }
             };
         let estimated_baseline_tokens = candidate_bytes / 4;
-        let returned_tokens = count_tokens(rendered) as i64;
+        let returned_tokens = estimate_tokens(rendered) as i64;
         let ts_unix_ns = now_unix_ns();
         let rec = UsageRecord {
             ts_unix_ns,
@@ -88,12 +87,16 @@ impl<'a> Recorder<'a> {
     }
 }
 
-fn encoder() -> &'static CoreBPE {
-    cl100k_base_singleton()
-}
-
-pub fn count_tokens(s: &str) -> usize {
-    encoder().encode_ordinary(s).len()
+/// Estimate token count from byte length at 4 bytes/token.
+///
+/// Deliberately the *same* heuristic the baseline side uses
+/// (`candidate_bytes / 4`), so the savings ratio divides like-for-like.
+/// Precise BPE counting (model-specific, e.g. cl100k) lives in the
+/// bench suite's dedicated `tokens` helper, not in the shipped binary —
+/// here a method-consistent estimate is more honest than a half-precise
+/// ratio. See decision in issue 3a7fbc1.
+pub fn estimate_tokens(s: &str) -> usize {
+    s.len() / 4
 }
 
 fn now_unix_ns() -> i64 {
@@ -109,8 +112,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn count_tokens_nonempty() {
-        assert!(count_tokens("hello world") > 0);
-        assert_eq!(count_tokens(""), 0);
+    fn estimate_tokens_bytes_over_four() {
+        assert_eq!(estimate_tokens(""), 0);
+        assert_eq!(estimate_tokens("abcd"), 1);
+        assert_eq!(estimate_tokens("hello world"), 2); // 11 bytes / 4
     }
 }
