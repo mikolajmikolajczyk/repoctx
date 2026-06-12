@@ -30,7 +30,10 @@ pub type Result<T> = std::result::Result<T, ExtractError>;
 /// Per-language compiled query cache.
 struct Compiled {
     query: Query,
-    name_idx: u32,
+    /// Capture indices that hold the symbol name. Upstream queries use a
+    /// bare `@name`; Aider-vendored queries use dotted `@name.definition.X`.
+    /// Either form is treated as a name capture.
+    name_idxs: Vec<u32>,
     def_kinds: Vec<(u32, &'static str)>, // (capture index, "function"|"method"|...|"other")
 }
 
@@ -38,19 +41,20 @@ fn compile(language: Language) -> Result<Compiled> {
     let ts_lang = language.ts_language();
     let query = Query::new(&ts_lang, language.tags_query())
         .map_err(|source| ExtractError::QueryCompile { language, source })?;
-    let mut name_idx: u32 = u32::MAX;
+    let mut name_idxs = Vec::new();
     let mut def_kinds = Vec::new();
     for (i, cap) in query.capture_names().iter().enumerate() {
         let i = i as u32;
-        if *cap == "name" {
-            name_idx = i;
+        // Name captures: `@name` (upstream) or `@name.<anything>` (Aider).
+        if *cap == "name" || cap.starts_with("name.") {
+            name_idxs.push(i);
         } else if let Some(rest) = cap.strip_prefix("definition.") {
             def_kinds.push((i, definition_kind(rest)));
         }
     }
     Ok(Compiled {
         query,
-        name_idx,
+        name_idxs,
         def_kinds,
     })
 }
@@ -65,6 +69,9 @@ fn definition_kind(rest: &str) -> &'static str {
         "module" => "module",
         "constant" => "constant",
         "type" => "type",
+        "enum" => "enum",
+        "struct" => "struct",
+        "trait" => "trait",
         "macro" => "macro",
         "section" => "section",
         "key" => "key",
@@ -123,7 +130,7 @@ pub fn parse_file(file_path: &str, language: Language, source: &str) -> Result<V
         let mut name_text: Option<String> = None;
 
         for cap in m.captures {
-            if cap.index == compiled.name_idx {
+            if compiled.name_idxs.contains(&cap.index) {
                 let raw = node_text(cap.node, bytes);
                 name_text = Some(strip_name(raw, language));
             } else if let Some((_, k)) = compiled.def_kinds.iter().find(|(i, _)| *i == cap.index) {

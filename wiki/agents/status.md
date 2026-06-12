@@ -18,7 +18,7 @@ CLI surface complete on Linux, macOS, and Windows. All 9 languages indexed.
 - `repoctx hook list` / `hook status` / `hook install <agent>` — per-agent install machinery for Claude Code / Codex / opencode. Pulls manifests + content from the GitHub mirror at a pinned git ref (default `v<binary version>`), caches under XDG (override via `REPOCTX_INTEGRATIONS_CACHE_DIR`). Three modes (`write`, `append`, `merge-section`). `--dry-run`/`--force`/`--ref`/`--no-cache` flags. No `uninstall` — install prints a per-file removal recipe.
 - Three output formats over one set of typed records (ADR-0008): human (TTY default), TOON (non-TTY default), JSON (`--json`). `--json` / `--toon` clap-mutually-exclusive.
 - No missing-index error surface for users — read commands always build the DB if needed and incrementally reindex changed files before answering.
-- Languages with full coverage: Go, Rust (struct/enum/union/type → `class` per upstream tags.scm), TypeScript (interface + abstract class + method_signature; plain class/function untagged upstream), TSX, JavaScript, Python, JSON, YAML (multi-doc), TOML (root pairs + `[table]` + `[[array]]`), Markdown (ATX + setext headings).
+- Languages with full coverage: Go, Rust (struct/enum/union/type → `class` per upstream tags.scm), TypeScript + TSX (full coverage via vendored Aider tags.scm: plain class, plain function, arrow function, method, type alias, enum, interface, abstract class — Apache-2.0), JavaScript, Python, JSON, YAML (multi-doc), TOML (root pairs + `[table]` + `[[array]]`), Markdown (ATX + setext headings).
 
 ## Releases + CI
 

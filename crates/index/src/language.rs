@@ -77,7 +77,7 @@ impl Language {
         match self {
             Self::Go => tree_sitter_go::TAGS_QUERY,
             Self::Rust => tree_sitter_rust::TAGS_QUERY,
-            Self::TypeScript | Self::Tsx => tree_sitter_typescript::TAGS_QUERY,
+            Self::TypeScript | Self::Tsx => include_str!("../queries/typescript-tags.scm"),
             Self::JavaScript => tree_sitter_javascript::TAGS_QUERY,
             Self::Python => tree_sitter_python::TAGS_QUERY,
             Self::Json => include_str!("../queries/json.scm"),

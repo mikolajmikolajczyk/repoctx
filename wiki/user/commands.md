@@ -77,7 +77,7 @@ constant type variable field macro section key other
 | Rust `struct`, `enum`, `union`, `type` | `class` | Upstream Rust `tags.scm` collapses them all to `@definition.class`. |
 | Rust `trait` | `interface` | Same upstream choice. |
 | Go `type X struct {}` / `type Y interface {}` | `type` | Upstream Go `tags.scm` uses `@definition.type`. |
-| TypeScript plain `class`/`function` | (not surfaced) | Upstream TS `tags.scm` covers only `interface_declaration`, `abstract_class_declaration`, and method signatures. Plain `class`/`function` are NOT tagged. |
+| TypeScript / TSX `class`, `function`, arrow `const X = () => ...`, `type`, `enum` | tagged (vendored Aider `tags.scm`, Apache-2.0) | repoctx ships a richer query than upstream `tree-sitter-typescript`. Covers plain class, plain function, arrow-function assigned to identifier, type aliases, enums, interfaces, and abstract classes. |
 | Markdown headings | `section` | Custom query — ATX (`#`) and setext (`===`/`---`) headings. |
 | JSON/YAML/TOML top-level keys | `key` | Custom query — root-level keys only; nested keys not surfaced. |
 

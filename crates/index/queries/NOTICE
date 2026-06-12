@@ -1,0 +1,16 @@
+repoctx — Tree-sitter symbol-extraction queries
+===============================================
+
+The following query files in this directory are vendored from
+third-party projects and remain under their original licenses:
+
+* typescript-tags.scm
+    Derived from `aider/queries/tree-sitter-languages/typescript-tags.scm`
+    and `aider/queries/tree-sitter-languages/javascript-tags.scm`
+    in https://github.com/Aider-AI/aider
+    License: Apache-2.0 (see https://www.apache.org/licenses/LICENSE-2.0)
+    Copyright (c) Aider-AI contributors.
+
+The rest of the queries in this directory (`json.scm`, `markdown.scm`,
+`toml.scm`, `yaml.scm`) are repoctx-original works under the repoctx
+project license (LGPL-3.0-or-later).

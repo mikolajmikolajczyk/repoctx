@@ -61,9 +61,10 @@ func main() { println("hi") }
 
 #[test]
 fn typescript_interface_method_abstract_class() {
-    // Upstream TS tags.scm intentionally covers only interface/abstract-class
-    // patterns + method_signature; plain `class`/`function` are not tagged
-    // (epic contract: upstream vocabulary, as-is).
+    // Coverage from the vendored Aider tags.scm (Apache-2.0). Captures
+    // interface, abstract class, and method signatures alongside the
+    // plain-class / plain-function / arrow / type-alias / enum patterns
+    // upstream tree-sitter-typescript misses.
     let src = r#"export interface Speak { speak(): string }
 
 export abstract class AbstractCat { abstract meow(): string }
@@ -77,6 +78,69 @@ export abstract class AbstractCat { abstract meow(): string }
     assert!(names.contains(&("speak", "method")), "{names:?}");
     assert!(names.contains(&("AbstractCat", "class")), "{names:?}");
     assert!(names.contains(&("meow", "method")), "{names:?}");
+}
+
+#[test]
+fn typescript_plain_class_function_arrow_type_enum() {
+    // The richer Aider-vendored tags.scm catches everything upstream
+    // tree-sitter-typescript misses: plain class, concrete methods,
+    // plain function, arrow function assigned to const, type alias,
+    // enum.
+    let src = r#"class UserCard {
+  constructor() {}
+  render() { return null; }
+  private greet(): string { return "hi"; }
+}
+
+function plainFn() { return 1; }
+
+const ArrowFn = (x: number) => x + 1;
+
+type Theme = "light" | "dark";
+
+enum Status { Active, Inactive }
+"#;
+    let got = parse_file("a.ts", Language::TypeScript, src).unwrap();
+    let names: Vec<_> = got
+        .iter()
+        .map(|r| (r.name.as_str(), r.kind.as_str()))
+        .collect();
+    assert!(names.contains(&("UserCard", "class")), "{names:?}");
+    assert!(names.contains(&("constructor", "method")), "{names:?}");
+    assert!(names.contains(&("render", "method")), "{names:?}");
+    assert!(names.contains(&("greet", "method")), "{names:?}");
+    assert!(names.contains(&("plainFn", "function")), "{names:?}");
+    assert!(names.contains(&("ArrowFn", "function")), "{names:?}");
+    assert!(names.contains(&("Theme", "type")), "{names:?}");
+    assert!(names.contains(&("Status", "enum")), "{names:?}");
+}
+
+#[test]
+fn tsx_react_component_patterns() {
+    // TSX shares the TypeScript tags.scm. React components written as
+    // plain function, arrow function, or class all surface.
+    let src = r#"interface Props { name: string }
+
+class Card extends React.Component<Props> {
+  render() { return <div />; }
+}
+
+function FunctionalCard({ name }: Props) {
+  return <div>{name}</div>;
+}
+
+const ArrowCard = ({ name }: Props) => <div>{name}</div>;
+"#;
+    let got = parse_file("a.tsx", Language::Tsx, src).unwrap();
+    let names: Vec<_> = got
+        .iter()
+        .map(|r| (r.name.as_str(), r.kind.as_str()))
+        .collect();
+    assert!(names.contains(&("Props", "interface")), "{names:?}");
+    assert!(names.contains(&("Card", "class")), "{names:?}");
+    assert!(names.contains(&("render", "method")), "{names:?}");
+    assert!(names.contains(&("FunctionalCard", "function")), "{names:?}");
+    assert!(names.contains(&("ArrowCard", "function")), "{names:?}");
 }
 
 #[test]

@@ -102,9 +102,9 @@ Surface the navigation tokens this skill has actually saved. `gain top
 
 - Rust `struct`/`enum`/`union`/`type` are all reported as `class` per
   the upstream `tags.scm` mapping; Rust `trait` is `interface`.
-- TypeScript upstream only tags `interface_declaration`, `abstract_class`,
-  and `method_signature`. Plain `class`/`function` are untagged. Use
-  TSX/JS coverage when you need plain class/function navigation.
+- TypeScript and TSX have full coverage including plain class, plain
+  function, arrow functions assigned to identifiers, type aliases,
+  and enums. (Vendored from Aider, Apache-2.0.)
 - Markdown headings (ATX and setext) are reported as `section`.
 - Top-level JSON/YAML/TOML keys are `key`; nested keys are not
   surfaced.
