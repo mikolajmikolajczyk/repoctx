@@ -158,23 +158,12 @@ enum ConfigSub {
 #[derive(Subcommand, Debug)]
 enum HookSub {
     /// List available agents and their descriptions.
-    List {
-        /// Git ref to fetch manifests from. Defaults to v<binary version>.
-        #[arg(long)]
-        r#ref: Option<String>,
-        /// Bypass the on-disk cache.
-        #[arg(long)]
-        no_cache: bool,
-    },
+    List,
     /// Show which destination files exist for each agent in the target dir.
     Status {
         /// Target directory. Defaults to the repo root.
         #[arg(long, value_name = "PATH")]
         dir: Option<PathBuf>,
-        #[arg(long)]
-        r#ref: Option<String>,
-        #[arg(long)]
-        no_cache: bool,
     },
     /// PreToolUse hook handler — Claude Code calls this with the
     /// tool-use JSON on stdin. Rewrites recognized `rg`/`grep`
@@ -203,10 +192,6 @@ enum HookSub {
         /// Overwrite write-mode destinations even when current content differs.
         #[arg(long)]
         force: bool,
-        #[arg(long)]
-        r#ref: Option<String>,
-        #[arg(long)]
-        no_cache: bool,
     },
 }
 
@@ -298,42 +283,20 @@ fn run() -> Result<()> {
                 let target = hook_cmd::resolve_dir(dir, &repo_root);
                 hook_cmd::run_doctor(&repo_root, &target, dry_run, render)
             }
-            HookSub::List { r#ref, no_cache } => {
-                let fetcher = hook_cmd::build_fetcher(
-                    r#ref.or_else(|| cfg.hook.r#ref.clone()),
-                    no_cache || cfg.hook.no_cache,
-                )?;
-                hook_cmd::run_list(&fetcher, render)
-            }
-            HookSub::Status {
-                dir,
-                r#ref,
-                no_cache,
-            } => {
-                let fetcher = hook_cmd::build_fetcher(
-                    r#ref.or_else(|| cfg.hook.r#ref.clone()),
-                    no_cache || cfg.hook.no_cache,
-                )?;
+            HookSub::List => hook_cmd::run_list(render),
+            HookSub::Status { dir } => {
                 let target = hook_cmd::resolve_dir(dir, &repo_root);
-                hook_cmd::run_status(&fetcher, &target, render)
+                hook_cmd::run_status(&target, render)
             }
             HookSub::Install {
                 agent,
                 dir,
                 dry_run,
                 force,
-                r#ref,
-                no_cache,
             } => {
-                let fetcher = hook_cmd::build_fetcher(
-                    r#ref.or_else(|| cfg.hook.r#ref.clone()),
-                    no_cache || cfg.hook.no_cache,
-                )?;
                 let target = hook_cmd::resolve_dir(dir, &repo_root);
                 let bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("repoctx"));
-                hook_cmd::run_install(
-                    &fetcher, &target, &repo_root, &agent, dry_run, force, &bin, render,
-                )
+                hook_cmd::run_install(&target, &repo_root, &agent, dry_run, force, &bin, render)
             }
         },
         Cmd::Gain {

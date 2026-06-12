@@ -17,7 +17,6 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use crate::error::{IntegrationsError, Result};
-use crate::fetcher::Fetcher;
 use crate::manifest::{File, Mode};
 
 /// One file's outcome.
@@ -52,18 +51,16 @@ pub struct InstallResult {
     pub removal: String,
 }
 
-pub struct Installer<'a> {
-    fetcher: &'a Fetcher,
+pub struct Installer {
     dir: PathBuf,
     force: bool,
     dry_run: bool,
     vars: BTreeMap<String, String>,
 }
 
-impl<'a> Installer<'a> {
-    pub fn new(fetcher: &'a Fetcher, dir: PathBuf) -> Self {
+impl Installer {
+    pub fn new(dir: PathBuf) -> Self {
         Self {
-            fetcher,
             dir,
             force: false,
             dry_run: false,
@@ -89,10 +86,10 @@ impl<'a> Installer<'a> {
     }
 
     pub fn install(self, agent: &str) -> Result<InstallResult> {
-        let manifest = self.fetcher.fetch_manifest(agent)?;
+        let manifest = crate::content::manifest(agent)?;
         let mut written = Vec::with_capacity(manifest.files.len());
         for file in &manifest.files {
-            let bytes = self.fetcher.fetch_file(agent, &file.src)?;
+            let bytes = crate::content::file(agent, &file.src)?;
             let text = match std::str::from_utf8(&bytes) {
                 Ok(s) => self.apply_vars(s),
                 Err(_) => {
@@ -316,94 +313,85 @@ fn mode_str(m: Mode) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fetcher::HttpFetch;
-    use std::collections::HashMap;
-    use std::sync::Mutex;
 
-    #[derive(Default)]
-    struct Stub {
-        files: HashMap<String, Vec<u8>>,
-        _calls: Mutex<Vec<String>>,
-    }
-
-    impl Stub {
-        fn with(files: &[(&str, &str)]) -> Self {
-            Self {
-                files: files
-                    .iter()
-                    .map(|(k, v)| (k.to_string(), v.as_bytes().to_vec()))
-                    .collect(),
-                _calls: Mutex::new(Vec::new()),
-            }
+    fn write_file(dest: &str) -> File {
+        File {
+            src: "x".into(),
+            dest: dest.into(),
+            mode: Mode::Write,
+            start_marker: None,
+            end_marker: None,
         }
     }
 
-    impl HttpFetch for Stub {
-        fn get(&self, url: &str) -> std::result::Result<Vec<u8>, String> {
-            self.files
-                .get(url)
-                .cloned()
-                .ok_or_else(|| format!("404 (test): {url}"))
+    fn merge_file(dest: &str) -> File {
+        File {
+            src: "x".into(),
+            dest: dest.into(),
+            mode: Mode::MergeSection,
+            start_marker: Some("<!-- repoctx:start -->".into()),
+            end_marker: Some("<!-- repoctx:end -->".into()),
         }
     }
 
-    fn fetcher(stub: Stub, cache: &Path) -> Fetcher {
-        // Tests use no_cache=true to keep each call deterministic;
-        // cache-hit behavior is covered separately in fetcher tests.
-        Fetcher::with_parts("https://x", cache, "main", true, Box::new(stub))
+    fn append_file(dest: &str, marker: &str) -> File {
+        File {
+            src: "x".into(),
+            dest: dest.into(),
+            mode: Mode::Append,
+            start_marker: Some(marker.into()),
+            end_marker: None,
+        }
     }
 
-    const WRITE_MANIFEST: &str = r#"
-name = "claude"
-description = "test"
-[[file]]
-src = "SKILL.md"
-dest = ".claude/skills/repoctx/SKILL.md"
-mode = "write"
-"#;
-
-    const MERGE_MANIFEST: &str = r#"
-name = "codex"
-description = "test"
-[[file]]
-src = "../shared/AGENTS.md.fragment"
-dest = "AGENTS.md"
-mode = "merge-section"
-start_marker = "<!-- repoctx:start -->"
-end_marker = "<!-- repoctx:end -->"
-"#;
-
-    const APPEND_MANIFEST: &str = r###"
-name = "claude"
-description = "test"
-[[file]]
-src = "frag.md"
-dest = "NOTES.md"
-mode = "append"
-start_marker = "## repoctx"
-"###;
+    /// Run one file through dispatch (the write/merge/append core), with
+    /// template vars applied like the real install path.
+    fn run(inst: &Installer, file: &File, content: &str) -> Result<WriteAction> {
+        let text = inst.apply_vars(content);
+        inst.dispatch(file, text.as_bytes())
+    }
 
     #[test]
-    fn write_mode_creates() {
-        let cache = tempfile::tempdir().unwrap();
+    fn embedded_install_claude_writes_skill_and_merges_claude_md() {
+        // Full end-to-end over the *real* embedded content (no stubs).
         let target = tempfile::tempdir().unwrap();
-        let stub = Stub::with(&[
-            (
-                "https://x/main/integrations/claude/manifest.toml",
-                WRITE_MANIFEST,
-            ),
-            (
-                "https://x/main/integrations/claude/SKILL.md",
-                "hello {REPOCTX_BIN}",
-            ),
-        ]);
-        let f = fetcher(stub, cache.path());
-        let result = Installer::new(&f, target.path().to_path_buf())
+        let r = Installer::new(target.path().to_path_buf())
             .var("REPOCTX_BIN", "/usr/bin/repoctx")
             .install("claude")
             .unwrap();
-        assert_eq!(result.written.len(), 1);
-        assert_eq!(result.written[0].action, Action::Created);
+        assert_eq!(r.written.len(), 2);
+        assert!(target
+            .path()
+            .join(".claude/skills/repoctx/SKILL.md")
+            .exists());
+        let claude_md = fs::read_to_string(target.path().join("CLAUDE.md")).unwrap();
+        assert!(claude_md.contains("<!-- repoctx:start -->"));
+        assert!(claude_md.contains("<!-- repoctx:end -->"));
+    }
+
+    #[test]
+    fn embedded_install_is_idempotent() {
+        let target = tempfile::tempdir().unwrap();
+        Installer::new(target.path().to_path_buf())
+            .install("codex")
+            .unwrap();
+        let r2 = Installer::new(target.path().to_path_buf())
+            .install("codex")
+            .unwrap();
+        assert!(r2
+            .written
+            .iter()
+            .all(|w| matches!(w.action, Action::SkippedIdentical)));
+    }
+
+    #[test]
+    fn write_mode_creates() {
+        let target = tempfile::tempdir().unwrap();
+        let inst =
+            Installer::new(target.path().to_path_buf()).var("REPOCTX_BIN", "/usr/bin/repoctx");
+        let f = write_file(".claude/skills/repoctx/SKILL.md");
+        let a = run(&inst, &f, "hello {REPOCTX_BIN}").unwrap();
+        assert_eq!(a.action, Action::Created);
         let written =
             fs::read_to_string(target.path().join(".claude/skills/repoctx/SKILL.md")).unwrap();
         assert_eq!(written, "hello /usr/bin/repoctx");
@@ -411,119 +399,53 @@ start_marker = "## repoctx"
 
     #[test]
     fn write_mode_idempotent_on_second_install() {
-        let cache = tempfile::tempdir().unwrap();
         let target = tempfile::tempdir().unwrap();
-        let stub = Stub::with(&[
-            (
-                "https://x/main/integrations/claude/manifest.toml",
-                WRITE_MANIFEST,
-            ),
-            ("https://x/main/integrations/claude/SKILL.md", "stable"),
-        ]);
-        let f = fetcher(stub, cache.path());
-        Installer::new(&f, target.path().to_path_buf())
-            .install("claude")
-            .unwrap();
-        let stub2 = Stub::with(&[
-            (
-                "https://x/main/integrations/claude/manifest.toml",
-                WRITE_MANIFEST,
-            ),
-            ("https://x/main/integrations/claude/SKILL.md", "stable"),
-        ]);
-        let f2 = fetcher(stub2, cache.path());
-        let r2 = Installer::new(&f2, target.path().to_path_buf())
-            .install("claude")
-            .unwrap();
-        assert_eq!(r2.written[0].action, Action::SkippedIdentical);
+        let inst = Installer::new(target.path().to_path_buf());
+        let f = write_file("a/SKILL.md");
+        run(&inst, &f, "stable").unwrap();
+        let a2 = run(&inst, &f, "stable").unwrap();
+        assert_eq!(a2.action, Action::SkippedIdentical);
     }
 
     #[test]
     fn write_mode_refuses_diff_without_force() {
-        let cache = tempfile::tempdir().unwrap();
         let target = tempfile::tempdir().unwrap();
-        let dest = target.path().join(".claude/skills/repoctx/SKILL.md");
+        let dest = target.path().join("a/SKILL.md");
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, "edited locally").unwrap();
-        let stub = Stub::with(&[
-            (
-                "https://x/main/integrations/claude/manifest.toml",
-                WRITE_MANIFEST,
-            ),
-            ("https://x/main/integrations/claude/SKILL.md", "upstream"),
-        ]);
-        let f = fetcher(stub, cache.path());
-        let err = Installer::new(&f, target.path().to_path_buf())
-            .install("claude")
-            .unwrap_err();
+        let inst = Installer::new(target.path().to_path_buf());
+        let err = run(&inst, &write_file("a/SKILL.md"), "upstream").unwrap_err();
         assert!(matches!(err, IntegrationsError::WriteRefused { .. }));
     }
 
     #[test]
     fn write_mode_force_updates() {
-        let cache = tempfile::tempdir().unwrap();
         let target = tempfile::tempdir().unwrap();
-        let dest = target.path().join(".claude/skills/repoctx/SKILL.md");
+        let dest = target.path().join("a/SKILL.md");
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, "edited locally").unwrap();
-        let stub = Stub::with(&[
-            (
-                "https://x/main/integrations/claude/manifest.toml",
-                WRITE_MANIFEST,
-            ),
-            ("https://x/main/integrations/claude/SKILL.md", "upstream"),
-        ]);
-        let f = fetcher(stub, cache.path());
-        let r = Installer::new(&f, target.path().to_path_buf())
-            .force(true)
-            .install("claude")
-            .unwrap();
-        assert_eq!(r.written[0].action, Action::Updated);
+        let inst = Installer::new(target.path().to_path_buf()).force(true);
+        let a = run(&inst, &write_file("a/SKILL.md"), "upstream").unwrap();
+        assert_eq!(a.action, Action::Updated);
         assert_eq!(fs::read_to_string(&dest).unwrap(), "upstream");
     }
 
     #[test]
     fn dry_run_writes_nothing() {
-        let cache = tempfile::tempdir().unwrap();
         let target = tempfile::tempdir().unwrap();
-        let stub = Stub::with(&[
-            (
-                "https://x/main/integrations/claude/manifest.toml",
-                WRITE_MANIFEST,
-            ),
-            ("https://x/main/integrations/claude/SKILL.md", "hello"),
-        ]);
-        let f = fetcher(stub, cache.path());
-        let r = Installer::new(&f, target.path().to_path_buf())
-            .dry_run(true)
-            .install("claude")
-            .unwrap();
-        assert_eq!(r.written[0].action, Action::DryRun);
-        assert!(!target
-            .path()
-            .join(".claude/skills/repoctx/SKILL.md")
-            .exists());
+        let inst = Installer::new(target.path().to_path_buf()).dry_run(true);
+        let a = run(&inst, &write_file("a/SKILL.md"), "hello").unwrap();
+        assert_eq!(a.action, Action::DryRun);
+        assert!(!target.path().join("a/SKILL.md").exists());
     }
 
     #[test]
     fn merge_section_creates_and_replaces() {
-        let cache = tempfile::tempdir().unwrap();
         let target = tempfile::tempdir().unwrap();
-        let stub = Stub::with(&[
-            (
-                "https://x/main/integrations/codex/manifest.toml",
-                MERGE_MANIFEST,
-            ),
-            (
-                "https://x/main/integrations/shared/AGENTS.md.fragment",
-                "v1",
-            ),
-        ]);
-        let f = fetcher(stub, cache.path());
-        let r = Installer::new(&f, target.path().to_path_buf())
-            .install("codex")
-            .unwrap();
-        assert_eq!(r.written[0].action, Action::Created);
+        let inst = Installer::new(target.path().to_path_buf());
+        let f = merge_file("AGENTS.md");
+        let a = run(&inst, &f, "v1").unwrap();
+        assert_eq!(a.action, Action::Created);
         let content = fs::read_to_string(target.path().join("AGENTS.md")).unwrap();
         assert!(content.contains("<!-- repoctx:start -->\nv1\n<!-- repoctx:end -->"));
 
@@ -533,21 +455,8 @@ start_marker = "## repoctx"
             "prefix\n<!-- repoctx:start -->\nOLD\n<!-- repoctx:end -->\nsuffix",
         )
         .unwrap();
-        let stub2 = Stub::with(&[
-            (
-                "https://x/main/integrations/codex/manifest.toml",
-                MERGE_MANIFEST,
-            ),
-            (
-                "https://x/main/integrations/shared/AGENTS.md.fragment",
-                "v2",
-            ),
-        ]);
-        let f2 = fetcher(stub2, cache.path());
-        let r2 = Installer::new(&f2, target.path().to_path_buf())
-            .install("codex")
-            .unwrap();
-        assert_eq!(r2.written[0].action, Action::ReplacedSection);
+        let a2 = run(&inst, &f, "v2").unwrap();
+        assert_eq!(a2.action, Action::ReplacedSection);
         let after = fs::read_to_string(target.path().join("AGENTS.md")).unwrap();
         assert!(after.starts_with("prefix\n"));
         assert!(after.ends_with("suffix"));
@@ -557,63 +466,30 @@ start_marker = "## repoctx"
 
     #[test]
     fn merge_section_idempotent() {
-        let cache = tempfile::tempdir().unwrap();
         let target = tempfile::tempdir().unwrap();
-        let stub = Stub::with(&[
-            (
-                "https://x/main/integrations/codex/manifest.toml",
-                MERGE_MANIFEST,
-            ),
-            (
-                "https://x/main/integrations/shared/AGENTS.md.fragment",
-                "v1",
-            ),
-        ]);
-        let f = fetcher(stub, cache.path());
-        Installer::new(&f, target.path().to_path_buf())
-            .install("codex")
-            .unwrap();
-        let stub2 = Stub::with(&[
-            (
-                "https://x/main/integrations/codex/manifest.toml",
-                MERGE_MANIFEST,
-            ),
-            (
-                "https://x/main/integrations/shared/AGENTS.md.fragment",
-                "v1",
-            ),
-        ]);
-        let f2 = fetcher(stub2, cache.path());
-        let r2 = Installer::new(&f2, target.path().to_path_buf())
-            .install("codex")
-            .unwrap();
-        assert_eq!(r2.written[0].action, Action::SkippedIdentical);
+        let inst = Installer::new(target.path().to_path_buf());
+        let f = merge_file("AGENTS.md");
+        run(&inst, &f, "v1").unwrap();
+        let a2 = run(&inst, &f, "v1").unwrap();
+        assert_eq!(a2.action, Action::SkippedIdentical);
     }
 
     #[test]
     fn append_mode_idempotent_via_marker() {
-        let cache = tempfile::tempdir().unwrap();
         let target = tempfile::tempdir().unwrap();
         fs::write(
             target.path().join("NOTES.md"),
             "preexisting\n## repoctx\nbody\n",
         )
         .unwrap();
-        let stub = Stub::with(&[
-            (
-                "https://x/main/integrations/claude/manifest.toml",
-                APPEND_MANIFEST,
-            ),
-            (
-                "https://x/main/integrations/claude/frag.md",
-                "## repoctx\nbody\n",
-            ),
-        ]);
-        let f = fetcher(stub, cache.path());
-        let r = Installer::new(&f, target.path().to_path_buf())
-            .install("claude")
-            .unwrap();
-        assert_eq!(r.written[0].action, Action::SkippedMarkerPresent);
+        let inst = Installer::new(target.path().to_path_buf());
+        let a = run(
+            &inst,
+            &append_file("NOTES.md", "## repoctx"),
+            "## repoctx\nbody\n",
+        )
+        .unwrap();
+        assert_eq!(a.action, Action::SkippedMarkerPresent);
     }
 
     #[test]

@@ -1,17 +1,17 @@
 //! `repoctx-integrations` — per-agent install machinery.
 #![allow(clippy::result_large_err)] // Windows PathBuf inflates IntegrationsError; not hot-path.
 //!
-//! M1.5 scope: manifest schema + parser only. Fetcher, installer, and
-//! per-agent content land in sibling issues. The agent name set is the
-//! contract — adding an agent is an additive change; removing is breaking.
+//! Per-agent manifests + fragments are embedded into the binary (see
+//! [`content`]). `hook install` has no network path and no on-disk cache.
+//! The agent name set is the contract — adding an agent is an additive
+//! change; removing is breaking.
 
+pub mod content;
 mod error;
-mod fetcher;
 mod installer;
 mod manifest;
 
 pub use error::{IntegrationsError, Result};
-pub use fetcher::{cache_dir_for_diagnostics, Fetcher, HttpFetch, UreqFetch};
 pub use installer::{Action, InstallResult, Installer, WriteAction};
 pub use manifest::{Agent, File, Mode};
 

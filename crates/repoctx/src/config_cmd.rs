@@ -131,18 +131,6 @@ fn rows(cfg: &Config) -> Vec<ConfigRow> {
             &default_for("hook.rewrite"),
         ),
         row(
-            "hook.ref",
-            cfg.hook.r#ref.as_deref().unwrap_or(""),
-            cfg.hook.ref_source.as_str(),
-            &default_for("hook.ref"),
-        ),
-        row(
-            "hook.no_cache",
-            bool_str(cfg.hook.no_cache),
-            cfg.hook.no_cache_source.as_str(),
-            &default_for("hook.no_cache"),
-        ),
-        row(
             "hook.chain_commands",
             &cfg.hook.chain_commands.join("\\n"),
             cfg.hook.chain_commands_source.as_str(),

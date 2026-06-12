@@ -2,8 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
-use repoctx_integrations::{Fetcher, InstallResult, Installer, AGENTS};
+use anyhow::Result;
+use repoctx_integrations::{content, InstallResult, Installer, AGENTS};
 use serde::Serialize;
 
 use crate::output::{HumanRender, Render};
@@ -18,14 +18,12 @@ pub struct ListItem {
 #[derive(Debug, Serialize)]
 pub struct ListReport {
     pub count: usize,
-    pub ref_: String,
     pub items: Vec<ListItem>,
 }
 
 impl HumanRender for ListReport {
     fn human(&self) -> String {
         let mut out = String::new();
-        out.push_str(&format!("ref: {}\n", self.ref_));
         if self.items.is_empty() {
             out.push_str("(no agents)");
             return out;
@@ -35,9 +33,7 @@ impl HumanRender for ListReport {
             if i > 0 {
                 out.push('\n');
             }
-            let desc = item.description.clone().unwrap_or_else(|| {
-                "(description unavailable — try --ref main or --no-cache)".into()
-            });
+            let desc = item.description.clone().unwrap_or_default();
             out.push_str(&format!(
                 "{name:<w$}  {desc}",
                 name = item.name,
@@ -67,7 +63,6 @@ pub struct StatusAgent {
 #[derive(Debug, Serialize)]
 pub struct StatusReport {
     pub count: usize,
-    pub ref_: String,
     pub dir: String,
     pub items: Vec<StatusAgent>,
 }
@@ -75,7 +70,7 @@ pub struct StatusReport {
 impl HumanRender for StatusReport {
     fn human(&self) -> String {
         let mut out = String::new();
-        out.push_str(&format!("ref: {}\ndir: {}\n", self.ref_, self.dir));
+        out.push_str(&format!("dir: {}\n", self.dir));
         for (i, a) in self.items.iter().enumerate() {
             if i > 0 {
                 out.push('\n');
@@ -103,11 +98,11 @@ impl HumanRender for StatusReport {
     }
 }
 
-pub fn run_list(fetcher: &Fetcher, render: Render) -> Result<()> {
+pub fn run_list(render: Render) -> Result<()> {
     let items: Vec<ListItem> = AGENTS
         .iter()
         .map(|name| {
-            let desc = fetcher.fetch_manifest(name).ok().map(|m| m.description);
+            let desc = content::manifest(name).ok().map(|m| m.description);
             ListItem {
                 name: (*name).into(),
                 description: desc,
@@ -116,16 +111,15 @@ pub fn run_list(fetcher: &Fetcher, render: Render) -> Result<()> {
         .collect();
     let report = ListReport {
         count: items.len(),
-        ref_: fetcher.ref_().to_string(),
         items,
     };
     crate::output::emit(&report, render)
 }
 
-pub fn run_status(fetcher: &Fetcher, dir: &Path, render: Render) -> Result<()> {
+pub fn run_status(dir: &Path, render: Render) -> Result<()> {
     let items: Vec<StatusAgent> = AGENTS
         .iter()
-        .map(|name| match fetcher.fetch_manifest(name) {
+        .map(|name| match content::manifest(name) {
             Ok(m) => {
                 let files = m
                     .files
@@ -152,7 +146,6 @@ pub fn run_status(fetcher: &Fetcher, dir: &Path, render: Render) -> Result<()> {
 
     let report = StatusReport {
         count: items.len(),
-        ref_: fetcher.ref_().to_string(),
         dir: dir.display().to_string(),
         items,
     };
@@ -165,12 +158,6 @@ fn mode_str(m: repoctx_integrations::Mode) -> &'static str {
         repoctx_integrations::Mode::Append => "append",
         repoctx_integrations::Mode::MergeSection => "merge-section",
     }
-}
-
-/// Build the default Fetcher from CLI flags. Centralized so install
-/// (issue cd147ca) reuses the exact same wiring.
-pub fn build_fetcher(ref_: Option<String>, no_cache: bool) -> Result<Fetcher> {
-    Fetcher::new(ref_, no_cache).context("fetcher init")
 }
 
 pub fn resolve_dir(dir: Option<PathBuf>, repo_root: &Path) -> PathBuf {
@@ -202,7 +189,6 @@ impl HumanRender for InstallResult {
 
 #[allow(clippy::too_many_arguments)]
 pub fn run_install(
-    fetcher: &Fetcher,
     dir: &Path,
     repo_root: &Path,
     agent: &str,
@@ -216,7 +202,7 @@ pub fn run_install(
         .and_then(|s| s.to_str())
         .unwrap_or_default()
         .to_string();
-    let install_result = Installer::new(fetcher, dir.to_path_buf())
+    let install_result = Installer::new(dir.to_path_buf())
         .force(force)
         .dry_run(dry_run)
         .var("REPOCTX_BIN", repoctx_bin.display().to_string())

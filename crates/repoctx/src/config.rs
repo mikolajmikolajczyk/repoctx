@@ -121,10 +121,6 @@ fn fmt_bool(b: bool) -> &'static str {
 pub struct HookConfig {
     pub rewrite: HookRewrite,
     pub rewrite_source: Source,
-    pub r#ref: Option<String>,
-    pub ref_source: Source,
-    pub no_cache: bool,
-    pub no_cache_source: Source,
     /// PreToolUse hooks displaced by `repoctx hook install` so the
     /// runtime handler can chain through them on passthrough. Stored
     /// as a `\n`-separated string in the settings table.
@@ -161,10 +157,6 @@ impl Config {
             hook: HookConfig {
                 rewrite: HookRewrite::Auto,
                 rewrite_source: Source::Default,
-                r#ref: None,
-                ref_source: Source::Default,
-                no_cache: false,
-                no_cache_source: Source::Default,
                 chain_commands: Vec::new(),
                 chain_commands_source: Source::Default,
             },
@@ -199,10 +191,10 @@ impl Config {
                     }
                     Err(e) => warn_invalid(&key, &value, e),
                 },
-                "hook.ref" => {
-                    cfg.hook.r#ref = Some(value);
-                    cfg.hook.ref_source = Source::Settings;
-                }
+                // Removed in 0.5.3: install content is embedded in the
+                // binary; there is no fetch ref or cache. Old rows are
+                // ignored quietly rather than warned about.
+                "hook.ref" | "hook.no_cache" => {}
                 "hook.chain_commands" => {
                     cfg.hook.chain_commands = value
                         .split('\n')
@@ -211,13 +203,6 @@ impl Config {
                         .collect();
                     cfg.hook.chain_commands_source = Source::Settings;
                 }
-                "hook.no_cache" => match parse_bool(&value) {
-                    Ok(v) => {
-                        cfg.hook.no_cache = v;
-                        cfg.hook.no_cache_source = Source::Settings;
-                    }
-                    Err(e) => warn_invalid(&key, &value, e),
-                },
                 "gain.no_record" => match parse_bool(&value) {
                     Ok(v) => {
                         cfg.gain.no_record = v;
@@ -255,19 +240,6 @@ impl Config {
                     cfg.hook.rewrite_source = Source::Env;
                 }
                 Err(e) => warn_invalid("REPOCTX_HOOK_REWRITE", &v, e),
-            }
-        }
-        if let Ok(v) = env::var("REPOCTX_HOOK_REF") {
-            cfg.hook.r#ref = Some(v);
-            cfg.hook.ref_source = Source::Env;
-        }
-        if let Ok(v) = env::var("REPOCTX_HOOK_NO_CACHE") {
-            match parse_bool(&v) {
-                Ok(b) => {
-                    cfg.hook.no_cache = b;
-                    cfg.hook.no_cache_source = Source::Env;
-                }
-                Err(e) => warn_invalid("REPOCTX_HOOK_NO_CACHE", &v, e),
             }
         }
         if let Ok(v) = env::var("REPOCTX_GAIN_NO_RECORD") {
@@ -322,11 +294,8 @@ fn warn_invalid<E: std::fmt::Display>(key: &str, value: &str, err: E) {
 pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
     let normalized = match key {
         "hook.rewrite" => HookRewrite::parse(value)?.as_str().to_string(),
-        "hook.ref" => value.to_string(),
         "hook.chain_commands" => value.to_string(),
-        "hook.no_cache" | "gain.no_record" | "gain.record_query" => {
-            fmt_bool(parse_bool(value)?).to_string()
-        }
+        "gain.no_record" | "gain.record_query" => fmt_bool(parse_bool(value)?).to_string(),
         "output.default" => OutputDefault::parse(value)?.as_str().to_string(),
         other => return Err(anyhow!("unknown config key: {other}")),
     };
@@ -339,9 +308,7 @@ pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
 pub fn known_keys() -> Vec<(&'static str, String)> {
     vec![
         ("hook.rewrite", HookRewrite::Auto.as_str().to_string()),
-        ("hook.ref", String::new()),
         ("hook.chain_commands", String::new()),
-        ("hook.no_cache", fmt_bool(false).to_string()),
         ("gain.no_record", fmt_bool(false).to_string()),
         ("gain.record_query", fmt_bool(false).to_string()),
         ("output.default", OutputDefault::Auto.as_str().to_string()),
@@ -381,14 +348,10 @@ mod tests {
     fn defaults_are_consistent() {
         let c = Config::defaults();
         assert_eq!(c.hook.rewrite, HookRewrite::Auto);
-        assert_eq!(c.hook.r#ref, None);
-        assert!(!c.hook.no_cache);
         assert!(!c.gain.no_record);
         assert_eq!(c.output.default, OutputDefault::Auto);
         for source in [
             c.hook.rewrite_source,
-            c.hook.ref_source,
-            c.hook.no_cache_source,
             c.gain.no_record_source,
             c.output.default_source,
         ] {

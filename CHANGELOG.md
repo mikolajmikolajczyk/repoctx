@@ -4,6 +4,15 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **Integration content is embedded in the binary** (issue `43aeaff`). `repoctx hook list/status/install` previously fetched per-agent manifests + fragments from a GitHub mirror at a pinned git ref, cached under XDG. The content was always version-locked to the binary, so the fetch bought nothing — now it's compiled in via `include_str!`. `hook install` works offline / airgapped and always matches the running binary.
+
+### Removed (BREAKING)
+
+- **`--ref` / `--no-cache` flags** on `hook list/status/install`, and the **`hook.ref` / `hook.no_cache` config keys** + their `REPOCTX_HOOK_REF` / `REPOCTX_HOOK_NO_CACHE` env vars. Integration content is embedded; there is no fetch ref or cache to control. Old rows in an existing settings table are ignored quietly (no warning). `REPOCTX_INTEGRATIONS_CACHE_DIR` no longer does anything.
+- **`ureq` + `rustls` + `directories` dependencies** dropped from the workspace — `repoctx` no longer makes any network calls. Binary ~1.9 MB smaller (14.2 MB → 12.3 MB stripped Linux).
+
 ## [0.5.3] — 2026-06-12
 
 Hotfix for v0.5.2's `gain` display.

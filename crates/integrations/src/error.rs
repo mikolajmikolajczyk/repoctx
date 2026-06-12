@@ -17,15 +17,8 @@ pub enum IntegrationsError {
     #[error("unknown agent: {0}. Known agents: {}", super::AGENTS.join(", "))]
     UnknownAgent(String),
 
-    #[error("fetch failed: GET {url} ({message}). Cache miss at {}. Try --no-cache, --ref <git-ref>, or download manually.", cache_path.display())]
-    Fetch {
-        url: String,
-        cache_path: PathBuf,
-        message: String,
-    },
-
-    #[error("cache error at {}: {reason}", path.display())]
-    Cache { path: PathBuf, reason: String },
+    #[error("integration content `{0}` is not embedded in this binary (build bug)")]
+    EmbeddedMissing(String),
 
     #[error("refusing to write {}: {reason}", path.display())]
     WriteRefused { path: PathBuf, reason: String },
