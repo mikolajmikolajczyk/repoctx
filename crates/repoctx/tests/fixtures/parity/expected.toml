@@ -1,0 +1,89 @@
+# Ground-truth symbol inventory for the accuracy-parity suite (c23894f).
+#
+# Kept OUTSIDE the per-language source dirs so it is never copied into the
+# indexed tempdir. `tests/accuracy_parity.rs` drives repoctx against each
+# fixture and checks these expectations + cross-checks with ripgrep.
+#
+# full.<lang>.symbols — every real definition. `def = true` means the
+#   kind is in repoctx's `definition` whitelist, so `definition <name>`
+#   must also find it (not just `symbols`).
+# full.<lang>.ghosts  — identifiers that appear ONLY in comments/strings,
+#   or kinds repoctx does not index (e.g. Rust/Go consts). repoctx must
+#   return zero hits for these — no false positives from text.
+# partial.<lang>     — JSON/YAML/TOML: `outline` must surface every
+#   top-level key AND attach the coverage advisory.
+
+[full.rust]
+symbols = [
+  { name = "Widget", file = "a.rs", def = true },
+  { name = "build", file = "a.rs", def = true },
+  { name = "helper", file = "a.rs", def = true },
+  { name = "helper", file = "b.rs", def = true },
+]
+ghosts = ["GhostInComment", "GhostInString", "MAX_SIZE"]
+
+[full.go]
+symbols = [
+  { name = "Server", file = "main.go", def = true },
+  { name = "Start", file = "main.go", def = true },
+  { name = "NewServer", file = "main.go", def = true },
+]
+ghosts = ["DefaultPort"]
+
+[full.python]
+symbols = [
+  { name = "Animal", file = "mod.py", def = true },
+  { name = "speak", file = "mod.py", def = true },
+  { name = "top_level", file = "mod.py", def = true },
+  { name = "café", file = "mod.py", def = true },
+]
+ghosts = ["unicode"]
+
+[full.ts]
+symbols = [
+  { name = "UserService", file = "svc.ts", def = true },
+  { name = "load", file = "svc.ts", def = true },
+  { name = "User", file = "svc.ts", def = true },
+  { name = "ID", file = "svc.ts", def = true },
+  { name = "loadAll", file = "svc.ts", def = true },
+]
+ghosts = ["API_BASE"]
+
+[full.tsx]
+symbols = [
+  { name = "Props", file = "comp.tsx", def = true },
+  { name = "Button", file = "comp.tsx", def = true },
+  { name = "Panel", file = "comp.tsx", def = true },
+]
+ghosts = []
+
+[full.js]
+symbols = [
+  { name = "App", file = "app.js", def = true },
+  { name = "init", file = "app.js", def = true },
+  { name = "run", file = "app.js", def = true },
+  { name = "start", file = "app.js", def = true },
+]
+ghosts = []
+
+[full.markdown]
+# Headings index as `section` — not in the definition whitelist, so
+# `def = false`: only `symbols` must find them.
+symbols = [
+  { name = "Title", file = "doc.md", def = false },
+  { name = "Section One", file = "doc.md", def = false },
+  { name = "Setext Heading", file = "doc.md", def = false },
+]
+ghosts = []
+
+[partial.json]
+file = "config.json"
+keys = ["name", "version", "nested"]
+
+[partial.yaml]
+file = "deploy.yaml"
+keys = ["name", "replicas", "metadata"]
+
+[partial.toml]
+file = "conf.toml"
+keys = ["title", "server"]

@@ -1,0 +1,4 @@
+name: demo
+replicas: 3
+metadata:
+  label: x
