@@ -4,6 +4,14 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-06-12
+
+Hotfix for v0.5.2's `gain` display.
+
+### Fixed
+
+- **No more negative savings.** `gain top` could show rows like `context  -66  -51.2%`. Sparse-result commands (`definition`/`context` with 0–few hits) have tiny or empty candidate sets, so the structured output exceeds the `candidate_bytes/4` baseline and the raw subtraction went negative. Savings is a non-negative quantity by definition — a shared `savings_and_reduction()` now floors both savings and reduction at 0, for totals and per-command rows, human and machine output. Raw bytes stay untouched in the usage table. The deeper baseline-model undercount (these commands plausibly save real tokens but report ~0%) is tracked in issue `1a5c664`. Issue `6af231f`.
+
 ## [0.5.2] — 2026-06-12
 
 Read-surface polish: honest gain numbers, a prettier `gain` view, case-mismatch advisories, and clean error output. No hook/install behavior change.

@@ -4,7 +4,7 @@ Snapshot of what works, what's in flight, what's broken. **Not the roadmap** —
 
 Update this when a feature lands, breaks, or gets pulled. Stale status is worse than no status — if you can't keep it fresh, link straight to Radicle issue filters instead.
 
-## Works (as of v0.5.2, 2026-06-12)
+## Works (as of v0.5.3, 2026-06-12)
 
 CLI surface complete on Linux, macOS, and Windows. 9 languages indexed (7 full coverage + 3 partial). Claude Code transparent rewrite hook + per-repo config layer + agent-coverage advisory all live. `gain` token figures are bytes/4 estimates (method-consistent ratio); precise BPE counting lives in the bench suite.
 
