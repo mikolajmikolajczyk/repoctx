@@ -4,6 +4,38 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-06-12
+
+Per-repo config system + a rewritten README that finally explains the agent value story.
+
+### Added
+
+- **`repoctx config`** — new subcommand family (`show` / `get` / `set` / `unset`) over a persistent settings layer. Six initial keys: `hook.rewrite`, `hook.ref`, `hook.no_cache`, `gain.no_record`, `gain.record_query`, `output.default`. See [`wiki/user/config.md`](wiki/user/config.md).
+- **Settings storage** — new `settings` key/value table inside `.repoctx/index.db`. Schema version bumps from `2` → `3`. The migration is idempotent + runs under the existing `BEGIN IMMEDIATE` guard alongside the v2 gain migration. Older binaries warn on unknown keys but don't crash, so newer-binary writes don't brick older readers.
+- **Four-source precedence**: CLI flag → `REPOCTX_<SECTION>_<KEY>` env var → settings row → built-in default. `Source::{Cli, Env, Settings, Default}` tracked per field; `config show` annotates each row with its origin.
+- **Persistent `output.default`** — `output::resolve` learned a third arg layering between `--json`/`--toon` flags and TTY detection. `config set output.default json` makes every read command emit JSON without `--json`. `auto` (default) preserves today's behavior (Human on TTY, TOON on pipe).
+- **Persistent `gain.no_record` / `gain.record_query`** — same toggles as the existing CLI flags but reusable across invocations. CLI flag is "force on" — present flag wins over a `false` config, absent flag falls back to whatever the config layer resolved.
+- **Persistent `hook.ref` / `hook.no_cache`** — defaults for the hook fetcher. Useful for teams that want every `hook install` invocation pinned to the same git ref.
+- **`hook.rewrite` enum** (`auto`/`off`/`force`) plumbed end-to-end. The consumer — the transparent rewrite hook itself — lands in v0.5.0. Plumbing now means v0.4.0 users can pre-set the kill switch.
+- **Legacy `RUST_REPOCTX_NO_RECORD` env var** still works as a back-compat alias for `REPOCTX_GAIN_NO_RECORD`. Documented as deprecated.
+
+### Changed
+
+- **README rewrite.** Drops the "Tree-sitter parses, SQLite stores" opener in favor of a concrete agent-pain narrative — `rg` returns 30 matches across 12 files, agent opens every file with `Read`, LLM pays the bill. Bench numbers from the helix codebase up front: 8,206 tokens (repoctx) vs 1,911,398 tokens (rg + every match). New "What it does" use-case bullets before any command syntax; new "How it works (short version)" demystifying the mental model without grammar / parser jargon.
+- **`output::resolve` signature** — third parameter (`OutputDefault`) for the layered fallback. Tests cover all four precedence combinations.
+- **`GainOpts::from_cli`** — takes the loaded `GainConfig` and OR-merges the CLI flag with it.
+- **Decision doc** at `wiki/decisions/2026-06-12-config-schema.md` is the binding contract for the schema + precedence rules.
+
+### Fixed
+
+- The hard-coded gain `ENV_NO_RECORD` check in `gain::Recorder::record` is gone; the config layer's `apply_env` handles the env var resolution centrally. Removes a hidden behavior that bypassed the new precedence ladder.
+
+### Notes
+
+- Six config keys × four sources × one stored table = a small surface that grows additively. New keys are non-breaking; renamed/removed ones would be (we have none planned).
+- Per-repo only. No global `~/.config/repoctx/`. Revisit only when a real cross-repo use case shows up.
+- Hot reload is not implemented and won't be — each invocation reads fresh. Good enough for a CLI.
+
 ## [0.3.0] — 2026-06-12
 
 Richer TypeScript / TSX coverage + a coverage-advisory layer so agents know when to fall back to `ripgrep`.
@@ -133,7 +165,8 @@ First tagged release. M0 functional surface complete on Linux, macOS, and Window
 - Release binary size: ~14 MB on x86_64-linux (9 statically-linked Tree-sitter grammars, accepted cost per ADR-0002).
 - TypeScript upstream `tags.scm` covers interface / abstract class / method signatures only; plain `class`/`function` are not tagged. Documented in [`wiki/user/commands.md`](wiki/user/commands.md).
 
-[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.4.0
 [0.3.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.3.0
 [0.2.1]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.2.1
 [0.2.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.2.0

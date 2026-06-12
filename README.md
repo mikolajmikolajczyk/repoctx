@@ -110,9 +110,9 @@ Releases ship four targets per tag at
 Verify the sha256 sidecar, unpack, drop the binary on `PATH`:
 
 ```sh
-shasum -a 256 -c repoctx-0.3.0-x86_64-unknown-linux-gnu.tar.gz.sha256
-tar xzf repoctx-0.3.0-x86_64-unknown-linux-gnu.tar.gz
-sudo mv repoctx-0.3.0-x86_64-unknown-linux-gnu/repoctx /usr/local/bin/
+shasum -a 256 -c repoctx-0.4.0-x86_64-unknown-linux-gnu.tar.gz.sha256
+tar xzf repoctx-0.4.0-x86_64-unknown-linux-gnu.tar.gz
+sudo mv repoctx-0.4.0-x86_64-unknown-linux-gnu/repoctx /usr/local/bin/
 ```
 
 Full PowerShell and `curl` recipes per platform: [`wiki/user/installation.md`](wiki/user/installation.md).
@@ -120,7 +120,7 @@ Full PowerShell and `curl` recipes per platform: [`wiki/user/installation.md`](w
 ### Cargo
 
 ```sh
-cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.3.0
+cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.4.0
 ```
 
 ### Nix
