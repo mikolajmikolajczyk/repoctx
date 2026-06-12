@@ -241,7 +241,22 @@ fn init_tracing(verbose: u8) {
         .init();
 }
 
-fn main() -> Result<()> {
+fn main() {
+    if let Err(e) = run() {
+        // Clean, single-line error to stderr — no anyhow Debug backtrace
+        // dump (agents/CI commonly set RUST_BACKTRACE, which would
+        // otherwise leak frames into the message). Opt back in with
+        // REPOCTX_BACKTRACE=1 for the full chain + captured backtrace.
+        if std::env::var_os("REPOCTX_BACKTRACE").is_some() {
+            eprintln!("error: {e:?}");
+        } else {
+            eprintln!("error: {e:#}");
+        }
+        std::process::exit(1);
+    }
+}
+
+fn run() -> Result<()> {
     let cli = Cli::parse();
     init_tracing(cli.verbose);
     let repo_root = repo_root::resolve(cli.repo)?;

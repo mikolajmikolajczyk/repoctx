@@ -127,9 +127,12 @@ pub fn run(repo_root: &Path, file_arg: PathBuf, render: Render, gain_opts: GainO
 
     let store = Store::open(repo_root).context("open store")?;
     if !store.file_exists(&db_path).context("file_exists")? {
+        // The index is already fresh here (ensure_fresh ran above), so the
+        // file is genuinely not indexable — say why, don't suggest a manual
+        // reindex (read commands auto-index).
         bail!(
-            "{} is not in the index — file may be new, ignored, oversized (>2 MiB), \
-             non-UTF-8, or in an unsupported language. Run `repoctx index` to refresh.",
+            "{} is not in the index — not on disk, gitignored, oversized (>2 MiB), \
+             non-UTF-8, or in an unsupported language (see `repoctx languages`).",
             db_path
         );
     }
