@@ -56,9 +56,8 @@ GitHub Releases workflow builds + uploads 4-target archives + sha256 sidecars au
 ```sh
 cargo run -- hook list                            # enumerate agents
 cargo run -- hook status                          # which dests exist
-cargo run -- hook install <agent> --ref main --no-cache --dry-run
-# Override cache (useful for local dev against unreleased manifests):
-REPOCTX_INTEGRATIONS_CACHE_DIR=/tmp/rcx cargo run -- hook install claude --ref main
+cargo run -- hook install <agent> --dry-run       # plan, write nothing
+cargo run -- hook install claude --dir /tmp/proj  # content is embedded; no network
 ```
 
 ## Radicle

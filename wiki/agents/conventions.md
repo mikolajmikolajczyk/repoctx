@@ -70,10 +70,8 @@ CLI binary + workspace today:
 - `tree-sitter` + per-language grammar crates — indexing (ADR-0002)
 - `ignore` + `walkdir` — gitignore-aware tree walk
 - `rayon` — parallel file parsing
-- `tiktoken-rs` — gain tokenizer (cl100k_base)
 - `tracing` + `tracing-subscriber` — structured logging
-- `ureq` (rustls) + `directories` — `repoctx hook` fetcher + XDG cache
-- `toml` — `repoctx hook` manifest parser
+- `toml` — `repoctx hook` manifest parser (content embedded via `include_str!`, no network deps)
 
 Deferred until the daemon arrives (ADR-0005):
 

@@ -19,17 +19,18 @@ wins.
 
 ## Schema
 
-Six initial keys. Adding a new key is non-breaking; older binaries log
-a warn and ignore.
+Adding a new key is non-breaking; older binaries log a warn and ignore.
 
 | Key | Type | Values | Default | Notes |
 |---|---|---|---|---|
-| `hook.rewrite` | enum | `auto` \| `off` \| `force` | `auto` | Kill switch for the transparent rewrite hook (consumer lands in v0.5.0). |
-| `hook.ref` | string | git ref | `v<binary version>` | Default `--ref` for `hook list/status/install`. Useful for pinning manifests to a specific git ref across a team. |
-| `hook.no_cache` | bool | `true` \| `false` | `false` | Default `--no-cache` for hook fetches. |
+| `hook.rewrite` | enum | `auto` \| `off` \| `force` | `auto` | Kill switch for the transparent rewrite hook. |
 | `gain.no_record` | bool | `true` \| `false` | `false` | Persistent `--no-record`. |
 | `gain.record_query` | bool | `true` \| `false` | `false` | Persistent `--record-query`. |
 | `output.default` | enum | `auto` \| `human` \| `toon` \| `json` | `auto` | Persistent output-format choice. `auto` keeps today's behavior (Human on TTY, TOON on pipe). |
+
+> Removed in 0.5.3: `hook.ref` and `hook.no_cache`. Integration content
+> is embedded in the binary — there is no fetch ref or cache. Old rows in
+> an existing settings table are ignored quietly.
 
 Booleans accept `true` / `false` / `1` / `0` / `yes` / `no` on read
 (case-insensitive). Writes via `config set` normalize to `true` /
@@ -81,8 +82,6 @@ config.
 | `--no-record` | `gain.no_record` | yes |
 | `--record-query` | `gain.record_query` | yes |
 | `--json` / `--toon` | `output.default` | yes — beats config |
-| `--no-cache` (on `hook list/status/install`) | `hook.no_cache` | yes |
-| `--ref` (on `hook list/status/install`) | `hook.ref` | yes |
 | `--verbose` / `-v` | (not migrated — one-shot only) | — |
 
 ## Storage
@@ -105,8 +104,7 @@ default (the binary won't refuse to run).
 ## See also
 
 - [`commands.md`](commands.md) — top-level command reference.
-- [`hook.md`](hook.md) — `hook.ref` / `hook.no_cache` affect the
-  installer fetcher.
+- [`hook.md`](hook.md) — `hook.rewrite` affects the transparent rewrite hook.
 - [`gain.md`](gain.md) — `gain.no_record` / `gain.record_query` affect
   what gain analytics records.
 - `wiki/decisions/2026-06-12-config-schema.md` — the binding design

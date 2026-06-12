@@ -59,13 +59,12 @@ repoctx hook list
 ```
 
 ```text
-ref: v0.5.1
 claude    Claude Code skill at .claude/skills/repoctx/SKILL.md + a CLAUDE.md guidance block.
-codex     Codex CLI guidance via merge-section block in AGENTS.md.
-opencode  opencode CLI guidance via merge-section block in AGENTS.md.
+codex     Codex CLI skill at .agents/skills/repoctx/SKILL.md + AGENTS.md guidance block.
+opencode  opencode skill at .agents/skills/repoctx/SKILL.md + AGENTS.md guidance block.
 ```
 
-Descriptions come from the per-agent manifest. If the fetch fails (no network, bad `--ref`), the row shows just the name + a hint to retry.
+Descriptions come from the per-agent manifest, which is embedded in the binary — `hook list` works offline and always matches your installed version.
 
 ### `repoctx hook status`
 
@@ -76,7 +75,6 @@ repoctx hook status
 ```
 
 ```text
-ref: v0.5.1
 dir: /home/me/my-project
 
 claude:
@@ -101,8 +99,6 @@ Install one agent into the current repo (or `--dir PATH`).
 | `--dir <PATH>` | Target directory. Defaults to the repo root. |
 | `--dry-run` | Plan the install, print the actions, write nothing. |
 | `--force` | Overwrite write-mode files whose current content differs from upstream. |
-| `--ref <git-ref>` | Pull manifests + files from a specific git ref. Default `v<binary version>`. Use `--ref main` to pick up unreleased work. |
-| `--no-cache` | Bypass the on-disk cache; always fetch from network. |
 
 `action` values you'll see in machine output:
 
@@ -203,13 +199,17 @@ activity, check stderr in your Claude Code logs — each rewrite emits
 
 ## Distribution
 
-Per-agent files are NOT baked into the binary. Each `install` / `status` / `list` invocation:
+Per-agent manifests + their fragments are **embedded in the binary**
+(`include_str!` at build time). There is no network path and no on-disk
+cache: `install` / `status` / `list` work offline, airgapped, and at a
+version that always matches the running binary. To update the content,
+upgrade the binary.
 
-1. Looks up `<XDG_CACHE_HOME>/repoctx/integrations/<ref>/<agent>/manifest.toml` (cache hit serves it).
-2. On cache miss, GETs `https://raw.githubusercontent.com/mikolajmikolajczyk/repoctx/<ref>/integrations/<agent>/manifest.toml`.
-3. Same dance for each file the manifest references.
-
-Cache layout: `~/.cache/repoctx/integrations/v0.5.1/claude/SKILL.md` (Linux), `~/Library/Caches/dev.repoctx.repoctx/integrations/v0.5.1/...` (macOS), `%LOCALAPPDATA%\repoctx\repoctx\cache\integrations\v0.5.1\...` (Windows). `REPOCTX_INTEGRATIONS_CACHE_DIR` overrides the root. Pre-populating the cache by hand is a supported offline path — the installer doesn't distinguish between "cached because we fetched it" and "cached because you wrote it there".
+> Before 0.5.3 the content was fetched from a GitHub mirror at a pinned
+> git ref and cached under `~/.cache/repoctx/`. That fetcher, its cache,
+> the `--ref` / `--no-cache` flags, and the `hook.ref` / `hook.no_cache`
+> config keys are all gone — the content was always version-pinned to the
+> binary anyway, so embedding removes a network dependency for no loss.
 
 ## Template variables
 
@@ -237,10 +237,9 @@ Follow it by hand. For `merge-section` files, deleting the entire block (markers
 
 ## Troubleshooting
 
-- **`fetch failed: GET … status code 404`** — usually means the `--ref` doesn't have content yet. Try `--ref main` to pick up the latest in-development manifests.
 - **`refusing to write … destination exists with different content`** — you've edited the file locally. Re-run with `--force` to overwrite, or merge upstream changes by hand.
-- **`unknown agent: <name>`** — only `claude`, `codex`, and `opencode` are supported in v0.1.x. Open an issue for additional agents.
-- **Cache stale after a release** — `--no-cache` forces a refetch. The cache directory is safe to delete (`rm -rf ~/.cache/repoctx/integrations/`).
+- **`unknown agent: <name>`** — only `claude`, `codex`, and `opencode` are supported. Open an issue for additional agents.
+- **Want newer guidance content?** — it ships with the binary; upgrade repoctx to get it.
 
 ## Coexistence with user-global tools — known limitation
 

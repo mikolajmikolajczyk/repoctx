@@ -2,6 +2,11 @@
 
 **Date**: 2026-06-12. **Issue**: `bbf9070`. **Epic**: `2c96964`.
 
+> **Superseded in part (0.5.3):** the `hook.ref` and `hook.no_cache` keys
+> were removed when integration content moved into the binary (issue
+> `43aeaff`). The schema, storage, and precedence model below still hold;
+> ignore those two keys. Live key list: [`wiki/user/config.md`](../user/config.md).
+
 ## What
 
 Pin the schema + storage backend + precedence rules for the

@@ -260,8 +260,8 @@ rules: [`config.md`](config.md).
 | `repoctx config unset <key>` | Delete row; built-in default applies again. |
 
 Precedence (highest wins): CLI flag → environment variable → settings
-row → built-in default. Six keys today: `hook.rewrite`, `hook.ref`,
-`hook.no_cache`, `gain.no_record`, `gain.record_query`,
+row → built-in default. Keys today: `hook.rewrite`,
+`hook.chain_commands`, `gain.no_record`, `gain.record_query`,
 `output.default`.
 
 ## `repoctx hook`
@@ -272,9 +272,9 @@ Per-agent install machinery — drops the `repoctx` skill / guidance into a targ
 |---|---|
 | `repoctx hook list` | Enumerate available agents (`claude`, `codex`, `opencode`) with descriptions. |
 | `repoctx hook status [--dir PATH]` | For each agent, show which destination files exist in the target dir. |
-| `repoctx hook install <agent> [--dir PATH] [--dry-run] [--force] [--ref <git-ref>] [--no-cache]` | Install one agent's files. Idempotent re-install returns `skipped_identical`. |
+| `repoctx hook install <agent> [--dir PATH] [--dry-run] [--force]` | Install one agent's files. Idempotent re-install returns `skipped_identical`. |
 
-Per-agent files are fetched at install time from GitHub raw at a pinned ref (default `v<binary version>`) and cached under XDG.
+Per-agent files are embedded in the binary — install works offline and always matches your installed version.
 
 ## `repoctx gain`
 
