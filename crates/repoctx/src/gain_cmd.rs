@@ -307,38 +307,49 @@ pub fn run_top(repo_root: &Path, window: Window, by: TopBy, render: Render) -> R
     crate::output::emit(&list, render)
 }
 
-fn summarize(t: &GainTotals, window: String) -> GainSummary {
-    let savings = t.estimated_baseline_tokens - t.returned_tokens;
-    let reduction = if t.estimated_baseline_tokens > 0 {
-        (savings as f64) * 100.0 / (t.estimated_baseline_tokens as f64)
+/// Savings + reduction% from raw baseline/returned, floored at 0.
+///
+/// Savings is a non-negative quantity. It can go negative in the raw
+/// subtraction when the baseline model undercounts — sparse-result
+/// commands (`definition`/`context` with 0–few hits) have tiny/empty
+/// candidate sets, so the structured output can exceed `candidate_bytes/4`.
+/// That's a baseline-model artifact, not a real regression; clamp it so
+/// the report never shows "-66 saved / -51.2%". Raw bytes stay in the
+/// usage table.
+fn savings_and_reduction(baseline: i64, returned: i64) -> (i64, f64) {
+    let savings = (baseline - returned).max(0);
+    let reduction = if baseline > 0 {
+        (savings as f64) * 100.0 / (baseline as f64)
     } else {
         0.0
     };
+    (savings, round1(reduction))
+}
+
+fn summarize(t: &GainTotals, window: String) -> GainSummary {
+    let (savings, reduction) =
+        savings_and_reduction(t.estimated_baseline_tokens, t.returned_tokens);
     GainSummary {
         window,
         commands: t.invocations,
         returned_tokens: t.returned_tokens,
         estimated_baseline_tokens: t.estimated_baseline_tokens,
         estimated_savings: savings,
-        reduction: round1(reduction),
+        reduction,
         top: Vec::new(),
     }
 }
 
 fn to_command_row(b: CommandBreakdown) -> CommandRow {
-    let savings = b.estimated_baseline_tokens - b.returned_tokens;
-    let reduction = if b.estimated_baseline_tokens > 0 {
-        (savings as f64) * 100.0 / (b.estimated_baseline_tokens as f64)
-    } else {
-        0.0
-    };
+    let (savings, reduction) =
+        savings_and_reduction(b.estimated_baseline_tokens, b.returned_tokens);
     CommandRow {
         command: b.command,
         commands: b.invocations,
         returned_tokens: b.returned_tokens,
         estimated_baseline_tokens: b.estimated_baseline_tokens,
         estimated_savings: savings,
-        reduction: round1(reduction),
+        reduction,
     }
 }
 
@@ -572,6 +583,16 @@ mod tests {
         assert!(t.contains("symbols"));
         // top row gets a full impact bar
         assert!(t.contains("██████████"));
+    }
+
+    #[test]
+    fn savings_floored_at_zero() {
+        // baseline > returned: real savings
+        assert_eq!(savings_and_reduction(1000, 100), (900, 90.0));
+        // returned > baseline (sparse-result undercount): floored, not negative
+        assert_eq!(savings_and_reduction(100, 166), (0, 0.0));
+        // zero baseline (no candidates): 0 savings, 0%
+        assert_eq!(savings_and_reduction(0, 92), (0, 0.0));
     }
 
     #[test]
