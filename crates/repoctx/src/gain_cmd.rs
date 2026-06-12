@@ -37,22 +37,57 @@ pub struct GainSummary {
     pub estimated_baseline_tokens: i64,
     pub estimated_savings: i64,
     pub reduction: f64, // percent, one decimal
+    /// Top commands by savings, for the human-only table. Omitted from
+    /// machine output (JSON/TOON contract is totals-only).
+    #[serde(skip)]
+    pub top: Vec<CommandRow>,
 }
 
 impl HumanRender for GainSummary {
     fn human(&self) -> String {
         if self.commands == 0 {
-            return format!("{}\nno recorded invocations in window", self.window);
+            return format!(
+                "repoctx — Token Savings\n{}\nno recorded invocations in window",
+                self.window
+            );
         }
-        format!(
-            "{w}\n\nCommands:\n  {c}\n\nReturned:\n  {ret} tokens\n\nEstimated baseline:\n  {base} tokens\n\nReduction:\n  {red}\n\nEstimated savings:\n  {sav}",
-            w = self.window,
-            c = thousands(self.commands as i64),
-            ret = thousands(self.returned_tokens),
-            base = thousands(self.estimated_baseline_tokens),
-            red = format_pct(self.reduction),
-            sav = abbrev_tokens(self.estimated_savings),
-        )
+        let mut out = String::new();
+        out.push_str("repoctx — Token Savings\n");
+        out.push_str(&self.window);
+        out.push('\n');
+        out.push_str(&rule('═', 44));
+        out.push('\n');
+        out.push_str(&format!(
+            "{:<18}{}\n",
+            "Commands",
+            thousands(self.commands as i64)
+        ));
+        out.push_str(&format!(
+            "{:<18}{}\n",
+            "Returned",
+            abbrev(self.returned_tokens)
+        ));
+        out.push_str(&format!(
+            "{:<18}{}\n",
+            "Baseline (est.)",
+            abbrev(self.estimated_baseline_tokens)
+        ));
+        out.push_str(&format!(
+            "{:<18}{}  ({})\n",
+            "Saved",
+            abbrev(self.estimated_savings),
+            format_pct(self.reduction)
+        ));
+        out.push_str(&format!(
+            "\nEfficiency  {} {}\n",
+            meter(self.reduction, 24),
+            format_pct(self.reduction)
+        ));
+        if !self.top.is_empty() {
+            out.push_str(&format!("\nBy Command (top {})\n", self.top.len()));
+            out.push_str(&render_table(&self.top));
+        }
+        out
     }
 }
 
@@ -76,20 +111,14 @@ pub struct TopList {
 
 impl HumanRender for TopList {
     fn human(&self) -> String {
-        let mut out = format!("{}\nby: {}\n", self.window, self.by);
+        let mut out = String::new();
+        out.push_str("repoctx — Token Savings by Command\n");
+        out.push_str(&format!("{} · by {}\n", self.window, self.by));
         if self.items.is_empty() {
-            out.push_str("\nno recorded invocations in window");
+            out.push_str("no recorded invocations in window");
             return out;
         }
-        for r in &self.items {
-            out.push_str(&format!(
-                "\n{cmd}:\n  {red} reduction · {sav} saved · {n} call(s)\n",
-                cmd = r.command,
-                red = format_pct(r.reduction),
-                sav = abbrev_tokens(r.estimated_savings),
-                n = thousands(r.commands as i64),
-            ));
-        }
+        out.push_str(&render_table(&self.items));
         out
     }
 }
@@ -211,7 +240,7 @@ pub fn run_summary(
     let store = Store::open(repo_root).context("open store")?;
     let totals = store.gain_totals(window.since_ns())?;
     let label = window.label();
-    let summary = summarize(&totals, label.clone());
+    let mut summary = summarize(&totals, label.clone());
 
     if let Some(limit) = history {
         let rows = store.gain_recent(limit)?;
@@ -227,6 +256,23 @@ pub fn run_summary(
             items,
         };
         return crate::output::emit(&list, render);
+    }
+
+    // Human-only top-5 table (skipped in machine output). Cheap second
+    // query; only the totals struct crosses the format boundary.
+    if render == Render::Human && summary.commands > 0 {
+        let mut rows: Vec<CommandRow> = store
+            .gain_per_command(window.since_ns())?
+            .into_iter()
+            .map(to_command_row)
+            .collect();
+        rows.sort_by(|a, b| {
+            b.estimated_savings
+                .cmp(&a.estimated_savings)
+                .then_with(|| a.command.cmp(&b.command))
+        });
+        rows.truncate(5);
+        summary.top = rows;
     }
     crate::output::emit(&summary, render)
 }
@@ -275,6 +321,7 @@ fn summarize(t: &GainTotals, window: String) -> GainSummary {
         estimated_baseline_tokens: t.estimated_baseline_tokens,
         estimated_savings: savings,
         reduction: round1(reduction),
+        top: Vec::new(),
     }
 }
 
@@ -369,21 +416,102 @@ fn thousands(mut n: i64) -> String {
     out.chars().rev().collect()
 }
 
-fn abbrev_tokens(n: i64) -> String {
+/// Compact human size, no unit word: `805`, `12.4K`, `1.5M`, `2.1G`.
+fn abbrev(n: i64) -> String {
     let a = n.unsigned_abs() as f64;
     let sign = if n < 0 { "-" } else { "" };
-    let (val, unit) = if a >= 1_000_000.0 {
+    let (val, unit) = if a >= 1_000_000_000.0 {
+        (a / 1_000_000_000.0, "G")
+    } else if a >= 1_000_000.0 {
         (a / 1_000_000.0, "M")
     } else if a >= 1_000.0 {
         (a / 1_000.0, "K")
     } else {
-        return format!("{sign}{n} tokens");
+        return format!("{sign}{}", a as i64);
     };
-    format!("{sign}{val:.1}{unit} tokens")
+    format!("{sign}{val:.1}{unit}")
 }
 
 fn format_pct(pct: f64) -> String {
     format!("{pct:.1}%")
+}
+
+/// Horizontal rule of `n` repeats, plus a trailing newline.
+fn rule(c: char, n: usize) -> String {
+    let mut s: String = std::iter::repeat_n(c, n).collect();
+    s.push('\n');
+    s
+}
+
+/// `width`-cell bar, `frac` (0.0..=1.0) filled with `█`, rest `░`.
+fn bar(frac: f64, width: usize) -> String {
+    let frac = frac.clamp(0.0, 1.0);
+    let filled = (frac * width as f64).round() as usize;
+    let filled = filled.min(width);
+    let mut s = String::with_capacity(width * 3);
+    for _ in 0..filled {
+        s.push('█');
+    }
+    for _ in 0..(width - filled) {
+        s.push('░');
+    }
+    s
+}
+
+/// Percentage meter (0..=100) over `width` cells.
+fn meter(pct: f64, width: usize) -> String {
+    bar(pct / 100.0, width)
+}
+
+/// Ranked per-command table with impact bars scaled to the top row's
+/// savings. Shared by `gain` (top-N) and `gain top` (full list).
+fn render_table(rows: &[CommandRow]) -> String {
+    let max_savings = rows.iter().map(|r| r.estimated_savings).max().unwrap_or(0);
+    let cmd_w = rows
+        .iter()
+        .map(|r| r.command.len())
+        .max()
+        .unwrap_or(7)
+        .clamp(7, 28);
+    let saved: Vec<String> = rows.iter().map(|r| abbrev(r.estimated_savings)).collect();
+    let saved_w = saved.iter().map(|s| s.len()).max().unwrap_or(5).max(5);
+
+    let mut out = String::new();
+    out.push_str(&rule('─', cmd_w + saved_w + 33));
+    out.push_str(&format!(
+        "  #  {:<cw$}  {:>5}  {:>sw$}  {:>6}  Impact\n",
+        "Command",
+        "Count",
+        "Saved",
+        "Avg%",
+        cw = cmd_w,
+        sw = saved_w,
+    ));
+    out.push_str(&rule('─', cmd_w + saved_w + 33));
+    for (i, r) in rows.iter().enumerate() {
+        let frac = if max_savings > 0 {
+            r.estimated_savings as f64 / max_savings as f64
+        } else {
+            0.0
+        };
+        let mut cmd = r.command.clone();
+        if cmd.len() > cmd_w {
+            cmd.truncate(cmd_w - 1);
+            cmd.push('…');
+        }
+        out.push_str(&format!(
+            "{:>3}  {:<cw$}  {:>5}  {:>sw$}  {:>6}  {}\n",
+            i + 1,
+            cmd,
+            thousands(r.commands as i64),
+            saved[i],
+            format_pct(r.reduction),
+            bar(frac, 10),
+            cw = cmd_w,
+            sw = saved_w,
+        ));
+    }
+    out
 }
 
 #[cfg(test)]
@@ -401,9 +529,49 @@ mod tests {
 
     #[test]
     fn abbreviation() {
-        assert_eq!(abbrev_tokens(500), "500 tokens");
-        assert_eq!(abbrev_tokens(12_345), "12.3K tokens");
-        assert_eq!(abbrev_tokens(4_123_456), "4.1M tokens");
+        assert_eq!(abbrev(0), "0");
+        assert_eq!(abbrev(500), "500");
+        assert_eq!(abbrev(999), "999");
+        assert_eq!(abbrev(12_345), "12.3K");
+        assert_eq!(abbrev(1_500_000), "1.5M");
+        assert_eq!(abbrev(2_100_000_000), "2.1G");
+    }
+
+    #[test]
+    fn bar_fills_proportionally() {
+        assert_eq!(bar(0.0, 4), "░░░░");
+        assert_eq!(bar(1.0, 4), "████");
+        assert_eq!(bar(0.5, 4), "██░░");
+        // clamps out-of-range
+        assert_eq!(bar(2.0, 3), "███");
+    }
+
+    #[test]
+    fn render_table_has_header_and_rows() {
+        let rows = vec![
+            CommandRow {
+                command: "symbols".into(),
+                commands: 2,
+                returned_tokens: 100,
+                estimated_baseline_tokens: 5000,
+                estimated_savings: 4900,
+                reduction: 98.0,
+            },
+            CommandRow {
+                command: "context".into(),
+                commands: 1,
+                returned_tokens: 200,
+                estimated_baseline_tokens: 2000,
+                estimated_savings: 1800,
+                reduction: 90.0,
+            },
+        ];
+        let t = render_table(&rows);
+        assert!(t.contains("Command"));
+        assert!(t.contains("Impact"));
+        assert!(t.contains("symbols"));
+        // top row gets a full impact bar
+        assert!(t.contains("██████████"));
     }
 
     #[test]
