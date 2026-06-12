@@ -203,6 +203,51 @@ impl Store {
         Ok(out)
     }
 
+    /// Read one settings row. Returns `None` if absent.
+    pub fn get_setting(&self, key: &str) -> Result<Option<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT value FROM settings WHERE key = ?1")?;
+        let mut rows = stmt.query(params![key])?;
+        if let Some(row) = rows.next()? {
+            Ok(Some(row.get(0)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Write a settings row (insert or overwrite).
+    pub fn set_setting(&mut self, key: &str, value: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO settings(key, value) VALUES(?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    /// Remove a settings row. Returns the number of rows deleted (0 or 1).
+    pub fn delete_setting(&mut self, key: &str) -> Result<usize> {
+        Ok(self
+            .conn
+            .execute("DELETE FROM settings WHERE key = ?1", params![key])?)
+    }
+
+    /// All settings rows ordered by key.
+    pub fn all_settings(&self) -> Result<Vec<(String, String)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT key, value FROM settings ORDER BY key ASC")?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
     /// Whether a file row exists for `path`.
     pub fn file_exists(&self, path: &str) -> Result<bool> {
         let n: i64 = self.conn.query_row(

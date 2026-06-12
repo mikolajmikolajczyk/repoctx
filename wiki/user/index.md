@@ -7,6 +7,7 @@
 - [Installation](installation.md) — pre-built binaries, Nix, or Cargo from source.
 - [Quickstart](quickstart.md) — five-minute walk-through of every read command.
 - [Commands reference](commands.md) — every command, every flag, exit codes.
+- [Config — per-repo settings](config.md) — `repoctx config show / get / set / unset` over the `.repoctx/index.db` settings table.
 - [Hook — per-agent install](hook.md) — `repoctx hook install <agent>` for Claude Code / Codex / opencode.
 - [Output formats + agent integration](output-formats.md) — TOON vs JSON vs human; CLAUDE.md recipe, jq snippets.
 - [Gain analytics](gain.md) — what `repoctx gain` measures, baseline rules, privacy stance.

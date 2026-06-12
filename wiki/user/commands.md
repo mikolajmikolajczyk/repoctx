@@ -1,6 +1,6 @@
 # Commands reference
 
-Nine commands: `index`, `symbols`, `outline`, `definition`, `context`, `status`, `languages`, `hook`, `gain`. All examples below were verified against the v0.2.1 binary on 2026-06-12.
+Ten commands: `index`, `symbols`, `outline`, `definition`, `context`, `status`, `languages`, `config`, `hook`, `gain`. All examples below were verified against the v0.4.0 binary on 2026-06-12.
 
 ## Global flags
 
@@ -245,6 +245,24 @@ yaml        partial  top-level keys of each document; nested keys are not surfac
 Human render appends a final `advisory: <text>` line. Machine renders include `"advisory": "..."`.
 
 Agents should treat a non-null `advisory` as a hint to also run the suggested `rg` command and merge the results, rather than trusting `count: 0` as authoritative.
+
+## `repoctx config`
+
+Per-repo settings table (lives in `.repoctx/index.db`). Four
+subcommands. Full reference + key schema + env-var naming + precedence
+rules: [`config.md`](config.md).
+
+| Subcommand | Effect |
+|---|---|
+| `repoctx config show` | Every effective key + its current value + source (`cli` / `env` / `settings` / `default`). |
+| `repoctx config get <key>` | One value, with its source. |
+| `repoctx config set <key> <value>` | Validate + write. Rejects unknown keys and out-of-range values. |
+| `repoctx config unset <key>` | Delete row; built-in default applies again. |
+
+Precedence (highest wins): CLI flag → environment variable → settings
+row → built-in default. Six keys today: `hook.rewrite`, `hook.ref`,
+`hook.no_cache`, `gain.no_record`, `gain.record_query`,
+`output.default`.
 
 ## `repoctx hook`
 

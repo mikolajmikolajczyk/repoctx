@@ -30,17 +30,28 @@ impl Render {
 /// Precedence:
 /// 1. `--json` => Json.
 /// 2. `--toon` => Toon.
-/// 3. stdout is a TTY => Human.
-/// 4. Otherwise => Toon (machine default per ADR-0008).
-pub fn resolve(json: bool, toon: bool) -> Render {
+/// 3. `output.default` config (when not `auto`) overrides TTY detection.
+/// 4. stdout is a TTY => Human.
+/// 5. Otherwise => Toon (machine default per ADR-0008).
+pub fn resolve(json: bool, toon: bool, default: crate::config::OutputDefault) -> Render {
+    use crate::config::OutputDefault;
     if json {
         Render::Json
     } else if toon {
         Render::Toon
-    } else if io::stdout().is_terminal() {
-        Render::Human
     } else {
-        Render::Toon
+        match default {
+            OutputDefault::Human => Render::Human,
+            OutputDefault::Toon => Render::Toon,
+            OutputDefault::Json => Render::Json,
+            OutputDefault::Auto => {
+                if io::stdout().is_terminal() {
+                    Render::Human
+                } else {
+                    Render::Toon
+                }
+            }
+        }
     }
 }
 
@@ -120,9 +131,24 @@ where
 mod tests {
     use super::*;
 
+    use crate::config::OutputDefault;
+
     #[test]
     fn resolve_flags_override_tty() {
-        assert_eq!(resolve(true, false), Render::Json);
-        assert_eq!(resolve(false, true), Render::Toon);
+        assert_eq!(resolve(true, false, OutputDefault::Auto), Render::Json);
+        assert_eq!(resolve(false, true, OutputDefault::Auto), Render::Toon);
+    }
+
+    #[test]
+    fn resolve_config_default_overrides_tty_detection() {
+        assert_eq!(resolve(false, false, OutputDefault::Json), Render::Json);
+        assert_eq!(resolve(false, false, OutputDefault::Toon), Render::Toon);
+        assert_eq!(resolve(false, false, OutputDefault::Human), Render::Human);
+    }
+
+    #[test]
+    fn resolve_cli_flag_beats_config_default() {
+        assert_eq!(resolve(true, false, OutputDefault::Toon), Render::Json);
+        assert_eq!(resolve(false, true, OutputDefault::Json), Render::Toon);
     }
 }

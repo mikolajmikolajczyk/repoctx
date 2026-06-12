@@ -49,14 +49,14 @@ fn rec(
 }
 
 #[test]
-fn schema_v2_on_fresh_open() {
+fn schema_on_fresh_open() {
     let s = Store::open_in_memory().unwrap();
     assert_eq!(s.schema_version().unwrap(), SUPPORTED_VERSION);
-    assert_eq!(SUPPORTED_VERSION, 2);
+    assert_eq!(SUPPORTED_VERSION, 3);
 }
 
 #[test]
-fn v1_db_migrates_to_v2_with_rows_intact() {
+fn v1_db_migrates_to_latest_with_rows_intact() {
     let tmp = tempdir().unwrap();
     let path = tmp.path().join("legacy.db");
 
@@ -94,9 +94,9 @@ fn v1_db_migrates_to_v2_with_rows_intact() {
         .unwrap();
     }
 
-    // Open through Store -> should migrate to v2 in place.
+    // Open through Store -> should migrate to latest in place.
     let s = Store::open_at(&path).unwrap();
-    assert_eq!(s.schema_version().unwrap(), 2);
+    assert_eq!(s.schema_version().unwrap(), SUPPORTED_VERSION);
     // Original rows preserved.
     let by_file = s.symbols_by_file("a.rs").unwrap();
     assert_eq!(by_file.len(), 1);

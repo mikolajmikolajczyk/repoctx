@@ -6,6 +6,8 @@ use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
 mod advisory;
+mod config;
+mod config_cmd;
 mod context_cmd;
 mod definition_cmd;
 mod gain;
@@ -110,6 +112,11 @@ enum Cmd {
     /// indexes each language). Agents check this before deciding to
     /// fall back to ripgrep.
     Languages,
+    /// Read or write the per-repo settings table.
+    Config {
+        #[command(subcommand)]
+        sub: ConfigSub,
+    },
     /// Manage per-agent integration files (skills, AGENTS.md fragments).
     Hook {
         #[command(subcommand)]
@@ -132,6 +139,18 @@ enum Cmd {
         #[command(subcommand)]
         sub: Option<GainSub>,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum ConfigSub {
+    /// Print every effective config key with its current value + source.
+    Show,
+    /// Print one key's current value.
+    Get { key: String },
+    /// Validate + write one key.
+    Set { key: String, value: String },
+    /// Delete one key (default applies again).
+    Unset { key: String },
 }
 
 #[derive(Subcommand, Debug)]
@@ -208,9 +227,10 @@ fn init_tracing(verbose: u8) {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     init_tracing(cli.verbose);
-    let render = output::resolve(cli.json, cli.toon);
     let repo_root = repo_root::resolve(cli.repo)?;
-    let gain_opts = gain::GainOpts::from_cli(cli.no_record, cli.record_query);
+    let cfg = load_config(&repo_root);
+    let render = output::resolve(cli.json, cli.toon, cfg.output.default);
+    let gain_opts = gain::GainOpts::from_cli(cli.no_record, cli.record_query, &cfg.gain);
 
     match cli.cmd {
         Cmd::Index { force } => index_cmd::run(&repo_root, force, render),
@@ -224,6 +244,12 @@ fn main() -> Result<()> {
             limit,
         } => context_cmd::run(&repo_root, symbol, context, limit, render, gain_opts),
         Cmd::Languages => languages_cmd::run(render),
+        Cmd::Config { sub } => match sub {
+            ConfigSub::Show => config_cmd::run_show(&repo_root, render),
+            ConfigSub::Get { key } => config_cmd::run_get(&repo_root, key, render),
+            ConfigSub::Set { key, value } => config_cmd::run_set(&repo_root, key, value),
+            ConfigSub::Unset { key } => config_cmd::run_unset(&repo_root, key),
+        },
         Cmd::Status { fast } => status_cmd::run(&repo_root, fast, render),
         Cmd::Symbols {
             query,
@@ -233,7 +259,10 @@ fn main() -> Result<()> {
         } => symbols_cmd::run(&repo_root, query, kind, lang, limit, render, gain_opts),
         Cmd::Hook { sub } => match sub {
             HookSub::List { r#ref, no_cache } => {
-                let fetcher = hook_cmd::build_fetcher(r#ref, no_cache)?;
+                let fetcher = hook_cmd::build_fetcher(
+                    r#ref.or_else(|| cfg.hook.r#ref.clone()),
+                    no_cache || cfg.hook.no_cache,
+                )?;
                 hook_cmd::run_list(&fetcher, render)
             }
             HookSub::Status {
@@ -241,7 +270,10 @@ fn main() -> Result<()> {
                 r#ref,
                 no_cache,
             } => {
-                let fetcher = hook_cmd::build_fetcher(r#ref, no_cache)?;
+                let fetcher = hook_cmd::build_fetcher(
+                    r#ref.or_else(|| cfg.hook.r#ref.clone()),
+                    no_cache || cfg.hook.no_cache,
+                )?;
                 let target = hook_cmd::resolve_dir(dir, &repo_root);
                 hook_cmd::run_status(&fetcher, &target, render)
             }
@@ -253,7 +285,10 @@ fn main() -> Result<()> {
                 r#ref,
                 no_cache,
             } => {
-                let fetcher = hook_cmd::build_fetcher(r#ref, no_cache)?;
+                let fetcher = hook_cmd::build_fetcher(
+                    r#ref.or_else(|| cfg.hook.r#ref.clone()),
+                    no_cache || cfg.hook.no_cache,
+                )?;
                 let target = hook_cmd::resolve_dir(dir, &repo_root);
                 let bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("repoctx"));
                 hook_cmd::run_install(&fetcher, &target, &agent, dry_run, force, &bin, render)
@@ -282,6 +317,25 @@ fn main() -> Result<()> {
                 }
                 None => gain_cmd::run_summary(&repo_root, window, render, history),
             }
+        }
+    }
+}
+
+/// Best-effort load. Failure (missing DB, IO error) falls back to
+/// built-in defaults — we don't want a stale or broken settings table
+/// to break read commands. Real config errors get logged once.
+fn load_config(repo_root: &std::path::Path) -> config::Config {
+    if !repo_root.join(".repoctx/index.db").exists() {
+        return config::Config::defaults();
+    }
+    match repoctx_store::Store::open(repo_root) {
+        Ok(store) => config::Config::load(&store).unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "config: load failed; using defaults");
+            config::Config::defaults()
+        }),
+        Err(e) => {
+            tracing::warn!(error = %e, "config: store open failed; using defaults");
+            config::Config::defaults()
         }
     }
 }

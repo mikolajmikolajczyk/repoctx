@@ -11,7 +11,7 @@ use repoctx_store::{Store, UsageRecord};
 use tiktoken_rs::{cl100k_base_singleton, CoreBPE};
 use tracing::debug;
 
-const ENV_NO_RECORD: &str = "RUST_REPOCTX_NO_RECORD";
+use crate::config::GainConfig;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct GainOpts {
@@ -20,10 +20,14 @@ pub struct GainOpts {
 }
 
 impl GainOpts {
-    pub fn from_cli(no_record: bool, record_query: bool) -> Self {
+    /// Build from CLI flags + the loaded `GainConfig`. CLI flags are
+    /// "force on" — a present CLI flag wins over a `false` config; an
+    /// absent flag falls back to the config value (which itself
+    /// already accounts for env + settings table + default).
+    pub fn from_cli(no_record: bool, record_query: bool, cfg: &GainConfig) -> Self {
         Self {
-            no_record,
-            record_query,
+            no_record: no_record || cfg.no_record,
+            record_query: record_query || cfg.record_query,
         }
     }
 }
@@ -49,7 +53,7 @@ impl<'a> Recorder<'a> {
         rendered: &str,
         output_format: &str,
     ) {
-        if self.opts.no_record || std::env::var_os(ENV_NO_RECORD).is_some() {
+        if self.opts.no_record {
             return;
         }
         let stored_query = if self.opts.record_query {

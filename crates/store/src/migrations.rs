@@ -8,7 +8,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::error::{Result, StoreError};
 
 /// Highest schema version this binary supports.
-pub const SUPPORTED_VERSION: u32 = 2;
+pub const SUPPORTED_VERSION: u32 = 3;
 
 /// Migration scripts indexed by target version. Position N is the SQL to
 /// move the DB from version N-1 to version N.
@@ -60,6 +60,18 @@ const MIGRATIONS: &[&str] = &[
 
     CREATE INDEX usage_ts_idx      ON usage(ts_unix_ns);
     CREATE INDEX usage_command_idx ON usage(command);
+    "#,
+    // -> v3 (per-repo config; epic 2c96964)
+    //
+    // Key-value store for persistent CLI behavior. Values are TEXT and
+    // parsed at read time by the loader; unknown keys are warned but
+    // accepted so older binaries don't brick on settings written by
+    // newer ones.
+    r#"
+    CREATE TABLE settings (
+        key   TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+    );
     "#,
 ];
 
