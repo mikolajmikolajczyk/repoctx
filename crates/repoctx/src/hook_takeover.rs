@@ -54,6 +54,107 @@ impl HumanRender for TakeoverReport {
 
 const REPOCTX_HOOK_COMMAND: &str = "repoctx hook claude";
 
+/// Findings from a scan of `~/.claude/settings.json`. repoctx is
+/// deliberately project-scoped — we never write to user-global
+/// config — but we DO read it to detect a class of incompatibility
+/// where a tool like rtk installed user-globally will fire in
+/// parallel with our project-local entry.
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct UserGlobalScan {
+    /// Commands found under `hooks.PreToolUse[].matcher == "Bash"`
+    /// in `~/.claude/settings.json`. Empty if file absent or has no
+    /// Bash entries. The repoctx command itself (if present user-
+    /// globally for some reason) is excluded.
+    pub conflicting_commands: Vec<String>,
+}
+
+impl HumanRender for UserGlobalScan {
+    fn human(&self) -> String {
+        if self.conflicting_commands.is_empty() {
+            return "user-global: no conflicting hooks".into();
+        }
+        let mut s = String::from("user-global PreToolUse → Bash entries detected:");
+        for cmd in &self.conflicting_commands {
+            s.push_str(&format!("\n  - {cmd}"));
+        }
+        s
+    }
+}
+
+/// Scan `~/.claude/settings.json` (or the resolved equivalent) for
+/// Bash matcher entries. Read-only — we never write here.
+pub fn scan_user_global() -> Result<UserGlobalScan> {
+    let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
+        return Ok(UserGlobalScan::default());
+    };
+    let path = home.join(".claude/settings.json");
+    if !path.exists() {
+        return Ok(UserGlobalScan::default());
+    }
+    let text = fs::read_to_string(&path)
+        .with_context(|| format!("read {}", path.display()))?;
+    if text.trim().is_empty() {
+        return Ok(UserGlobalScan::default());
+    }
+    let root: Value = serde_json::from_str(&text)
+        .with_context(|| format!("parse {}", path.display()))?;
+    let mut out = UserGlobalScan::default();
+    let Some(arr) = root
+        .get("hooks")
+        .and_then(|h| h.get("PreToolUse"))
+        .and_then(|p| p.as_array())
+    else {
+        return Ok(out);
+    };
+    for entry in arr {
+        let is_bash = entry
+            .get("matcher")
+            .and_then(|m| m.as_str())
+            .map(|s| s == "Bash")
+            .unwrap_or(false);
+        if !is_bash {
+            continue;
+        }
+        let Some(hooks) = entry.get("hooks").and_then(|h| h.as_array()) else {
+            continue;
+        };
+        for h in hooks {
+            if is_repoctx_hook(h) {
+                continue;
+            }
+            if let Some(cmd) = h.get("command").and_then(|c| c.as_str()) {
+                out.conflicting_commands.push(cmd.to_string());
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Emit the user-global incompatibility warning to stderr. Idempotent
+/// — safe to call from both `hook install claude` and `hook doctor`.
+pub fn warn_user_global(scan: &UserGlobalScan) {
+    if scan.conflicting_commands.is_empty() {
+        return;
+    }
+    eprintln!();
+    eprintln!("warning: user-global PreToolUse hooks detected.");
+    for cmd in &scan.conflicting_commands {
+        eprintln!("  ~/.claude/settings.json → command: {cmd}");
+    }
+    eprintln!();
+    eprintln!(
+        "Claude Code merges user-global + project-local hooks at runtime,\n\
+         so this command will fire in parallel with 'repoctx hook claude'.\n\
+         The last-completing rewrite wins — non-deterministic, machine-load\n\
+         dependent.\n\
+         \n\
+         Options:\n\
+         \x20 1. Move it to project-local install (rerun without -g/--global).\n\
+         \x20 2. Disable the user-global entry by hand in ~/.claude/settings.json.\n\
+         \x20 3. Accept the race; rerun 'repoctx hook doctor' after any reinstall."
+    );
+}
+
 /// Top-level entry. Reads or creates `<dir>/.claude/settings.json`,
 /// captures any non-repoctx Bash PreToolUse commands, rewrites the
 /// file so repoctx is the sole owner. Idempotent.
@@ -321,6 +422,87 @@ mod tests {
         run(tmp.path(), false).unwrap();
         let v = read_settings(tmp.path());
         assert!(bash_matcher_entry(&v).is_some());
+    }
+
+    #[test]
+    fn scan_user_global_returns_empty_when_no_home_file() {
+        // Point HOME at an empty tmpdir.
+        let tmp = tempdir().unwrap();
+        let prev = std::env::var_os("HOME");
+        unsafe {
+            std::env::set_var("HOME", tmp.path());
+        }
+        let scan = scan_user_global().unwrap();
+        if let Some(p) = prev {
+            unsafe {
+                std::env::set_var("HOME", p);
+            }
+        }
+        assert!(scan.conflicting_commands.is_empty());
+    }
+
+    #[test]
+    fn scan_user_global_finds_rtk_style_entry() {
+        let tmp = tempdir().unwrap();
+        let claude_dir = tmp.path().join(".claude");
+        fs::create_dir_all(&claude_dir).unwrap();
+        fs::write(
+            claude_dir.join("settings.json"),
+            r#"{
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [{"type": "command", "command": "rtk hook claude"}]
+                        }
+                    ]
+                }
+            }"#,
+        )
+        .unwrap();
+        let prev = std::env::var_os("HOME");
+        unsafe {
+            std::env::set_var("HOME", tmp.path());
+        }
+        let scan = scan_user_global().unwrap();
+        if let Some(p) = prev {
+            unsafe {
+                std::env::set_var("HOME", p);
+            }
+        }
+        assert_eq!(scan.conflicting_commands, vec!["rtk hook claude"]);
+    }
+
+    #[test]
+    fn scan_user_global_skips_self() {
+        let tmp = tempdir().unwrap();
+        let claude_dir = tmp.path().join(".claude");
+        fs::create_dir_all(&claude_dir).unwrap();
+        fs::write(
+            claude_dir.join("settings.json"),
+            r#"{
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [{"type": "command", "command": "repoctx hook claude"}]
+                        }
+                    ]
+                }
+            }"#,
+        )
+        .unwrap();
+        let prev = std::env::var_os("HOME");
+        unsafe {
+            std::env::set_var("HOME", tmp.path());
+        }
+        let scan = scan_user_global().unwrap();
+        if let Some(p) = prev {
+            unsafe {
+                std::env::set_var("HOME", p);
+            }
+        }
+        assert!(scan.conflicting_commands.is_empty());
     }
 
     #[test]

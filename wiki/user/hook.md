@@ -59,7 +59,7 @@ repoctx hook list
 ```
 
 ```text
-ref: v0.5.0
+ref: v0.5.1
 claude    Claude Code skill at .claude/skills/repoctx/SKILL.md + a CLAUDE.md guidance block.
 codex     Codex CLI guidance via merge-section block in AGENTS.md.
 opencode  opencode CLI guidance via merge-section block in AGENTS.md.
@@ -76,7 +76,7 @@ repoctx hook status
 ```
 
 ```text
-ref: v0.5.0
+ref: v0.5.1
 dir: /home/me/my-project
 
 claude:
@@ -209,7 +209,7 @@ Per-agent files are NOT baked into the binary. Each `install` / `status` / `list
 2. On cache miss, GETs `https://raw.githubusercontent.com/mikolajmikolajczyk/repoctx/<ref>/integrations/<agent>/manifest.toml`.
 3. Same dance for each file the manifest references.
 
-Cache layout: `~/.cache/repoctx/integrations/v0.5.0/claude/SKILL.md` (Linux), `~/Library/Caches/dev.repoctx.repoctx/integrations/v0.5.0/...` (macOS), `%LOCALAPPDATA%\repoctx\repoctx\cache\integrations\v0.5.0\...` (Windows). `REPOCTX_INTEGRATIONS_CACHE_DIR` overrides the root. Pre-populating the cache by hand is a supported offline path — the installer doesn't distinguish between "cached because we fetched it" and "cached because you wrote it there".
+Cache layout: `~/.cache/repoctx/integrations/v0.5.1/claude/SKILL.md` (Linux), `~/Library/Caches/dev.repoctx.repoctx/integrations/v0.5.1/...` (macOS), `%LOCALAPPDATA%\repoctx\repoctx\cache\integrations\v0.5.1\...` (Windows). `REPOCTX_INTEGRATIONS_CACHE_DIR` overrides the root. Pre-populating the cache by hand is a supported offline path — the installer doesn't distinguish between "cached because we fetched it" and "cached because you wrote it there".
 
 ## Template variables
 
@@ -241,6 +241,41 @@ Follow it by hand. For `merge-section` files, deleting the entire block (markers
 - **`refusing to write … destination exists with different content`** — you've edited the file locally. Re-run with `--force` to overwrite, or merge upstream changes by hand.
 - **`unknown agent: <name>`** — only `claude`, `codex`, and `opencode` are supported in v0.1.x. Open an issue for additional agents.
 - **Cache stale after a release** — `--no-cache` forces a refetch. The cache directory is safe to delete (`rm -rf ~/.cache/repoctx/integrations/`).
+
+## Coexistence with user-global tools — known limitation
+
+repoctx is deliberately **project-scoped** — `repoctx hook install
+claude` only writes `<project>/.claude/settings.json`. It never
+touches `~/.claude/settings.json`.
+
+Claude Code's runtime, however, **merges hooks across all scopes**.
+A `PreToolUse → Bash` entry in `~/.claude/settings.json` (e.g. from
+`rtk init -g`) fires in parallel with our project-local entry. The
+last-completing `updatedInput` wins — non-deterministic.
+
+**Detection**: `repoctx hook install claude` and `repoctx hook
+doctor` both scan `~/.claude/settings.json` and emit a stderr
+warning listing every conflicting command they find. We don't
+silently take ownership of user-global config; that's the user's
+domain.
+
+**Workarounds** (in order of preference):
+
+1. **Install the conflicting tool per-project, not user-global.**
+   Run rtk (or whatever) without `-g` / `--global`. Our takeover
+   then sees its entry in `<project>/.claude/settings.json` and
+   chains it cleanly.
+2. **Disable the user-global entry by hand.** Edit
+   `~/.claude/settings.json` and remove or comment out the Bash
+   matcher entry.
+3. **Live with the race.** Acceptable if the conflicting tool's
+   rewrite is non-destructive (rtk's compression is). Run
+   `repoctx hook doctor` after any reinstall to keep our entry
+   present.
+
+This is a Claude Code design limitation (no `exclusive` / `override`
+flag for hook scopes), not a repoctx bug. Feedback channel: file
+with Anthropic via `/feedback` if it bites you.
 
 ## Coexistence with other hook installers
 

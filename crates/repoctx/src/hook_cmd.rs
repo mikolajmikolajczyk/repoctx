@@ -272,6 +272,11 @@ pub fn run_install(
             }
             eprintln!("  to restore the prior setup, see the removal recipe above");
         }
+        // Warn on user-global Bash hooks (project-scoped tool can't
+        // fix them — Claude Code merges, doesn't override).
+        if let Ok(scan) = crate::hook_takeover::scan_user_global() {
+            crate::hook_takeover::warn_user_global(&scan);
+        }
     }
     Ok(())
 }
@@ -305,5 +310,9 @@ pub fn run_doctor(repo_root: &Path, dir: &Path, dry_run: bool, render: Render) -
             }
         }
     }
-    crate::output::emit(&report, render)
+    crate::output::emit(&report, render)?;
+    if let Ok(scan) = crate::hook_takeover::scan_user_global() {
+        crate::hook_takeover::warn_user_global(&scan);
+    }
+    Ok(())
 }

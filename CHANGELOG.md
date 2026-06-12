@@ -4,6 +4,24 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-06-12
+
+Real-world-setup fixes: stronger Codex stickiness + honest detection of user-global hook conflicts.
+
+### Added
+
+- **User-global hook conflict detection.** `hook install claude` and `hook doctor` now scan `~/.claude/settings.json` for `PreToolUse → Bash` entries from other tools (typically `rtk init -g`) and emit a stderr warning naming each conflicting command. repoctx remains strictly project-scoped — we never write to user-global config; the warning explains the Claude Code merge semantics + the three workarounds (per-project install, manual disable, or accept the race). Issue `9910aab`.
+
+### Changed
+
+- **`integrations/shared/AGENTS.md.fragment` rewritten** for sticker agent behavior. Drops the soft "prefer repoctx" hedging in favor of an explicit "Rules" section that anchors against drift, plus a "Quick cues" intent → command table mirroring the Claude `CLAUDE.md` fragment. Worked examples are now `Don't / Do` pairs so the model gets concrete contrast. Affects every Codex / opencode install (they share the fragment). Issue `3acc420`.
+
+### Notes
+
+- This release is purely additive at the binary level. Existing hook installs keep working; the warning surfaces on the next `hook install` or `hook doctor` against an installed setup.
+- The user-global merge problem is a documented Claude Code design limitation; the warning lists it as such. File `/feedback` upstream if it bites you.
+- v0.5.0 took ownership of project-local `.claude/settings.json` — that's still the right design. v0.5.1 just makes the broader-scope cross-contamination visible.
+
 ## [0.5.0] — 2026-06-12
 
 Transparent rewrite hook for Claude Code. Agents stop forgetting to use `repoctx`.
@@ -193,7 +211,8 @@ First tagged release. M0 functional surface complete on Linux, macOS, and Window
 - Release binary size: ~14 MB on x86_64-linux (9 statically-linked Tree-sitter grammars, accepted cost per ADR-0002).
 - TypeScript upstream `tags.scm` covers interface / abstract class / method signatures only; plain `class`/`function` are not tagged. Documented in [`wiki/user/commands.md`](wiki/user/commands.md).
 
-[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.5.1
 [0.5.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.5.0
 [0.4.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.4.0
 [0.3.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.3.0

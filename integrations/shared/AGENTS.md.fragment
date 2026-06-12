@@ -1,38 +1,86 @@
-# repoctx
+# repoctx — code navigation tool
 
-`repoctx` is an indexed code-navigation CLI. Use it instead of `grep`,
-`find`, or wholesale file reads when answering structural questions
-about this repository. The index is built incrementally over Tree-sitter
-parses across nine languages (Go, Rust, TypeScript, TSX, JavaScript,
-Python, JSON, YAML, TOML, Markdown).
+This repository has `repoctx` available. It is an indexed,
+language-aware code-navigation CLI that gives structural answers
+about the codebase (where symbols are defined, what's in a file,
+exact-name lookups) far cheaper in tokens than `grep`/`find`/`cat`.
 
-Read commands auto-build the index on first run; nothing to set up.
+## Rules
 
-## When to prefer which command
+These rules are not suggestions. Follow them in every response that
+involves navigating or understanding code in this repo.
 
-- **`{REPOCTX_BIN} symbols <substring>`** — case-insensitive substring
-  search across every indexed symbol. Use it to explore (`--kind`,
-  `--lang`, `--limit` narrow the result set).
-- **`{REPOCTX_BIN} definition <name>`** — exact-name lookup limited to
-  definition kinds (`function`, `method`, `class`, `interface`, `type`,
-  `module`, `macro`, `constant`). Prefer over `symbols` when you know
-  the identifier — answers the "where is X defined" question without
-  field/variable noise.
-- **`{REPOCTX_BIN} context <symbol>`** — exact-name match plus the
-  source window around each hit (`--context` lines either side, default
-  5; `--limit` matches, default 3). One call returns "where + what",
-  beating a `definition` + `Read` round trip.
-- **`{REPOCTX_BIN} outline <file>`** — document-symbol tree for a single
-  file. Prefer over reading the whole file when you only need the
-  structure.
-- **`{REPOCTX_BIN} status`** — file/symbol counts + staleness. Cheap
-  one-line health check before deeper work.
-- **`{REPOCTX_BIN} gain`** — surface how many navigation tokens
-  `repoctx` has saved across recent invocations.
+1. **NEVER `grep`/`rg`/`find` for an identifier first.** Always
+   reach for `{REPOCTX_BIN}` instead. `grep` returns line-matches
+   without symbol kind, file structure, or scope information —
+   you'll re-read whole files trying to disambiguate. `repoctx`
+   returns the structured answer in one call.
+2. **NEVER read whole files just to find a symbol.** Use
+   `{REPOCTX_BIN} outline <file>` for the structure or
+   `{REPOCTX_BIN} context <name>` for one symbol with surrounding
+   code.
+3. **The advisory field is your trump card.** If `repoctx` returns
+   `"advisory": "..."` in its machine output, the matching files
+   are in a partial-coverage language (JSON/YAML/TOML). Then —
+   and only then — run the suggested `rg` command.
+4. **Empty results are a real answer.** `count: 0` from a definition
+   or symbols query against a full-coverage language means the
+   identifier doesn't exist in the indexed set. Don't second-guess
+   it with `grep` unless the advisory says to.
+5. **The index manages itself.** Don't run `repoctx index` first —
+   every read command auto-builds and auto-reindexes changed files.
 
-## Output
+## Quick cues — pick the command by intent
 
-All commands default to TOON for piped reads (token-efficient) and human
-for TTYs. Pass `--json` when the caller is `jq` or `serde_json`.
+| You want to | Run |
+|---|---|
+| Find where `X` is defined | `{REPOCTX_BIN} definition X` |
+| Show `X` with surrounding code | `{REPOCTX_BIN} context X` |
+| Explore symbols matching `pattern` | `{REPOCTX_BIN} symbols pattern` |
+| See the structure of one file | `{REPOCTX_BIN} outline path/to/file.rs` |
+| Check index health / staleness | `{REPOCTX_BIN} status` |
+| See how many tokens you've saved | `{REPOCTX_BIN} gain` |
+| See which languages are full vs partial coverage | `{REPOCTX_BIN} languages` |
+
+## When to fall back to `rg`
+
+Only when one of these is true:
+
+- The `advisory` field in the response says to.
+- You're searching for a literal string (TODO comments, error
+  messages, configuration values) rather than an identifier.
+- You're querying a file in JSON / YAML / TOML and need a nested
+  key (those languages are top-level-only in the index).
+- The file's language isn't in the supported set (`repoctx
+  languages` to check).
+
+## Worked examples
+
+```sh
+# "Where is `parse_config` defined?"
+# Don't: rg parse_config
+# Do:
+{REPOCTX_BIN} definition parse_config
+
+# "Show me `apply_changes` with 10 lines of context"
+# Don't: rg "apply_changes" + then Read the file
+# Do:
+{REPOCTX_BIN} context apply_changes --context 10 --limit 1
+
+# "What's in src/lib.rs?"
+# Don't: Read src/lib.rs (4000 tokens)
+# Do:
+{REPOCTX_BIN} outline src/lib.rs           # 200 tokens, structured
+
+# "Find every type alias mentioning Token"
+{REPOCTX_BIN} symbols Token --kind type --json | jq '.items[]'
+```
+
+## Output formats
+
+Default machine output is [TOON](https://github.com/toon-format/toon)
+— a token-efficient JSON-like format. For `jq` or `serde_json`,
+pass `--json`. Both encode the same logical records; field names
+are stable (the public contract).
 
 Working tree: `{REPO_ROOT}`.
