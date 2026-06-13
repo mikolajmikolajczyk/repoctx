@@ -203,6 +203,60 @@ fn refuses_foreign_hook_unless_forced() {
 }
 
 #[test]
+fn migrates_v05x_chain_commands_to_script() {
+    let repo = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+
+    // Seed a v0.5.x state: a hook.chain_commands row + an inline
+    // `repoctx hook claude` settings entry.
+    Command::cargo_bin("repoctx")
+        .unwrap()
+        .env("HOME", home.path())
+        .arg("--repo")
+        .arg(repo.path())
+        .args(["config", "set", "hook.chain_commands", "rtk hook claude"])
+        .assert()
+        .success();
+    let claude = repo.path().join(".claude");
+    std::fs::create_dir_all(&claude).unwrap();
+    std::fs::write(
+        claude.join("settings.json"),
+        r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"repoctx hook claude"}]}]}}"#,
+    )
+    .unwrap();
+
+    // init migrates: ports the rtk chain, drops the row, rewrites the entry.
+    let out = run(repo.path(), home.path(), &["--yes"])
+        .success()
+        .get_output()
+        .stderr
+        .clone();
+    assert!(String::from_utf8_lossy(&out).contains("migrated"));
+
+    let body = std::fs::read_to_string(repo.path().join(".repoctx/hook.sh")).unwrap();
+    assert!(body.contains("RTK_CHAIN=1"), "rtk chain ported");
+    assert_eq!(
+        bash_command(&claude.join("settings.json")),
+        ".repoctx/hook.sh"
+    );
+
+    // chain_commands row is gone (config get → default/empty).
+    let get = Command::cargo_bin("repoctx")
+        .unwrap()
+        .env("HOME", home.path())
+        .arg("--repo")
+        .arg(repo.path())
+        .args(["config", "get", "hook.chain_commands"])
+        .output()
+        .unwrap();
+    let val = String::from_utf8_lossy(&get.stdout);
+    assert!(
+        !val.contains("rtk hook claude"),
+        "chain_commands should be cleared, got: {val}"
+    );
+}
+
+#[test]
 fn unknown_agent_rejected() {
     let repo = TempDir::new().unwrap();
     let home = TempDir::new().unwrap();

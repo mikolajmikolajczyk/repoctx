@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use repoctx_integrations::Installer;
+use repoctx_store::Store;
 
 use crate::config::HookUseRtk;
 
@@ -52,6 +53,20 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         HookUseRtk::Off => false,
         HookUseRtk::Auto => rtk_present,
     };
+
+    // v0.5.x → script-based migration (project scope). Old installs have a
+    // `hook.chain_commands` row + an inline `repoctx hook claude` settings
+    // entry (the latter is replaced automatically by set_sole_bash_hook).
+    let migration = if !opts.global {
+        detect_chain_commands(repo_root)
+    } else {
+        None
+    };
+    if let Some(m) = &migration {
+        if m.has_rtk {
+            rtk_chain = true; // port the rtk chain into RTK_CHAIN
+        }
+    }
 
     // Global install displacing a user-global rtk hook: chain it underneath
     // so rtk's savings survive (the no-degradation promise). `--rtk off`
@@ -142,6 +157,25 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         ensure_gitattributes(repo_root)?;
     }
     crate::hook_takeover::set_sole_bash_hook(&settings_path, &entry_command, false)?;
+
+    // Finish the v0.5.x migration: drop the now-superseded chain_commands
+    // row (chaining lives in the script's RTK_CHAIN now).
+    if let Some(m) = &migration {
+        if let Ok(mut store) = Store::open(repo_root) {
+            let _ = store.delete_setting("hook.chain_commands");
+        }
+        eprintln!("  migrated    : v0.5.x hook.chain_commands → script-based");
+        if m.has_rtk {
+            eprintln!("                (rtk chain ported into RTK_CHAIN=1)");
+        }
+        if !m.others.is_empty() {
+            eprintln!(
+                "  warning     : these chain commands could not be auto-ported \
+                 (re-add by hand if needed): {}",
+                m.others.join(", ")
+            );
+        }
+    }
 
     // Agent guidance files (project scope only — no project to write into
     // for a global install).
@@ -239,6 +273,34 @@ fn ensure_gitattributes(repo_root: &Path) -> Result<()> {
     next.push('\n');
     std::fs::write(&path, next).with_context(|| format!("write {}", path.display()))?;
     Ok(())
+}
+
+/// v0.5.x migration signal: a `hook.chain_commands` row, split into rtk
+/// presence + any other (non-auto-portable) commands. Read-only.
+struct Migration {
+    has_rtk: bool,
+    others: Vec<String>,
+}
+
+fn detect_chain_commands(repo_root: &Path) -> Option<Migration> {
+    // Only if a prior DB exists — don't create one just to check.
+    if !repo_root.join(".repoctx/index.db").exists() {
+        return None;
+    }
+    let store = Store::open(repo_root).ok()?;
+    let raw = store.get_setting("hook.chain_commands").ok()??;
+    let cmds: Vec<String> = raw
+        .split('\n')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect();
+    if cmds.is_empty() {
+        return None;
+    }
+    let has_rtk = cmds.iter().any(|c| c.contains("rtk"));
+    let others = cmds.into_iter().filter(|c| !c.contains("rtk")).collect();
+    Some(Migration { has_rtk, others })
 }
 
 fn home_dir() -> Option<PathBuf> {
