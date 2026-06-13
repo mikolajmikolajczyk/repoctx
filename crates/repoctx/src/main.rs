@@ -146,10 +146,16 @@ enum Cmd {
         /// Chain rtk underneath: `auto` (when on PATH) | `on` | `off`.
         #[arg(long, default_value = "auto")]
         rtk: String,
+        /// Remove the repoctx hook (inverse of install).
+        #[arg(long)]
+        uninstall: bool,
+        /// With --uninstall -g: restore the most recent settings backup.
+        #[arg(long)]
+        restore_backup: bool,
         /// Skip interactive prompts; take defaults / flags.
         #[arg(short = 'y', long)]
         yes: bool,
-        /// Overwrite agent files whose content differs.
+        /// Overwrite/remove files whose content differs (drifted script).
         #[arg(long)]
         force: bool,
         /// Print the plan; write nothing.
@@ -359,19 +365,25 @@ fn run() -> Result<()> {
             global,
             agent,
             rtk,
+            uninstall,
+            restore_backup,
             yes,
             force,
             dry_run,
         } => {
-            let opts = init_cmd::InitOpts {
-                global,
-                agent,
-                rtk: config::HookUseRtk::parse(&rtk)?,
-                yes,
-                force,
-                dry_run,
-            };
-            init_cmd::run(&repo_root, opts)
+            if uninstall {
+                init_cmd::run_uninstall(&repo_root, global, force, dry_run, restore_backup)
+            } else {
+                let opts = init_cmd::InitOpts {
+                    global,
+                    agent,
+                    rtk: config::HookUseRtk::parse(&rtk)?,
+                    yes,
+                    force,
+                    dry_run,
+                };
+                init_cmd::run(&repo_root, opts)
+            }
         }
         Cmd::Gain {
             since,

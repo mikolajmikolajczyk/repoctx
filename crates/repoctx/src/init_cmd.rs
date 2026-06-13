@@ -6,9 +6,8 @@
 //! (via `hook_scan`), and migrates v0.5.x installs. `-g` does the same at
 //! user-global scope (displacing + chaining a prior rtk hook). `doctor`
 //! checks for drift/tamper + scope conflicts and repairs with `--fix`.
-//! See `wiki/decisions/2026-06-13-repoctx-init.md`.
-//!
-//! Still out of scope here: `init --uninstall` (`ec698bb`).
+//! `--uninstall` reverses an install. See
+//! `wiki/decisions/2026-06-13-repoctx-init.md`.
 
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
@@ -209,6 +208,164 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// `repoctx init --uninstall [-g] [--restore-backup] [--force] [--dry-run]`.
+/// Removes repoctx's own Bash hook entry (foreign/rtk entries untouched)
+/// and deletes the hook script when it's verifiably ours. Leaves the
+/// index DB, config, and agent guidance files alone (prints a recipe).
+pub fn run_uninstall(
+    repo_root: &Path,
+    global: bool,
+    force: bool,
+    dry_run: bool,
+    restore_backup: bool,
+) -> Result<()> {
+    let (settings_path, script_path, entry_command) = scope_paths(repo_root, global)?;
+
+    // Global --restore-backup: reinstate the newest backup wholesale.
+    if global && restore_backup {
+        let Some(backup) = newest_backup(&settings_path) else {
+            bail!(
+                "no settings backup found next to {}",
+                settings_path.display()
+            );
+        };
+        if dry_run {
+            eprintln!(
+                "would restore {} → {}",
+                backup.display(),
+                settings_path.display()
+            );
+            return Ok(());
+        }
+        std::fs::copy(&backup, &settings_path)
+            .with_context(|| format!("restore {}", backup.display()))?;
+        eprintln!(
+            "restored {} from {}",
+            settings_path.display(),
+            backup.display()
+        );
+        return Ok(());
+    }
+
+    // Verify the script is ours before deleting it.
+    let script_is_ours = crate::hook_marker::read(&script_path)
+        .map(|m| m.tool == "repoctx")
+        .unwrap_or(false);
+    if script_path.exists() && !script_is_ours && !force {
+        bail!(
+            "{} is not a repoctx-generated script (no marker / different tool); \
+             refusing to delete. Inspect it, or re-run with --force.",
+            script_path.display()
+        );
+    }
+
+    if dry_run {
+        eprintln!(
+            "repoctx init --uninstall (dry-run){}",
+            if global { " -g" } else { "" }
+        );
+        eprintln!(
+            "  would remove settings entry: {} → {entry_command}",
+            settings_path.display()
+        );
+        if script_path.exists() {
+            eprintln!("  would delete script: {}", script_path.display());
+        }
+        return Ok(());
+    }
+
+    let removed = remove_our_bash_entry(&settings_path, &entry_command)?;
+    if script_path.exists() {
+        std::fs::remove_file(&script_path)
+            .with_context(|| format!("remove {}", script_path.display()))?;
+    }
+
+    eprintln!("repoctx init --uninstall: done.");
+    if removed {
+        eprintln!("  removed settings entry: {}", settings_path.display());
+    } else {
+        eprintln!(
+            "  no repoctx settings entry found at {}",
+            settings_path.display()
+        );
+    }
+    eprintln!(
+        "  deleted hook script (if present): {}",
+        script_path.display()
+    );
+    if !global {
+        eprintln!("  left alone: .repoctx/index.db + config, CLAUDE.md, .claude/skills/repoctx/.");
+        eprintln!("  to remove guidance: delete the repoctx block in CLAUDE.md + rm .claude/skills/repoctx/SKILL.md");
+        eprintln!("  to wipe the index + config: rm -rf .repoctx");
+    }
+    Ok(())
+}
+
+/// Remove Bash PreToolUse entries whose command equals `entry_command`
+/// (ours). Foreign/rtk entries are preserved. Empty Bash matchers are
+/// pruned. Returns whether anything was removed.
+fn remove_our_bash_entry(settings_path: &Path, entry_command: &str) -> Result<bool> {
+    if !settings_path.exists() {
+        return Ok(false);
+    }
+    let text = std::fs::read_to_string(settings_path)
+        .with_context(|| format!("read {}", settings_path.display()))?;
+    let mut root: serde_json::Value = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(_) => return Ok(false),
+    };
+    let Some(arr) = root
+        .get_mut("hooks")
+        .and_then(|h| h.get_mut("PreToolUse"))
+        .and_then(|p| p.as_array_mut())
+    else {
+        return Ok(false);
+    };
+    let before = arr.len();
+    arr.retain(|entry| {
+        if entry.get("matcher").and_then(|m| m.as_str()) != Some("Bash") {
+            return true;
+        }
+        // Drop the Bash matcher iff its only hook is ours.
+        let only_ours = entry
+            .get("hooks")
+            .and_then(|h| h.as_array())
+            .map(|hs| {
+                !hs.is_empty()
+                    && hs
+                        .iter()
+                        .all(|h| h.get("command").and_then(|c| c.as_str()) == Some(entry_command))
+            })
+            .unwrap_or(false);
+        !only_ours
+    });
+    let changed = arr.len() != before;
+    if changed {
+        let pretty = serde_json::to_string_pretty(&root)? + "\n";
+        std::fs::write(settings_path, pretty)
+            .with_context(|| format!("write {}", settings_path.display()))?;
+    }
+    Ok(changed)
+}
+
+/// Newest `<name>.repoctx-backup-<ts>` next to `path` (lexical max = most
+/// recent, since the suffix is a fixed-width unix-secs stamp).
+fn newest_backup(path: &Path) -> Option<PathBuf> {
+    let dir = path.parent()?;
+    let prefix = format!("{}.repoctx-backup-", path.file_name()?.to_str()?);
+    std::fs::read_dir(dir)
+        .ok()?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.starts_with(&prefix))
+                .unwrap_or(false)
+        })
+        .max()
 }
 
 /// (settings.json path, hook script path, settings-entry command) for a
