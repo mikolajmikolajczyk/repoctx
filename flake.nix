@@ -63,10 +63,12 @@
             gitleaks
             markdownlint-cli
 
-            # Benchmarks (scripts/bench.sh)
+            # Benchmarks (scripts/bench.sh + scripts/agent-bench)
             hyperfine
             jq
             python3
+            bats
+            ripgrep
           ];
 
           shellHook = ''

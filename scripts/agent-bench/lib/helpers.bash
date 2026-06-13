@@ -12,15 +12,16 @@
 : "${TOKENS:=target/release/tokens}"
 
 # repoctx_tokens <repo> <args...> — token count of `repoctx --json <args>`.
+# Runs from inside the repo so file-path args (outline) resolve.
 repoctx_tokens() {
   local repo="$1"; shift
-  "$REPOCTX" --repo "$repo" --json "$@" 2>/dev/null | "$TOKENS"
+  ( cd "$repo" && "$REPOCTX" --json "$@" 2>/dev/null ) | "$TOKENS"
 }
 
 # repoctx_json <repo> <args...> — raw JSON stdout (for advisory asserts).
 repoctx_json() {
   local repo="$1"; shift
-  "$REPOCTX" --repo "$repo" --json "$@" 2>/dev/null
+  ( cd "$repo" && "$REPOCTX" --json "$@" 2>/dev/null )
 }
 
 # rg_worst_tokens <repo> <pattern> — rg match output + bytes/4 of EVERY
@@ -59,6 +60,17 @@ savings_pct() {
 # assert_savings_above <repoctx_tok> <rg_tok> <min_pct>
 assert_savings_above() {
   local rc="$1" rg="$2" min="$3"
+  # Guard against a broken query: empty repoctx output is 0 tokens, which
+  # would read as 100% savings and pass spuriously. A real query returns
+  # at least a few tokens.
+  if [ "$rc" -le 0 ]; then
+    echo "repoctx produced no output (0 tokens) — broken query, not a win" >&2
+    return 1
+  fi
+  if [ "$rg" -le 0 ]; then
+    echo "ripgrep produced no candidates (0 tokens) — query found nothing" >&2
+    return 1
+  fi
   local pct; pct=$(savings_pct "$rc" "$rg")
   if [ "$pct" -lt "$min" ]; then
     echo "savings ${pct}% < required ${min}% (repoctx=$rc rg=$rg)" >&2

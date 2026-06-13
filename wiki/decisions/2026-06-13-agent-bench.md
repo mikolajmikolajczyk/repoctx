@@ -68,10 +68,16 @@ reports real per-repo aggregates.
 
 | Metric | Threshold |
 |---|---|
-| Per-query savings vs rg-worst | ≥ 80% |
+| Per-query savings vs rg-worst — `definition` / `symbols` / `outline` | ≥ 80% |
+| Per-query savings vs rg-worst — `context` | ≥ 60% |
 | Per-query savings vs rg-best (top file only) | ≥ 50% |
 | Suite aggregate savings vs rg-worst | ≥ 90% |
 | Advisory firing rate on partial-coverage zero-/sparse-hit queries | 100% |
+
+`context` gets a lower bar: it returns the actual source window the agent
+asked for, so it compresses less than the pointer-style `definition` /
+`symbols` (which return a location, not the code). Measured: helix
+`context render` ~95%, vuejs `context watch` ~65% (a large function body).
 
 The advisory check is a **correctness** gate, not a savings one: for
 JSON/YAML/TOML/Bash queries where coverage is partial, the machine output

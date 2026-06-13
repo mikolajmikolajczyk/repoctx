@@ -32,6 +32,11 @@ codebase (~150k LOC Rust), across 12 representative agent queries:
 That's a **97-99% reduction** in token cost — same answers, far less
 input the LLM has to chew on.
 
+Full per-query numbers, on three SHA-pinned real codebases (helix,
+vuejs/core, rust-analyzer) and refreshed each release, live on the
+[benchmark results page](wiki/bench/results.md). The method is documented
+in [why repoctx saves tokens](wiki/user/why-repoctx.md).
+
 ## What it does
 
 `repoctx` indexes your repo once into a tiny SQLite database (under
@@ -203,6 +208,8 @@ User docs under [`wiki/user/`](wiki/user/index.md):
   TOON vs JSON vs human; CLAUDE.md recipe, jq snippets.
 - [Gain analytics](wiki/user/gain.md) — what `gain` measures, baseline
   rules, privacy stance.
+- [Why repoctx saves tokens](wiki/user/why-repoctx.md) — the cost model,
+  with a link to the per-release [benchmark results](wiki/bench/results.md).
 
 Agent docs (architecture, conventions, project status) under
 [`wiki/agents/`](wiki/agents/) — start at [`AGENTS.md`](AGENTS.md).
