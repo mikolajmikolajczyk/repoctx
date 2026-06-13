@@ -87,6 +87,30 @@ impl<'a> Recorder<'a> {
     }
 }
 
+/// Shared read-command tail: render `value` to a buffer, write it to
+/// stdout, and record one gain row from the rendered bytes. Used by
+/// `symbols` / `outline` / `definition` / `context` so the emit+record
+/// dance lives in one place.
+pub fn emit_and_record<T>(
+    value: &T,
+    render: crate::output::Render,
+    store: &mut Store,
+    opts: GainOpts,
+    command: &str,
+    query: Option<&str>,
+    candidate_paths: &[String],
+) -> anyhow::Result<()>
+where
+    T: serde::Serialize + crate::output::HumanRender,
+{
+    let mut buf = Vec::new();
+    crate::output::emit_to(&mut buf, value, render)?;
+    std::io::Write::write_all(&mut std::io::stdout().lock(), &buf)?;
+    let rendered = String::from_utf8_lossy(&buf).into_owned();
+    Recorder::new(store, opts).record(command, query, candidate_paths, &rendered, render.name());
+    Ok(())
+}
+
 /// Estimate token count from byte length at 4 bytes/token.
 ///
 /// Deliberately the *same* heuristic the baseline side uses

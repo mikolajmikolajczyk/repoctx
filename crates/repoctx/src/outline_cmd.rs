@@ -8,7 +8,7 @@ use repoctx_backend::{CodeIntelBackend, Symbol, TreeSitterBackend};
 use repoctx_store::{to_db_path, Store};
 use serde::Serialize;
 
-use crate::gain::{GainOpts, Recorder};
+use crate::gain::GainOpts;
 use crate::output::{HumanRender, Render};
 use crate::read_cmd;
 
@@ -147,21 +147,16 @@ pub fn run(repo_root: &Path, file_arg: PathBuf, render: Render, gain_opts: GainO
         advisory,
     };
 
-    let mut buf = Vec::new();
-    crate::output::emit_to(&mut buf, &report, render)?;
-    std::io::Write::write_all(&mut std::io::stdout().lock(), &buf)?;
-
-    let rendered = String::from_utf8_lossy(&buf).into_owned();
     let mut store = backend.into_store();
-    let mut recorder = Recorder::new(&mut store, gain_opts);
-    recorder.record(
+    crate::gain::emit_and_record(
+        &report,
+        render,
+        &mut store,
+        gain_opts,
         "outline",
         Some(db_path.as_str()),
         std::slice::from_ref(&db_path),
-        &rendered,
-        render.name(),
-    );
-    Ok(())
+    )
 }
 
 #[cfg(test)]

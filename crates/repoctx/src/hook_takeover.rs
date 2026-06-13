@@ -87,6 +87,12 @@ pub fn scan_user_global() -> Result<UserGlobalScan> {
     let Some(home) = std::env::var_os("HOME").map(PathBuf::from) else {
         return Ok(UserGlobalScan::default());
     };
+    scan_user_global_at(&home)
+}
+
+/// Same as [`scan_user_global`] but against an explicit home dir — lets
+/// tests inject a tempdir instead of mutating the process `HOME` env.
+pub fn scan_user_global_at(home: &Path) -> Result<UserGlobalScan> {
     let path = home.join(".claude/settings.json");
     if !path.exists() {
         return Ok(UserGlobalScan::default());
@@ -483,18 +489,8 @@ mod tests {
 
     #[test]
     fn scan_user_global_returns_empty_when_no_home_file() {
-        // Point HOME at an empty tmpdir.
         let tmp = tempdir().unwrap();
-        let prev = std::env::var_os("HOME");
-        unsafe {
-            std::env::set_var("HOME", tmp.path());
-        }
-        let scan = scan_user_global().unwrap();
-        if let Some(p) = prev {
-            unsafe {
-                std::env::set_var("HOME", p);
-            }
-        }
+        let scan = scan_user_global_at(tmp.path()).unwrap();
         assert!(scan.conflicting_commands.is_empty());
     }
 
@@ -517,16 +513,7 @@ mod tests {
             }"#,
         )
         .unwrap();
-        let prev = std::env::var_os("HOME");
-        unsafe {
-            std::env::set_var("HOME", tmp.path());
-        }
-        let scan = scan_user_global().unwrap();
-        if let Some(p) = prev {
-            unsafe {
-                std::env::set_var("HOME", p);
-            }
-        }
+        let scan = scan_user_global_at(tmp.path()).unwrap();
         assert_eq!(scan.conflicting_commands, vec!["rtk hook claude"]);
     }
 
@@ -549,16 +536,7 @@ mod tests {
             }"#,
         )
         .unwrap();
-        let prev = std::env::var_os("HOME");
-        unsafe {
-            std::env::set_var("HOME", tmp.path());
-        }
-        let scan = scan_user_global().unwrap();
-        if let Some(p) = prev {
-            unsafe {
-                std::env::set_var("HOME", p);
-            }
-        }
+        let scan = scan_user_global_at(tmp.path()).unwrap();
         assert!(scan.conflicting_commands.is_empty());
     }
 

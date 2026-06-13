@@ -187,16 +187,28 @@ impl HumanRender for InstallResult {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn run_install(
-    dir: &Path,
-    repo_root: &Path,
-    agent: &str,
-    dry_run: bool,
-    force: bool,
-    repoctx_bin: &Path,
-    render: Render,
-) -> Result<()> {
+/// Inputs for `run_install`. Grouped so the call site reads as named
+/// fields instead of a 7-positional-argument blur.
+pub struct InstallContext<'a> {
+    pub dir: &'a Path,
+    pub repo_root: &'a Path,
+    pub agent: &'a str,
+    pub dry_run: bool,
+    pub force: bool,
+    pub repoctx_bin: &'a Path,
+    pub render: Render,
+}
+
+pub fn run_install(ctx: InstallContext) -> Result<()> {
+    let InstallContext {
+        dir,
+        repo_root,
+        agent,
+        dry_run,
+        force,
+        repoctx_bin,
+        render,
+    } = ctx;
     let repo_name = dir
         .file_name()
         .and_then(|s| s.to_str())

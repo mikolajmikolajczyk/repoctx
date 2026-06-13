@@ -12,7 +12,7 @@ use repoctx_store::{from_db_path, Store};
 use serde::Serialize;
 use tracing::warn;
 
-use crate::gain::{GainOpts, Recorder};
+use crate::gain::GainOpts;
 use crate::output::{HumanRender, Render};
 use crate::read_cmd;
 
@@ -173,23 +173,18 @@ pub fn run(
         advisory,
     };
 
-    let mut buf = Vec::new();
-    crate::output::emit_to(&mut buf, &report, render)?;
-    std::io::Write::write_all(&mut std::io::stdout().lock(), &buf)?;
-
-    let rendered = String::from_utf8_lossy(&buf).into_owned();
     candidate_paths.sort();
     candidate_paths.dedup();
     let mut store = store;
-    let mut recorder = Recorder::new(&mut store, gain_opts);
-    recorder.record(
+    crate::gain::emit_and_record(
+        &report,
+        render,
+        &mut store,
+        gain_opts,
         "context",
         Some(symbol.as_str()),
         &candidate_paths,
-        &rendered,
-        render.name(),
-    );
-    Ok(())
+    )
 }
 
 fn is_stale(store: &Store, abs: &Path, db_path: &str) -> Result<bool> {
@@ -200,6 +195,8 @@ fn is_stale(store: &Store, abs: &Path, db_path: &str) -> Result<bool> {
         Ok(m) => m,
         Err(_) => return Ok(true),
     };
+    // No mtime support → treat as 0; differs from the indexed tuple, so
+    // the match is reported `stale` (conservative — never claims fresh).
     let cur_mtime = meta
         .modified()
         .ok()

@@ -66,6 +66,7 @@ pub fn run(repo_root: &Path, fast: bool, render: Render) -> Result<()> {
     let schema_version = store.schema_version().context("schema_version")?;
 
     let db_path = repo_root.join(".repoctx/index.db");
+    // Cosmetic field; if we can't stat the DB, report 0 rather than fail.
     let db_size_bytes = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
 
     let staleness = if fast {

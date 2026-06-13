@@ -60,7 +60,7 @@ impl HookRewrite {
             "off" => Ok(Self::Off),
             "force" => Ok(Self::Force),
             other => Err(anyhow!(
-                "hook.rewrite must be one of [auto, off, force] (got '{other}')"
+                "expected one of [auto, off, force] (got '{other}')"
             )),
         }
     }
@@ -89,9 +89,7 @@ impl HookUseRtk {
             "auto" => Ok(Self::Auto),
             "on" => Ok(Self::On),
             "off" => Ok(Self::Off),
-            other => Err(anyhow!(
-                "hook.use_rtk must be one of [auto, on, off] (got '{other}')"
-            )),
+            other => Err(anyhow!("expected one of [auto, on, off] (got '{other}')")),
         }
     }
 }
@@ -123,7 +121,7 @@ impl OutputDefault {
             "toon" => Ok(Self::Toon),
             "json" => Ok(Self::Json),
             other => Err(anyhow!(
-                "output.default must be one of [auto, human, toon, json] (got '{other}')"
+                "expected one of [auto, human, toon, json] (got '{other}')"
             )),
         }
     }

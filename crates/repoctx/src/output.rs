@@ -15,7 +15,6 @@ pub enum Render {
 
 impl Render {
     /// CLI-flag name for the format (used for telemetry / gain recording).
-    #[allow(dead_code)] // consumed when symbols command lands (0c56169)
     pub fn name(self) -> &'static str {
         match self {
             Self::Human => "human",
@@ -118,7 +117,6 @@ where
 }
 
 /// Convenience: render to `stdout`.
-#[allow(dead_code)] // consumed when symbols command lands (0c56169)
 pub fn emit<T>(value: &T, render: Render) -> Result<()>
 where
     T: Serialize + HumanRender,
@@ -150,5 +148,81 @@ mod tests {
     fn resolve_cli_flag_beats_config_default() {
         assert_eq!(resolve(true, false, OutputDefault::Toon), Render::Json);
         assert_eq!(resolve(false, true, OutputDefault::Json), Render::Toon);
+    }
+
+    // ── Format snapshot tests (ADR-0008 contract) ────────────────────
+
+    use repoctx_backend::{Location, Symbol, SymbolKind};
+
+    fn fixture() -> List<Symbol> {
+        List::new(vec![
+            Symbol {
+                name: "main".into(),
+                kind: SymbolKind::Function,
+                location: Location {
+                    path: "src/main.rs".into(),
+                    start_line: 0,
+                    start_column: 0,
+                    end_line: 0,
+                    end_column: 4,
+                },
+            },
+            Symbol {
+                name: "MyType".into(),
+                kind: SymbolKind::Class,
+                location: Location {
+                    path: "src/lib.rs".into(),
+                    start_line: 9,
+                    start_column: 0,
+                    end_line: 9,
+                    end_column: 6,
+                },
+            },
+        ])
+    }
+
+    fn render_fixture(r: Render) -> String {
+        let mut buf = Vec::new();
+        emit_to(&mut buf, &fixture(), r).unwrap();
+        String::from_utf8(buf).unwrap()
+    }
+
+    #[test]
+    fn json_shape_is_compact_with_trailing_newline() {
+        assert_eq!(
+            render_fixture(Render::Json),
+            concat!(
+                r#"{"count":2,"items":["#,
+                r#"{"name":"main","kind":"function","location":{"path":"src/main.rs","start_line":0,"start_column":0,"end_line":0,"end_column":4}},"#,
+                r#"{"name":"MyType","kind":"class","location":{"path":"src/lib.rs","start_line":9,"start_column":0,"end_line":9,"end_column":6}}"#,
+                "]}\n",
+            )
+        );
+    }
+
+    #[test]
+    fn human_is_aligned_columns_one_based_line() {
+        assert_eq!(
+            render_fixture(Render::Human),
+            "src/main.rs:1  main    function\nsrc/lib.rs:10  MyType  class\n",
+        );
+    }
+
+    #[test]
+    fn human_empty_list() {
+        let mut buf = Vec::new();
+        emit_to(&mut buf, &List::<Symbol>::new(vec![]), Render::Human).unwrap();
+        assert_eq!(String::from_utf8(buf).unwrap(), "no symbols\n");
+    }
+
+    #[test]
+    fn toon_renders_without_panic_and_ends_with_newline() {
+        let s = render_fixture(Render::Toon);
+        assert!(
+            s.ends_with('\n'),
+            "toon output should end with newline: {s:?}"
+        );
+        assert!(s.contains("main"), "toon should mention 'main': {s:?}");
+        assert!(s.contains("MyType"), "toon should mention 'MyType': {s:?}");
     }
 }

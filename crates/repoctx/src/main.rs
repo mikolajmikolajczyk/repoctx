@@ -24,8 +24,6 @@ mod languages_cmd;
 mod outline_cmd;
 mod output;
 mod output_symbols;
-#[cfg(test)]
-mod output_tests;
 mod read_cmd;
 mod repo_root;
 mod status_cmd;
@@ -358,7 +356,15 @@ fn run() -> Result<()> {
             } => {
                 let target = hook_cmd::resolve_dir(dir, &repo_root);
                 let bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("repoctx"));
-                hook_cmd::run_install(&target, &repo_root, &agent, dry_run, force, &bin, render)
+                hook_cmd::run_install(hook_cmd::InstallContext {
+                    dir: &target,
+                    repo_root: &repo_root,
+                    agent: &agent,
+                    dry_run,
+                    force,
+                    repoctx_bin: &bin,
+                    render,
+                })
             }
         },
         Cmd::Init {
@@ -391,7 +397,7 @@ fn run() -> Result<()> {
             history,
             sub,
         } => {
-            let window = resolve_window(since.as_deref(), all)?;
+            let window = gain_cmd::resolve_window(since.as_deref(), all)?;
             match sub {
                 Some(GainSub::Top {
                     by,
@@ -399,7 +405,7 @@ fn run() -> Result<()> {
                     all: sub_all,
                 }) => {
                     let window = if sub_since.is_some() || sub_all {
-                        resolve_window(sub_since.as_deref(), sub_all)?
+                        gain_cmd::resolve_window(sub_since.as_deref(), sub_all)?
                     } else {
                         window
                     };
@@ -428,15 +434,5 @@ fn load_config(repo_root: &std::path::Path) -> config::Config {
             tracing::warn!(error = %e, "config: store open failed; using defaults");
             config::Config::defaults()
         }
-    }
-}
-
-fn resolve_window(since: Option<&str>, all: bool) -> Result<gain_cmd::Window> {
-    if all {
-        return Ok(gain_cmd::Window::All);
-    }
-    match since {
-        Some(s) => Ok(gain_cmd::Window::Since(gain_cmd::parse_since(s)?)),
-        None => Ok(gain_cmd::default_window()),
     }
 }

@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use repoctx_backend::{CodeIntelBackend, Symbol, SymbolKind, SymbolQuery, TreeSitterBackend};
 use repoctx_store::Store;
 
-use crate::gain::{GainOpts, Recorder};
+use crate::gain::GainOpts;
 use crate::output::{List, Render};
 use crate::read_cmd;
 
@@ -67,21 +67,16 @@ pub fn run(
     };
     let list = List::new(hits).with_advisory(advisory);
 
-    let mut buf = Vec::new();
-    crate::output::emit_to(&mut buf, &list, render)?;
-    std::io::Write::write_all(&mut std::io::stdout().lock(), &buf)?;
-
-    let rendered = String::from_utf8_lossy(&buf).into_owned();
     let mut store = backend.into_store();
-    let mut recorder = Recorder::new(&mut store, gain_opts);
-    recorder.record(
+    crate::gain::emit_and_record(
+        &list,
+        render,
+        &mut store,
+        gain_opts,
         "definition",
         Some(name.as_str()),
         &candidate_paths,
-        &rendered,
-        render.name(),
-    );
-    Ok(())
+    )
 }
 
 /// From the unfiltered (case-insensitive substring) hit set, pick exact

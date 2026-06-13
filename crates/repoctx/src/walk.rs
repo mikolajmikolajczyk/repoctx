@@ -101,6 +101,9 @@ fn collect(repo_root: &Path, warn_on_skip: bool) -> Result<Vec<Candidate>> {
 }
 
 fn mtime_to_ns(meta: &std::fs::Metadata) -> i64 {
+    // Platforms without mtime support fall back to the epoch → the file
+    // always looks "changed", so it's reparsed rather than skipped. Safe
+    // (never stale), just not free.
     let m = meta.modified().unwrap_or(UNIX_EPOCH);
     match m.duration_since(UNIX_EPOCH) {
         Ok(d) => d.as_nanos().min(i64::MAX as u128) as i64,

@@ -230,6 +230,17 @@ pub fn default_window() -> Window {
     Window::Since(now - DEFAULT_WINDOW_DAYS as i64 * 86_400 * NS_PER_SEC)
 }
 
+/// Resolve CLI `--since` / `--all` flags into a [`Window`].
+pub fn resolve_window(since: Option<&str>, all: bool) -> Result<Window> {
+    if all {
+        return Ok(Window::All);
+    }
+    match since {
+        Some(s) => Ok(Window::Since(parse_since(s)?)),
+        None => Ok(default_window()),
+    }
+}
+
 pub fn run_summary(
     repo_root: &Path,
     window: Window,

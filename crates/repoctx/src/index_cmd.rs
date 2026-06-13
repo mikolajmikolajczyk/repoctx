@@ -97,7 +97,10 @@ pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Res
                 size: c.size,
                 language: c.language.slug().to_string(),
             };
-            let _ = tx.send((record, symbols));
+            if tx.send((record, symbols)).is_err() {
+                // Writer hung up (receiver dropped) — nothing more to do.
+                debug!(path = %c.abs.display(), "index: writer closed; dropping parse result");
+            }
         });
     });
 
@@ -109,7 +112,10 @@ pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Res
         }
         indexed += 1;
     }
-    parse_handle.join().ok();
+    // Surface a panic in the parse pool instead of swallowing it.
+    if parse_handle.join().is_err() {
+        anyhow::bail!("index: parser thread panicked");
+    }
 
     let absent: Vec<String> = existing
         .keys()
