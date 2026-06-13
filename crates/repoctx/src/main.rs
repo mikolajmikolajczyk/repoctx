@@ -15,6 +15,7 @@ mod gain_cmd;
 mod hook_cmd;
 mod hook_marker;
 mod hook_rewrite;
+mod hook_script;
 mod hook_takeover;
 mod index_cmd;
 mod languages_cmd;
@@ -168,9 +169,18 @@ enum HookSub {
     },
     /// PreToolUse hook handler — Claude Code calls this with the
     /// tool-use JSON on stdin. Rewrites recognized `rg`/`grep`
-    /// patterns to `repoctx` commands; chains through any commands
-    /// saved in `hook.chain_commands` on passthrough.
-    Claude,
+    /// patterns to `repoctx` commands; on passthrough, chains
+    /// `rtk hook claude` when `--rtk-chain=1` (or `hook.use_rtk`).
+    Claude {
+        /// Chain `rtk hook claude` on passthrough: `0` (off) or `1` (on).
+        /// Omitted → resolve from `hook.use_rtk` config.
+        #[arg(long, value_name = "0|1")]
+        rtk_chain: Option<u8>,
+        /// Probe used by the generated hook script's version guard:
+        /// exit 0 if this binary understands `--rtk-chain`.
+        #[arg(long, hide = true)]
+        supports_rtk_chain: bool,
+    },
     /// Re-take ownership of `.claude/settings.json` PreToolUse → Bash
     /// matcher if another installer (rtk reinstall, manual edit, …)
     /// added a sibling entry. Idempotent; safe to run anytime.
@@ -276,8 +286,14 @@ fn run() -> Result<()> {
             limit,
         } => symbols_cmd::run(&repo_root, query, kind, lang, limit, render, gain_opts),
         Cmd::Hook { sub } => match sub {
-            HookSub::Claude => {
-                let code = hook_rewrite::run(&cfg.hook)?;
+            HookSub::Claude {
+                rtk_chain,
+                supports_rtk_chain,
+            } => {
+                if supports_rtk_chain {
+                    std::process::exit(0); // version-guard probe
+                }
+                let code = hook_rewrite::run(&cfg.hook, rtk_chain.map(|v| v != 0))?;
                 std::process::exit(code);
             }
             HookSub::Doctor { dir, dry_run } => {

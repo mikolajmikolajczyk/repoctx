@@ -43,7 +43,9 @@ fn drive(repo: &TempDir, cmd: &str) -> (i32, Vec<u8>) {
         .env("RUST_REPOCTX_NO_RECORD", "1")
         .arg("--repo")
         .arg(repo.path())
-        .args(["hook", "claude"])
+        // --rtk-chain=0 isolates the rewrite decision from rtk chaining
+        // (this test asserts the decision, not chain delegation).
+        .args(["hook", "claude", "--rtk-chain", "0"])
         .write_stdin(payload)
         .output()
         .expect("run hook claude");

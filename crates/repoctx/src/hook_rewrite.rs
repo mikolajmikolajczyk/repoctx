@@ -6,13 +6,14 @@
 //! Design: `wiki/decisions/2026-06-12-rewrite-hook-design.md`.
 
 use std::io::{self, Read};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, warn};
 
-use crate::config::HookConfig;
+use crate::config::{HookConfig, HookUseRtk};
 
 /// Pruning the Claude Code stdin payload to just the fields we touch.
 #[derive(Debug, Deserialize)]
@@ -313,7 +314,7 @@ fn exec_chain(cmd: &str, stdin_bytes: &[u8]) -> Result<Option<String>> {
 
 /// Top-level entry. Returns the JSON payload to print on rewrite, or
 /// `Ok(None)` for silent passthrough.
-fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig) -> Result<Option<String>> {
+fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Option<String>> {
     let payload: PreToolUseInput =
         serde_json::from_slice(stdin_bytes).context("parse PreToolUse stdin")?;
     let command = payload.tool_input.command.trim();
@@ -340,7 +341,9 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig) -> Result<Option<String>> {
         }
     }
 
-    // Chain dispatch.
+    // Legacy chain dispatch (v0.5.x `hook.chain_commands`). Fresh
+    // script-based installs leave this empty and rely on the rtk chain
+    // below instead.
     for chain in &cfg.chain_commands {
         match exec_chain(chain, stdin_bytes) {
             Ok(Some(stdout)) => {
@@ -355,18 +358,44 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig) -> Result<Option<String>> {
         }
     }
 
+    // rtk chain: on passthrough, hand off to `rtk hook claude` so rtk's
+    // output compression still applies. The script bakes `--rtk-chain`;
+    // a direct invocation resolves it from `hook.use_rtk`.
+    if rtk_chain {
+        if which("rtk").is_some() {
+            match exec_chain("rtk hook claude", stdin_bytes) {
+                Ok(Some(stdout)) => {
+                    debug!("rtk chain handled the rewrite");
+                    return Ok(Some(stdout));
+                }
+                Ok(None) => {}
+                Err(e) => warn!(error = %e, "rtk chain failed; passthrough"),
+            }
+        } else {
+            warn_once_rtk_missing();
+        }
+    }
+
     Ok(None)
 }
 
 /// CLI entry point. Reads stdin, writes JSON to stdout on rewrite,
 /// exits 0 on rewrite, exits 1 on passthrough, never panics on
 /// malformed input (logs + passthrough).
-pub fn run(cfg: &HookConfig) -> Result<i32> {
+///
+/// `rtk_chain_flag` is the resolved `--rtk-chain` value; `None` falls
+/// back to `hook.use_rtk` (`on`/`off`/`auto`, where `auto` = rtk on PATH).
+pub fn run(cfg: &HookConfig, rtk_chain_flag: Option<bool>) -> Result<i32> {
     let mut stdin_bytes = Vec::new();
     io::stdin()
         .read_to_end(&mut stdin_bytes)
         .context("read stdin")?;
-    match run_inner(&stdin_bytes, cfg) {
+    let rtk_chain = rtk_chain_flag.unwrap_or(match cfg.use_rtk {
+        HookUseRtk::On => true,
+        HookUseRtk::Off => false,
+        HookUseRtk::Auto => which("rtk").is_some(),
+    });
+    match run_inner(&stdin_bytes, cfg, rtk_chain) {
         Ok(Some(json)) => {
             println!("{json}");
             Ok(0)
@@ -377,6 +406,46 @@ pub fn run(cfg: &HookConfig) -> Result<i32> {
             Ok(1)
         }
     }
+}
+
+/// Locate a program on `PATH` without spawning it (cheap; the hook runs
+/// on every Bash tool call).
+fn which(prog: &str) -> Option<PathBuf> {
+    let path = std::env::var_os("PATH")?;
+    let exts: &[&str] = if cfg!(windows) {
+        &["", ".exe", ".cmd", ".bat"]
+    } else {
+        &[""]
+    };
+    for dir in std::env::split_paths(&path) {
+        for ext in exts {
+            let cand = dir.join(format!("{prog}{ext}"));
+            if cand.is_file() {
+                return Some(cand);
+            }
+        }
+    }
+    None
+}
+
+/// Warn once (per cache dir) that rtk chaining is on but rtk is absent.
+fn warn_once_rtk_missing() {
+    let dir = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")));
+    let msg = "[repoctx] rtk chaining enabled but rtk not found on PATH — \
+               install rtk or set hook.use_rtk=off (https://github.com/rtk-ai/rtk)";
+    let Some(dir) = dir else {
+        eprintln!("{msg}");
+        return;
+    };
+    let sentinel = dir.join("repoctx-rtk-missing-warned");
+    if sentinel.exists() {
+        return;
+    }
+    eprintln!("{msg}");
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(&sentinel, b"");
 }
 
 #[cfg(test)]

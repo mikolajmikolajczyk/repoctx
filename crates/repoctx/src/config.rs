@@ -66,6 +66,36 @@ impl HookRewrite {
     }
 }
 
+/// `hook.use_rtk` — whether `repoctx hook claude` chains `rtk hook claude`
+/// underneath on passthrough. `Auto` = chain when rtk is on PATH.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HookUseRtk {
+    Auto,
+    On,
+    Off,
+}
+
+impl HookUseRtk {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::On => "on",
+            Self::Off => "off",
+        }
+    }
+
+    pub fn parse(s: &str) -> Result<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "auto" => Ok(Self::Auto),
+            "on" => Ok(Self::On),
+            "off" => Ok(Self::Off),
+            other => Err(anyhow!(
+                "hook.use_rtk must be one of [auto, on, off] (got '{other}')"
+            )),
+        }
+    }
+}
+
 /// `output.default` — persistent output-format choice. `Auto` matches
 /// the existing TTY/non-TTY detection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +151,9 @@ fn fmt_bool(b: bool) -> &'static str {
 pub struct HookConfig {
     pub rewrite: HookRewrite,
     pub rewrite_source: Source,
+    /// Whether to chain `rtk hook claude` on passthrough.
+    pub use_rtk: HookUseRtk,
+    pub use_rtk_source: Source,
     /// PreToolUse hooks displaced by `repoctx hook install` so the
     /// runtime handler can chain through them on passthrough. Stored
     /// as a `\n`-separated string in the settings table.
@@ -157,6 +190,8 @@ impl Config {
             hook: HookConfig {
                 rewrite: HookRewrite::Auto,
                 rewrite_source: Source::Default,
+                use_rtk: HookUseRtk::Auto,
+                use_rtk_source: Source::Default,
                 chain_commands: Vec::new(),
                 chain_commands_source: Source::Default,
             },
@@ -188,6 +223,13 @@ impl Config {
                     Ok(v) => {
                         cfg.hook.rewrite = v;
                         cfg.hook.rewrite_source = Source::Settings;
+                    }
+                    Err(e) => warn_invalid(&key, &value, e),
+                },
+                "hook.use_rtk" => match HookUseRtk::parse(&value) {
+                    Ok(v) => {
+                        cfg.hook.use_rtk = v;
+                        cfg.hook.use_rtk_source = Source::Settings;
                     }
                     Err(e) => warn_invalid(&key, &value, e),
                 },
@@ -242,6 +284,15 @@ impl Config {
                 Err(e) => warn_invalid("REPOCTX_HOOK_REWRITE", &v, e),
             }
         }
+        if let Ok(v) = env::var("REPOCTX_HOOK_USE_RTK") {
+            match HookUseRtk::parse(&v) {
+                Ok(u) => {
+                    cfg.hook.use_rtk = u;
+                    cfg.hook.use_rtk_source = Source::Env;
+                }
+                Err(e) => warn_invalid("REPOCTX_HOOK_USE_RTK", &v, e),
+            }
+        }
         if let Ok(v) = env::var("REPOCTX_GAIN_NO_RECORD") {
             match parse_bool(&v) {
                 Ok(b) => {
@@ -294,6 +345,7 @@ fn warn_invalid<E: std::fmt::Display>(key: &str, value: &str, err: E) {
 pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
     let normalized = match key {
         "hook.rewrite" => HookRewrite::parse(value)?.as_str().to_string(),
+        "hook.use_rtk" => HookUseRtk::parse(value)?.as_str().to_string(),
         "hook.chain_commands" => value.to_string(),
         "gain.no_record" | "gain.record_query" => fmt_bool(parse_bool(value)?).to_string(),
         "output.default" => OutputDefault::parse(value)?.as_str().to_string(),
@@ -308,6 +360,7 @@ pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
 pub fn known_keys() -> Vec<(&'static str, String)> {
     vec![
         ("hook.rewrite", HookRewrite::Auto.as_str().to_string()),
+        ("hook.use_rtk", HookUseRtk::Auto.as_str().to_string()),
         ("hook.chain_commands", String::new()),
         ("gain.no_record", fmt_bool(false).to_string()),
         ("gain.record_query", fmt_bool(false).to_string()),

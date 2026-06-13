@@ -131,6 +131,12 @@ fn rows(cfg: &Config) -> Vec<ConfigRow> {
             &default_for("hook.rewrite"),
         ),
         row(
+            "hook.use_rtk",
+            cfg.hook.use_rtk.as_str(),
+            cfg.hook.use_rtk_source.as_str(),
+            &default_for("hook.use_rtk"),
+        ),
+        row(
             "hook.chain_commands",
             &cfg.hook.chain_commands.join("\\n"),
             cfg.hook.chain_commands_source.as_str(),
