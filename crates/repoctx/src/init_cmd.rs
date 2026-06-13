@@ -162,22 +162,20 @@ fn write_script(path: &Path, contents: &str) -> Result<()> {
         std::fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
     }
     std::fs::write(path, contents).with_context(|| format!("write {}", path.display()))?;
-    make_executable(path)?;
+    make_executable(path);
     Ok(())
 }
 
-#[cfg(unix)]
-fn make_executable(path: &Path) -> Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    let mut perms = std::fs::metadata(path)?.permissions();
-    perms.set_mode(0o755);
-    std::fs::set_permissions(path, perms).with_context(|| format!("chmod {}", path.display()))?;
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn make_executable(_path: &Path) -> Result<()> {
-    Ok(()) // executable bit is git-tracked; Windows users run via Git Bash
+/// Best-effort `chmod +x` via subprocess — set so git records the
+/// executable bit when the user commits the script. A no-op where `chmod`
+/// is absent (e.g. Windows, where Git Bash users get the bit from git).
+/// Spawning the tool keeps this compile-time platform-agnostic — no
+/// OS-specific permission API. See 2026-06-11-platform-agnostic.md.
+fn make_executable(path: &Path) {
+    let _ = std::process::Command::new("chmod")
+        .arg("+x")
+        .arg(path)
+        .status();
 }
 
 /// Ensure `.gitattributes` keeps the committed shell script LF + its
