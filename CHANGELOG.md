@@ -4,6 +4,16 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-06-13
+
+Internal code-quality pass from the 2026-06-12 audit (`e63eb72`). No user-facing behavior change beyond added logging.
+
+### Changed
+
+- Tests no longer mutate the process `HOME` env (`scan_user_global_at(path)` injection) — removes a parallel-test race.
+- `index` logs when a parse result is dropped because the writer hung up, and surfaces a parser-thread panic instead of swallowing it.
+- Read commands (`symbols`/`outline`/`definition`/`context`) share one `emit_and_record` tail; `hook install` takes an `InstallContext` struct; `resolve_window` lives in one place; config enum errors read uniformly (`expected one of […] (got …)`); metadata-error fallbacks are commented + observable. Snapshot tests moved into `output.rs`.
+
 ## [0.6.0] — 2026-06-13
 
 `repoctx init` — repoctx becomes the meta-hook for Claude Code. Plus the integration content moves into the binary (no network), and a CI-gated correctness suite.

@@ -4,7 +4,7 @@ Snapshot of what works, what's in flight, what's broken. **Not the roadmap** —
 
 Update this when a feature lands, breaks, or gets pulled. Stale status is worse than no status — if you can't keep it fresh, link straight to Radicle issue filters instead.
 
-## Works (as of v0.6.0, 2026-06-13)
+## Works (as of v0.6.1, 2026-06-13)
 
 CLI surface complete on Linux, macOS, and Windows. 9 languages indexed (7 full coverage + 3 partial). `repoctx init` wires repoctx into Claude Code as the sole PreToolUse hook (a committed `.repoctx/hook.sh` dumb-pipe script + in-binary rewrite/chain), chaining rtk underneath with race detection, `hook doctor` drift repair, and `--uninstall`. Integration content is embedded in the binary (no network). Per-repo config layer + agent-coverage advisory live. `gain` token figures are bytes/4 estimates (method-consistent ratio); precise BPE counting lives in the bench suite.
 
