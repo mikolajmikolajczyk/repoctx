@@ -164,16 +164,19 @@ pub fn pre_install_check(target: Scope, hooks: &[ScopedHook], force: bool) -> Re
             }
         }
         Scope::UserGlobal => {
-            if let Some(h) = hooks
-                .iter()
-                .find(|h| matches!(h.scope, Scope::Project | Scope::ProjectLocal) && h.kind == HookKind::Repoctx)
-            {
+            if let Some(h) = hooks.iter().find(|h| {
+                matches!(h.scope, Scope::Project | Scope::ProjectLocal)
+                    && h.kind == HookKind::Repoctx
+            }) {
                 bail!(race_msg(
                     &format!(
                         "a {} repoctx hook would double-fire with a global install",
                         h.scope.label()
                     ),
-                    &["remove the project-local install first", "or re-run with --force"],
+                    &[
+                        "remove the project-local install first",
+                        "or re-run with --force"
+                    ],
                 ));
             }
         }
@@ -241,7 +244,10 @@ mod tests {
         assert_eq!(classify("repoctx hook claude", base), HookKind::Repoctx);
         assert_eq!(classify("rtk hook claude", base), HookKind::Rtk);
         assert_eq!(classify("my-tool --x", base), HookKind::Foreign);
-        assert_eq!(classify("bash -c 'rtk hook claude'", base), HookKind::Foreign);
+        assert_eq!(
+            classify("bash -c 'rtk hook claude'", base),
+            HookKind::Foreign
+        );
     }
 
     #[test]
@@ -249,7 +255,10 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let script = dir.path().join("hook.sh");
         std::fs::write(&script, "#!/usr/bin/env bash\n# repoctx-hook-version: 1\n").unwrap();
-        assert_eq!(classify(script.to_str().unwrap(), dir.path()), HookKind::Repoctx);
+        assert_eq!(
+            classify(script.to_str().unwrap(), dir.path()),
+            HookKind::Repoctx
+        );
 
         let rtk = dir.path().join("rtk-rewrite.sh");
         std::fs::write(&rtk, "#!/bin/sh\n# rtk-hook-version: 3\n").unwrap();
@@ -257,7 +266,10 @@ mod tests {
 
         let foreign = dir.path().join("other.sh");
         std::fs::write(&foreign, "#!/bin/sh\necho hi\n").unwrap();
-        assert_eq!(classify(foreign.to_str().unwrap(), dir.path()), HookKind::Foreign);
+        assert_eq!(
+            classify(foreign.to_str().unwrap(), dir.path()),
+            HookKind::Foreign
+        );
     }
 
     #[test]

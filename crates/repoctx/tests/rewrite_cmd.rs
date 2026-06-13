@@ -16,7 +16,10 @@ fn rewrite(cmd: &str) -> (i32, String) {
 
 #[test]
 fn rewrite_emits_command_exit_zero() {
-    assert_eq!(rewrite("rg foo"), (0, "repoctx symbols foo --json".to_string()));
+    assert_eq!(
+        rewrite("rg foo"),
+        (0, "repoctx symbols foo --json".to_string())
+    );
     assert_eq!(
         rewrite(r#"rg "fn parse_config""#),
         (0, "repoctx definition parse_config --json".to_string())

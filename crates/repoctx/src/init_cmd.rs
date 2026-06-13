@@ -57,9 +57,10 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
     // so rtk's savings survive (the no-degradation promise). `--rtk off`
     // opts out, with a loud warning.
     let displacing_global_rtk = opts.global
-        && scan
-            .iter()
-            .any(|h| h.scope == crate::hook_scan::Scope::UserGlobal && h.kind == crate::hook_scan::HookKind::Rtk);
+        && scan.iter().any(|h| {
+            h.scope == crate::hook_scan::Scope::UserGlobal
+                && h.kind == crate::hook_scan::HookKind::Rtk
+        });
     if displacing_global_rtk {
         if matches!(opts.rtk, HookUseRtk::Off) {
             eprintln!(

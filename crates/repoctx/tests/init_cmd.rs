@@ -125,9 +125,15 @@ fn global_displaces_rtk_chains_it_and_backs_up() {
 
     // Sole owner now = the global script; rtk chained (RTK_CHAIN=1).
     let script = home.path().join(".claude/repoctx-hook.sh");
-    assert_eq!(bash_command(&gclaude.join("settings.json")), script.display().to_string());
+    assert_eq!(
+        bash_command(&gclaude.join("settings.json")),
+        script.display().to_string()
+    );
     let body = std::fs::read_to_string(&script).unwrap();
-    assert!(body.contains("RTK_CHAIN=1"), "rtk should be chained underneath");
+    assert!(
+        body.contains("RTK_CHAIN=1"),
+        "rtk should be chained underneath"
+    );
 
     // A backup of the prior settings.json was written.
     let has_backup = std::fs::read_dir(&gclaude)
@@ -177,11 +183,19 @@ fn refuses_foreign_hook_unless_forced() {
         .stderr
         .clone();
     let s = String::from_utf8_lossy(&out);
-    assert!(s.contains("my-own-tool"), "should name the foreign hook: {s}");
+    assert!(
+        s.contains("my-own-tool"),
+        "should name the foreign hook: {s}"
+    );
     assert!(!repo.path().join(".repoctx/hook.sh").exists());
 
     // With --force: install anyway (takes over the Bash matcher).
-    run(repo.path(), home.path(), &["--yes", "--rtk", "off", "--force"]).success();
+    run(
+        repo.path(),
+        home.path(),
+        &["--yes", "--rtk", "off", "--force"],
+    )
+    .success();
     assert_eq!(
         bash_command(&claude.join("settings.json")),
         ".repoctx/hook.sh"
