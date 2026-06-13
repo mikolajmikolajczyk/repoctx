@@ -51,7 +51,21 @@ impl HumanRender for ConfigReport {
 pub fn run_show(repo_root: &Path, render: Render) -> Result<()> {
     let store = open_store(repo_root)?;
     let cfg = Config::load(&store).context("load config")?;
-    let items = rows(&cfg);
+    let mut items = rows(&cfg);
+    // hook.script_path is read-only + computed (where `init` wrote the
+    // project hook script), not a stored setting.
+    let script = repo_root.join(".repoctx/hook.sh");
+    let (value, source) = if script.exists() {
+        (".repoctx/hook.sh".to_string(), "computed")
+    } else {
+        ("(not installed)".to_string(), "default")
+    };
+    items.push(ConfigRow {
+        key: "hook.script_path".to_string(),
+        value,
+        default: "(not installed)".to_string(),
+        source: source.to_string(),
+    });
     let report = ConfigReport {
         count: items.len(),
         items,
@@ -135,6 +149,12 @@ fn rows(cfg: &Config) -> Vec<ConfigRow> {
             cfg.hook.use_rtk.as_str(),
             cfg.hook.use_rtk_source.as_str(),
             &default_for("hook.use_rtk"),
+        ),
+        row(
+            "hook.chainable",
+            &cfg.hook.chainable.join(","),
+            cfg.hook.chainable_source.as_str(),
+            &default_for("hook.chainable"),
         ),
         row(
             "hook.chain_commands",

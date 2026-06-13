@@ -137,6 +137,15 @@ fn parse_bool(s: &str) -> Result<bool> {
     }
 }
 
+/// Split a `,`- or newline-separated list, trimming + dropping blanks.
+fn split_list(s: &str) -> Vec<String> {
+    s.split([',', '\n'])
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
 fn fmt_bool(b: bool) -> &'static str {
     if b {
         "true"
@@ -154,6 +163,10 @@ pub struct HookConfig {
     /// Whether to chain `rtk hook claude` on passthrough.
     pub use_rtk: HookUseRtk,
     pub use_rtk_source: Source,
+    /// Allowlist of tools repoctx may chain underneath on passthrough.
+    /// Only `rtk` is meaningful in v0.6.0; structural for future tools.
+    pub chainable: Vec<String>,
+    pub chainable_source: Source,
     /// PreToolUse hooks displaced by `repoctx hook install` so the
     /// runtime handler can chain through them on passthrough. Stored
     /// as a `\n`-separated string in the settings table.
@@ -192,6 +205,8 @@ impl Config {
                 rewrite_source: Source::Default,
                 use_rtk: HookUseRtk::Auto,
                 use_rtk_source: Source::Default,
+                chainable: vec!["rtk".to_string()],
+                chainable_source: Source::Default,
                 chain_commands: Vec::new(),
                 chain_commands_source: Source::Default,
             },
@@ -237,6 +252,10 @@ impl Config {
                 // binary; there is no fetch ref or cache. Old rows are
                 // ignored quietly rather than warned about.
                 "hook.ref" | "hook.no_cache" => {}
+                "hook.chainable" => {
+                    cfg.hook.chainable = split_list(&value);
+                    cfg.hook.chainable_source = Source::Settings;
+                }
                 "hook.chain_commands" => {
                     cfg.hook.chain_commands = value
                         .split('\n')
@@ -346,9 +365,15 @@ pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
     let normalized = match key {
         "hook.rewrite" => HookRewrite::parse(value)?.as_str().to_string(),
         "hook.use_rtk" => HookUseRtk::parse(value)?.as_str().to_string(),
+        "hook.chainable" => split_list(value).join(","),
         "hook.chain_commands" => value.to_string(),
         "gain.no_record" | "gain.record_query" => fmt_bool(parse_bool(value)?).to_string(),
         "output.default" => OutputDefault::parse(value)?.as_str().to_string(),
+        "hook.script_path" => {
+            return Err(anyhow!(
+                "hook.script_path is read-only (managed by `repoctx init`)"
+            ))
+        }
         other => return Err(anyhow!("unknown config key: {other}")),
     };
     store.set_setting(key, &normalized)?;
@@ -361,6 +386,7 @@ pub fn known_keys() -> Vec<(&'static str, String)> {
     vec![
         ("hook.rewrite", HookRewrite::Auto.as_str().to_string()),
         ("hook.use_rtk", HookUseRtk::Auto.as_str().to_string()),
+        ("hook.chainable", "rtk".to_string()),
         ("hook.chain_commands", String::new()),
         ("gain.no_record", fmt_bool(false).to_string()),
         ("gain.record_query", fmt_bool(false).to_string()),
@@ -384,6 +410,33 @@ mod tests {
         assert_eq!(OutputDefault::parse("Auto").unwrap(), OutputDefault::Auto);
         assert_eq!(OutputDefault::parse("JSON").unwrap(), OutputDefault::Json);
         assert!(OutputDefault::parse("xml").is_err());
+    }
+
+    #[test]
+    fn use_rtk_parses() {
+        assert_eq!(HookUseRtk::parse("auto").unwrap(), HookUseRtk::Auto);
+        assert_eq!(HookUseRtk::parse("ON").unwrap(), HookUseRtk::On);
+        assert_eq!(HookUseRtk::parse("off").unwrap(), HookUseRtk::Off);
+        assert!(HookUseRtk::parse("maybe").is_err());
+    }
+
+    #[test]
+    fn chainable_defaults_to_rtk_and_round_trips() {
+        let mut store = Store::open_in_memory().unwrap();
+        assert_eq!(Config::defaults().hook.chainable, vec!["rtk".to_string()]);
+        set(&mut store, "hook.chainable", "rtk, future-tool").unwrap();
+        set(&mut store, "hook.use_rtk", "on").unwrap();
+        let cfg = Config::load(&store).unwrap();
+        assert_eq!(cfg.hook.chainable, vec!["rtk", "future-tool"]);
+        assert_eq!(cfg.hook.use_rtk, HookUseRtk::On);
+        assert_eq!(cfg.hook.use_rtk_source, Source::Settings);
+    }
+
+    #[test]
+    fn script_path_is_read_only() {
+        let mut store = Store::open_in_memory().unwrap();
+        let err = set(&mut store, "hook.script_path", "x").unwrap_err();
+        assert!(err.to_string().contains("read-only"));
     }
 
     #[test]

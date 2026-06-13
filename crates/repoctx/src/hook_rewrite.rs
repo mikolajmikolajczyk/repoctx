@@ -358,21 +358,28 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Op
         }
     }
 
-    // rtk chain: on passthrough, hand off to `rtk hook claude` so rtk's
-    // output compression still applies. The script bakes `--rtk-chain`;
-    // a direct invocation resolves it from `hook.use_rtk`.
+    // Chain: on passthrough, hand off to the first allowlisted tool on
+    // PATH (`hook.chainable`, rtk by default) so its output compression
+    // still applies. The script bakes `--rtk-chain`; a direct invocation
+    // resolves it from `hook.use_rtk`.
     if rtk_chain {
-        if which("rtk").is_some() {
-            match exec_chain("rtk hook claude", stdin_bytes) {
+        let mut any_present = false;
+        for tool in &cfg.chainable {
+            if which(tool).is_none() {
+                continue;
+            }
+            any_present = true;
+            match exec_chain(&format!("{tool} hook claude"), stdin_bytes) {
                 Ok(Some(stdout)) => {
-                    debug!("rtk chain handled the rewrite");
+                    debug!(%tool, "chain handled the rewrite");
                     return Ok(Some(stdout));
                 }
                 Ok(None) => {}
-                Err(e) => warn!(error = %e, "rtk chain failed; passthrough"),
+                Err(e) => warn!(%tool, error = %e, "chain failed; trying next"),
             }
-        } else {
-            warn_once_rtk_missing();
+        }
+        if !any_present {
+            warn_once_chain_missing(&cfg.chainable);
         }
     }
 
@@ -393,7 +400,7 @@ pub fn run(cfg: &HookConfig, rtk_chain_flag: Option<bool>) -> Result<i32> {
     let rtk_chain = rtk_chain_flag.unwrap_or(match cfg.use_rtk {
         HookUseRtk::On => true,
         HookUseRtk::Off => false,
-        HookUseRtk::Auto => which("rtk").is_some(),
+        HookUseRtk::Auto => cfg.chainable.iter().any(|t| which(t).is_some()),
     });
     match run_inner(&stdin_bytes, cfg, rtk_chain) {
         Ok(Some(json)) => {
@@ -428,13 +435,17 @@ pub(crate) fn which(prog: &str) -> Option<PathBuf> {
     None
 }
 
-/// Warn once (per cache dir) that rtk chaining is on but rtk is absent.
-fn warn_once_rtk_missing() {
+/// Warn once (per cache dir) that chaining is on but no allowlisted tool
+/// is on PATH.
+fn warn_once_chain_missing(chainable: &[String]) {
     let dir = std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")));
-    let msg = "[repoctx] rtk chaining enabled but rtk not found on PATH — \
-               install rtk or set hook.use_rtk=off (https://github.com/rtk-ai/rtk)";
+    let msg = format!(
+        "[repoctx] hook chaining enabled but none of [{}] found on PATH — \
+         install one or set hook.use_rtk=off (https://github.com/rtk-ai/rtk)",
+        chainable.join(", ")
+    );
     let Some(dir) = dir else {
         eprintln!("{msg}");
         return;
