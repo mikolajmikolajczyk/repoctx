@@ -9,8 +9,8 @@
 //!   - drift + repair: doctor.rs ; uninstall: uninstall.rs
 //!
 //! Skips cleanly where `bash` is absent (e.g. a Windows runner without
-//! Git Bash) — no cfg(unix), just a runtime probe, to honor the
-//! platform-agnostic policy.
+//! Git Bash) — via a runtime probe, not a compile-time OS gate, to honor
+//! the platform-agnostic policy.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -202,7 +202,10 @@ fn rendered_script_repoctx_missing_passthrough() {
         &path,
         r#"{"tool_input":{"command":"ls -la"}}"#,
     );
-    assert_eq!(code, 0, "missing binary must passthrough (never block Bash)");
+    assert_eq!(
+        code, 0,
+        "missing binary must passthrough (never block Bash)"
+    );
     assert!(stdout.trim().is_empty());
     assert!(stderr.contains("not installed"), "install hint: {stderr}");
 }
