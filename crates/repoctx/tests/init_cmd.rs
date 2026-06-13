@@ -108,6 +108,36 @@ fn global_install_writes_to_home_with_absolute_path() {
 }
 
 #[test]
+fn global_displaces_rtk_chains_it_and_backs_up() {
+    let repo = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    // Pre-existing user-global rtk hook.
+    let gclaude = home.path().join(".claude");
+    std::fs::create_dir_all(&gclaude).unwrap();
+    std::fs::write(
+        gclaude.join("settings.json"),
+        r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"rtk hook claude"}]}]}}"#,
+    )
+    .unwrap();
+
+    // init -g over it: not refused (it's the recommended path), chains rtk.
+    run(repo.path(), home.path(), &["-g", "--yes"]).success();
+
+    // Sole owner now = the global script; rtk chained (RTK_CHAIN=1).
+    let script = home.path().join(".claude/repoctx-hook.sh");
+    assert_eq!(bash_command(&gclaude.join("settings.json")), script.display().to_string());
+    let body = std::fs::read_to_string(&script).unwrap();
+    assert!(body.contains("RTK_CHAIN=1"), "rtk should be chained underneath");
+
+    // A backup of the prior settings.json was written.
+    let has_backup = std::fs::read_dir(&gclaude)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .any(|e| e.file_name().to_string_lossy().contains("repoctx-backup-"));
+    assert!(has_backup, "expected a settings.json backup");
+}
+
+#[test]
 fn idempotent_second_run() {
     let repo = TempDir::new().unwrap();
     let home = TempDir::new().unwrap();

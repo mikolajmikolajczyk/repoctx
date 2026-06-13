@@ -53,6 +53,24 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         HookUseRtk::Auto => rtk_present,
     };
 
+    // Global install displacing a user-global rtk hook: chain it underneath
+    // so rtk's savings survive (the no-degradation promise). `--rtk off`
+    // opts out, with a loud warning.
+    let displacing_global_rtk = opts.global
+        && scan
+            .iter()
+            .any(|h| h.scope == crate::hook_scan::Scope::UserGlobal && h.kind == crate::hook_scan::HookKind::Rtk);
+    if displacing_global_rtk {
+        if matches!(opts.rtk, HookUseRtk::Off) {
+            eprintln!(
+                "warning: replacing the user-global rtk hook with --rtk off — \
+                 rtk's token savings will be LOST. Re-run without --rtk off to chain it."
+            );
+        } else {
+            rtk_chain = true;
+        }
+    }
+
     // Interactive confirmation only on a TTY without --yes.
     if !opts.yes && io::stdin().is_terminal() {
         if rtk_present {
@@ -110,6 +128,14 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         return Ok(());
     }
 
+    // Back up an existing global settings.json before taking it over, so
+    // a displaced rtk (or other) entry can be restored by hand.
+    let backup = if opts.global && settings_path.exists() {
+        Some(backup_file(&settings_path)?)
+    } else {
+        None
+    };
+
     write_script(&script_path, &script)?;
     if !opts.global {
         ensure_gitattributes(repo_root)?;
@@ -140,6 +166,12 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         settings_path.display()
     );
     eprintln!("  rtk chaining: {}", if rtk_chain { "on" } else { "off" });
+    if displacing_global_rtk && rtk_chain {
+        eprintln!("  rtk         : displaced the user-global rtk hook; chained underneath (no degradation)");
+    }
+    if let Some(b) = &backup {
+        eprintln!("  backup      : {} (restore by hand to undo)", b.display());
+    }
     if !rtk_present && rtk_chain {
         eprintln!("  note: rtk not on PATH yet — install it to activate chaining.");
     }
@@ -212,4 +244,20 @@ fn home_dir() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("USERPROFILE").map(PathBuf::from))
+}
+
+/// Copy `path` to a timestamped `.repoctx-backup-<unix-secs>` sibling.
+fn backup_file(path: &Path) -> Result<PathBuf> {
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let name = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("settings.json");
+    let backup = path.with_file_name(format!("{name}.repoctx-backup-{ts}"));
+    std::fs::copy(path, &backup)
+        .with_context(|| format!("back up {} → {}", path.display(), backup.display()))?;
+    Ok(backup)
 }
