@@ -4,6 +4,15 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **`repoctx init` — first-class onboarding** (epic `40c8baa`). One command wires repoctx into Claude Code: writes a committed dumb-pipe hook script (`.repoctx/hook.sh`, or `~/.claude/repoctx-hook.sh` with `-g`), points `settings.json`'s sole `PreToolUse → Bash` entry at it, writes `.gitattributes`, and installs the SKILL.md + CLAUDE.md guidance. Flags: `--agent`, `--rtk auto|on|off`, `--yes`, `--force`, `--dry-run`, `--uninstall [--restore-backup]`.
+- **repoctx is now the meta-hook.** The hook script execs `repoctx hook claude`; all rewrite/JSON/chain logic lives in the binary (no `jq`). On passthrough it chains the first allowlisted tool on PATH (`hook.chainable`, default `["rtk"]`) via `--rtk-chain`, forwarding rtk's output verbatim — repoctx's structural rewrites **and** rtk's compression, no race.
+- **Race detection.** `init` refuses to create a configuration that would race (a foreign hook anywhere, or a repoctx/rtk hook in a scope that double-fires with the target), with actionable resolution; `--force` overrides. `init -g` over a global rtk hook backs up `settings.json`, takes over, and chains rtk.
+- **`repoctx hook doctor [-g] [--fix]`** — drift/tamper check (re-renders the expected script + structurally compares), settings-entry + foreign-hook report; `--fix` regenerates + restores with a backup.
+- **`repoctx rewrite <cmd>`** — debug/bench utility exposing the hook's rewrite decision (exit 0 + rewritten command, or 1 = passthrough).
+- **Config keys** `hook.use_rtk` (`auto|on|off`), `hook.chainable` (allowlist), `hook.script_path` (read-only). v0.5.x installs auto-migrate on first `init` (chain_commands → RTK_CHAIN, row dropped).
+
 ### Changed
 
 - **Integration content is embedded in the binary** (issue `43aeaff`). `repoctx hook list/status/install` previously fetched per-agent manifests + fragments from a GitHub mirror at a pinned git ref, cached under XDG. The content was always version-locked to the binary, so the fetch bought nothing — now it's compiled in via `include_str!`. `hook install` works offline / airgapped and always matches the running binary.

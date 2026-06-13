@@ -6,6 +6,17 @@ Five minutes from a working `repoctx` install to indexed search. The walkthrough
 
 See [`installation.md`](installation.md). The rest of this page assumes `repoctx --help` works.
 
+## The fast path: `repoctx init`
+
+If you use Claude Code, one command wires repoctx in so your agent uses it automatically (routing `rg`/`grep` identifier searches through repoctx):
+
+```sh
+cd ~/my-project
+repoctx init
+```
+
+See [`init.md`](init.md). The rest of this page runs the commands directly — useful for understanding what the agent runs, and for use without the hook.
+
 ## 1. Index a repository
 
 `cd` into the root of any Git repository. You can run `repoctx index` explicitly:

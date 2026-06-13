@@ -133,26 +133,32 @@ nix profile install github:mikolajmikolajczyk/repoctx
 
 ## Wire it into your agent
 
-`repoctx hook install <agent>` drops a skill + AGENTS.md guidance
-into the current repo so your AI coding agent loads it automatically:
+For **Claude Code**, one command does everything — installs a hook so the
+agent's `rg`/`grep` identifier searches route through repoctx
+automatically, plus the skill + `CLAUDE.md` guidance:
 
 ```sh
 cd /path/to/your/project
-repoctx hook install claude        # Claude Code
+repoctx init        # add -g for a user-global install (all repos)
+```
+
+It writes a committed `.repoctx/hook.sh`, points `.claude/settings.json`
+at it, and drops `.claude/skills/repoctx/SKILL.md` + a `CLAUDE.md` block.
+If [rtk](https://github.com/rtk-ai/rtk) is present, repoctx chains it
+underneath (no degradation). Full reference: [`wiki/user/init.md`](wiki/user/init.md).
+
+For **Codex / opencode** (rules-only agents, no hook protocol), install
+just the guidance:
+
+```sh
 repoctx hook install codex         # OpenAI Codex
 repoctx hook install opencode      # opencode
 ```
 
-What it writes per agent:
-
-- Claude → `.claude/skills/repoctx/SKILL.md` + a guidance block in
-  `CLAUDE.md`.
-- Codex / opencode → `.agents/skills/repoctx/SKILL.md` + a guidance
-  block in `AGENTS.md`.
-
-The skill file teaches the agent how to use `repoctx` and when to
-prefer it over `rg`. Re-running `install` is a no-op when nothing has
-changed. Full reference: [`wiki/user/hook.md`](wiki/user/hook.md).
+These write `.agents/skills/repoctx/SKILL.md` + an `AGENTS.md` block. The
+skill teaches the agent how to use `repoctx` and when to prefer it over
+`rg`. Re-running is a no-op when nothing changed. Hook details:
+[`wiki/user/hook.md`](wiki/user/hook.md).
 
 ## What's in the box
 

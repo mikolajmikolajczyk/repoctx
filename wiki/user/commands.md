@@ -264,15 +264,33 @@ row → built-in default. Keys today: `hook.rewrite`,
 `hook.chain_commands`, `gain.no_record`, `gain.record_query`,
 `output.default`.
 
+## `repoctx init`
+
+First-class onboarding for Claude Code: installs the committed hook
+script, points `settings.json` at it, and drops the guidance files. Full
+reference: [`init.md`](init.md).
+
+| Invocation | Effect |
+|---|---|
+| `repoctx init` | Project-scope install (`.repoctx/hook.sh` + `.claude/settings.json` + guidance). |
+| `repoctx init -g` | User-global install (`~/.claude/`). |
+| `repoctx init [--rtk auto\|on\|off] [--yes] [--force] [--dry-run]` | Control rtk chaining / prompts / planning. |
+| `repoctx init --uninstall [-g] [--restore-backup]` | Remove the repoctx hook (inverse of install). |
+| `repoctx rewrite '<cmd>'` | Show the hook's decision for one command (exit 0 + rewrite, or 1 = passthrough). |
+
 ## `repoctx hook`
 
-Per-agent install machinery — drops the `repoctx` skill / guidance into a target repo so AI coding agents auto-load it. Three subcommands: `list`, `status`, `install`. No `uninstall` — `install` prints removal instructions on success. Full reference + per-agent table: [`hook.md`](hook.md).
+The meta-hook + the low-level guidance installer. `init` is the supported
+entry for Claude; `hook install` is the primitive for rules-only agents.
+Full reference: [`hook.md`](hook.md).
 
 | Subcommand | Effect |
 |---|---|
 | `repoctx hook list` | Enumerate available agents (`claude`, `codex`, `opencode`) with descriptions. |
 | `repoctx hook status [--dir PATH]` | For each agent, show which destination files exist in the target dir. |
-| `repoctx hook install <agent> [--dir PATH] [--dry-run] [--force]` | Install one agent's files. Idempotent re-install returns `skipped_identical`. |
+| `repoctx hook install <agent> [--dir PATH] [--dry-run] [--force]` | Install one agent's guidance files (use for codex/opencode). |
+| `repoctx hook doctor [-g] [--fix]` | Check the installed hook for drift/conflicts; `--fix` repairs. |
+| `repoctx hook claude [--rtk-chain=0\|1]` | PreToolUse handler (called by the hook script, not by hand). |
 
 Per-agent files are embedded in the binary — install works offline and always matches your installed version.
 
