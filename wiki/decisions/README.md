@@ -53,3 +53,4 @@ What would make us re-open this decision.
 - [2026-06-12 — Transparent rewrite hook design](2026-06-12-rewrite-hook-design.md)
 - [2026-06-13 — repoctx init: meta-hook orchestrator](2026-06-13-repoctx-init.md)
 - [2026-06-13 — Grammar loading strategy: static linking](2026-06-13-grammar-loading-strategy.md)
+- [2026-06-13 — Agent benchmark design (taxonomy, repos, thresholds)](2026-06-13-agent-bench.md)

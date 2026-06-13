@@ -6,6 +6,7 @@ members = [
     "crates/index",
     "crates/integrations",
     "crates/store",
+    "crates/bench-tokens",
 ]
 
 [workspace.package]

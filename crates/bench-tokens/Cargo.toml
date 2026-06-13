@@ -1,0 +1,13 @@
+[package]
+name = "repoctx-bench-tokens"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Token estimator for the repoctx agent benchmark (bytes/4)."
+
+[[bin]]
+name = "tokens"
+path = "src/main.rs"
