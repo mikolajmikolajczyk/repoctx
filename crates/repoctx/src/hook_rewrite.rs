@@ -410,7 +410,7 @@ pub fn run(cfg: &HookConfig, rtk_chain_flag: Option<bool>) -> Result<i32> {
 
 /// Locate a program on `PATH` without spawning it (cheap; the hook runs
 /// on every Bash tool call).
-fn which(prog: &str) -> Option<PathBuf> {
+pub(crate) fn which(prog: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     let exts: &[&str] = if cfg!(windows) {
         &["", ".exe", ".cmd", ".bat"]
