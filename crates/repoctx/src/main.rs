@@ -117,6 +117,13 @@ enum Cmd {
     /// indexes each language). Agents check this before deciding to
     /// fall back to ripgrep.
     Languages,
+    /// Decide whether a bash command would be rewritten (debug/bench).
+    /// Exit 0 + the rewritten command on stdout if rewritten; exit 1 on
+    /// passthrough. Mirrors the hook's decision without JSON wrapping.
+    Rewrite {
+        /// The bash command to test, e.g. `repoctx rewrite 'rg foo'`.
+        command: String,
+    },
     /// Read or write the per-repo settings table.
     Config {
         #[command(subcommand)]
@@ -294,6 +301,17 @@ fn run() -> Result<()> {
             limit,
         } => context_cmd::run(&repo_root, symbol, context, limit, render, gain_opts),
         Cmd::Languages => languages_cmd::run(render),
+        Cmd::Rewrite { command } => {
+            // Exit-code protocol (e06f463): 0 = rewrite (stdout = command),
+            // 1 = passthrough. 2/3 (deny/ask) reserved for future rules.
+            match hook_rewrite::try_semantic_rewrite(&command) {
+                Some((rewritten, _rule)) => {
+                    println!("{rewritten}");
+                    std::process::exit(0);
+                }
+                None => std::process::exit(1),
+            }
+        }
         Cmd::Config { sub } => match sub {
             ConfigSub::Show => config_cmd::run_show(&repo_root, render),
             ConfigSub::Get { key } => config_cmd::run_get(&repo_root, key, render),

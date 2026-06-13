@@ -247,7 +247,7 @@ fn tokenize(cmd: &str) -> Option<Vec<String>> {
     Some(out)
 }
 
-fn try_semantic_rewrite(command: &str) -> Option<(String, &'static str)> {
+pub(crate) fn try_semantic_rewrite(command: &str) -> Option<(String, &'static str)> {
     let tokens = tokenize(command)?;
     let argv: Vec<&str> = tokens.iter().map(String::as_str).collect();
     // The single-ident rules treat quoted arguments as the agent's
