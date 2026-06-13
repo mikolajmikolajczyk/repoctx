@@ -48,4 +48,7 @@ What would make us re-open this decision.
 
 - [2026-06-11 — Grammar crates: toml-ng + md, core 0.25.x](2026-06-11-grammar-crate-selection.md)
 - [2026-06-11 — Platform-agnostic from the start: Linux, macOS, Windows](2026-06-11-platform-agnostic.md)
-- [2026-06-11 — Gain analytics: tokenizer = cl100k_base, baseline = candidate_bytes/4](2026-06-11-gain-tokenizer-and-baseline.md)
+- [2026-06-11 — Gain analytics: tokenizer = cl100k_base, baseline = candidate_bytes/4](2026-06-11-gain-tokenizer-and-baseline.md) (token counting superseded by bytes/4 in v0.5.3, issue `3a7fbc1`)
+- [2026-06-12 — Config schema, storage, precedence](2026-06-12-config-schema.md)
+- [2026-06-12 — Transparent rewrite hook design](2026-06-12-rewrite-hook-design.md)
+- [2026-06-13 — repoctx init: meta-hook orchestrator](2026-06-13-repoctx-init.md)
