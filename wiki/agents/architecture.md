@@ -4,7 +4,7 @@ Repo shape, data flow, key modules. Keep this **descriptive of the current state
 
 ## Status
 
-v0.5.3 shipped 2026-06-12. CLI surface complete: indexing, search, navigation, per-agent install, per-repo config, transparent Claude Code rewrite hook, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
+v0.6.0 shipped 2026-06-13. CLI surface complete: indexing, search, navigation, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
 
 ## Current layout
 

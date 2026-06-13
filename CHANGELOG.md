@@ -4,6 +4,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-06-13
+
+`repoctx init` — repoctx becomes the meta-hook for Claude Code. Plus the integration content moves into the binary (no network), and a CI-gated correctness suite.
+
 ### Added
 
 - **`repoctx init` — first-class onboarding** (epic `40c8baa`). One command wires repoctx into Claude Code: writes a committed dumb-pipe hook script (`.repoctx/hook.sh`, or `~/.claude/repoctx-hook.sh` with `-g`), points `settings.json`'s sole `PreToolUse → Bash` entry at it, writes `.gitattributes`, and installs the SKILL.md + CLAUDE.md guidance. Flags: `--agent`, `--rtk auto|on|off`, `--yes`, `--force`, `--dry-run`, `--uninstall [--restore-backup]`.
@@ -21,6 +25,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 - **`--ref` / `--no-cache` flags** on `hook list/status/install`, and the **`hook.ref` / `hook.no_cache` config keys** + their `REPOCTX_HOOK_REF` / `REPOCTX_HOOK_NO_CACHE` env vars. Integration content is embedded; there is no fetch ref or cache to control. Old rows in an existing settings table are ignored quietly (no warning). `REPOCTX_INTEGRATIONS_CACHE_DIR` no longer does anything.
 - **`ureq` + `rustls` + `directories` dependencies** dropped from the workspace — `repoctx` no longer makes any network calls. Binary ~1.9 MB smaller (14.2 MB → 12.3 MB stripped Linux).
+
+### Tests
+
+- **Correctness suite** (epic `1cd1fc7`), CI-gated: a ≥100-row rewrite-decision corpus asserted through both the pure decision function and `repoctx hook claude` (`573eccc`), and accuracy parity vs ripgrep across 10 language fixtures with a known-symbol sidecar (`c23894f`). Plus an end-to-end suite that runs the rendered `hook.sh` under bash across the chain/missing-binary matrix (`0a338d7`).
 
 ## [0.5.3] — 2026-06-12
 
