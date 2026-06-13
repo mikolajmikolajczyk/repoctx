@@ -23,7 +23,10 @@ Adding a new key is non-breaking; older binaries log a warn and ignore.
 
 | Key | Type | Values | Default | Notes |
 |---|---|---|---|---|
-| `hook.rewrite` | enum | `auto` \| `off` \| `force` | `auto` | Kill switch for the transparent rewrite hook. |
+| `hook.rewrite` | enum | `auto` \| `off` \| `force` | `auto` | Kill switch for the semantic rewrite (`off` = pure chain proxy). |
+| `hook.use_rtk` | enum | `auto` \| `on` \| `off` | `auto` | Chain rtk underneath on passthrough. `auto` = on when a chainable tool is on PATH. |
+| `hook.chainable` | list | comma/newline | `rtk` | Allowlist of tools repoctx may chain underneath. Only rtk is meaningful in v0.6.x. |
+| `hook.script_path` | string | (read-only) | `(not installed)` | Where `repoctx init` wrote the project hook script. Computed; `config set` rejects it. |
 | `gain.no_record` | bool | `true` \| `false` | `false` | Persistent `--no-record`. |
 | `gain.record_query` | bool | `true` \| `false` | `false` | Persistent `--record-query`. |
 | `output.default` | enum | `auto` \| `human` \| `toon` \| `json` | `auto` | Persistent output-format choice. `auto` keeps today's behavior (Human on TTY, TOON on pipe). |
@@ -104,7 +107,7 @@ default (the binary won't refuse to run).
 ## See also
 
 - [`commands.md`](commands.md) — top-level command reference.
-- [`hook.md`](hook.md) — `hook.rewrite` affects the transparent rewrite hook.
+- [`hook.md`](hook.md) — `hook.rewrite` / `hook.use_rtk` / `hook.chainable` drive the meta-hook.
 - [`gain.md`](gain.md) — `gain.no_record` / `gain.record_query` affect
   what gain analytics records.
 - `wiki/decisions/2026-06-12-config-schema.md` — the binding design

@@ -174,9 +174,11 @@ skill teaches the agent how to use `repoctx` and when to prefer it over
 - `languages` — coverage matrix; agents check this to decide when to
   fall back to `rg`.
 - `config` — per-repo settings table (output format, gain recording,
-  hook fetcher pin).
+  hook rewrite/chaining).
 - `gain` — token-savings analytics ("navigation cost avoided").
-- `hook` — per-agent install machinery.
+- `init` — wire repoctx into Claude Code as the meta-hook (committed
+  script + rtk chaining + `doctor`/`--uninstall`).
+- `hook` — the PreToolUse handler + per-agent guidance install.
 - Three output formats over one set of typed records: human (TTY),
   TOON (pipes), JSON (`--json`).
 - CI green on Linux + macOS + Windows.

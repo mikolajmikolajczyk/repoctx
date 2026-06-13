@@ -260,9 +260,9 @@ rules: [`config.md`](config.md).
 | `repoctx config unset <key>` | Delete row; built-in default applies again. |
 
 Precedence (highest wins): CLI flag → environment variable → settings
-row → built-in default. Keys today: `hook.rewrite`,
-`hook.chain_commands`, `gain.no_record`, `gain.record_query`,
-`output.default`.
+row → built-in default. Keys today: `hook.rewrite`, `hook.use_rtk`,
+`hook.chainable`, `gain.no_record`, `gain.record_query`,
+`output.default` (plus read-only `hook.script_path`).
 
 ## `repoctx init`
 

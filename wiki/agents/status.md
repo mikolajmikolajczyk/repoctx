@@ -17,9 +17,12 @@ CLI surface complete on Linux, macOS, and Windows. 9 languages indexed (7 full c
 - `repoctx gain` / `gain top` — token-savings analytics. Records every read command except `index`/`gain`/`hook`; aggregates only; `--since`, `--all`, `--history` window controls.
 - `repoctx hook list` / `hook status` / `hook install <agent>` — per-agent install machinery for Claude Code / Codex / opencode. Manifests + content are embedded in the binary (`include_str!`) — install works offline and is version-locked to the binary. Three modes (`write`, `append`, `merge-section`). `--dir`/`--dry-run`/`--force` flags. No `uninstall` — install prints a per-file removal recipe.
 - Three output formats over one set of typed records (ADR-0008): human (TTY default), TOON (non-TTY default), JSON (`--json`). `--json` / `--toon` clap-mutually-exclusive. Default format also configurable via `output.default` in the per-repo settings table.
-- `repoctx config show/get/set/unset` — per-repo settings (`hook.rewrite`, `hook.chain_commands`, `gain.no_record`, `gain.record_query`, `output.default`). Stored in `.repoctx/index.db` schema v3 settings table. Precedence: CLI flag → env var → settings → default.
-- `repoctx hook claude` — PreToolUse hook handler. Rewrites recognized `rg`/`grep <identifier>` patterns to `repoctx symbols`/`definition --json`; chains through commands saved in `hook.chain_commands` on passthrough. `hook.rewrite = off` disables semantic rewrites (pure chain proxy); `force` relaxes the parser.
-- `repoctx hook install claude` takes ownership of `.claude/settings.json` PreToolUse → Bash matcher (displaces any prior entries into the chain). `repoctx hook doctor` re-runs the takeover idempotently to recover from sibling installers overwriting our entry. Both also scan `~/.claude/settings.json` and warn (read-only) when a user-global tool (e.g. `rtk init -g`) would parallel-race our project-local entry — Claude Code merges hooks across all scopes by design.
+- `repoctx config show/get/set/unset` — per-repo settings (`hook.rewrite`, `hook.use_rtk`, `hook.chainable`, `gain.no_record`, `gain.record_query`, `output.default`; plus read-only `hook.script_path`). Stored in `.repoctx/index.db` schema v3 settings table. Precedence: CLI flag → env var → settings → default.
+- `repoctx init [-g]` — the onboarding command. Writes a committed `.repoctx/hook.sh` (dumb-pipe, no jq), points `.claude/settings.json`'s sole PreToolUse → Bash entry at it, writes `.gitattributes`, installs SKILL.md + CLAUDE.md guidance. `--rtk auto|on|off`, `--yes`, `--force`, `--dry-run`. `--uninstall [--restore-backup]` reverses it. Refuses race-prone configs (foreign hook anywhere, or a repoctx/rtk hook in a scope that double-fires) unless `--force`.
+- `repoctx hook claude [--rtk-chain=0|1]` — PreToolUse handler. Rewrites recognized `rg`/`grep <identifier>` patterns to `repoctx symbols`/`definition --json`; on passthrough, chains the first allowlisted tool on PATH (`hook.chainable`, default rtk) and forwards its output. `hook.rewrite = off` disables semantic rewrites; `force` relaxes the parser.
+- `repoctx hook doctor [-g] [--fix]` — re-renders the expected script + compares to disk (structural drift, ignoring config value lines), checks the settings entry, reports foreign hooks; `--fix` regenerates + restores with a backup. Exits 1 on issues without `--fix`.
+- `repoctx hook list / status / install <agent>` — embedded per-agent guidance install (offline; `install` is the low-level primitive used for codex/opencode).
+- `repoctx rewrite <cmd>` — show the hook's rewrite decision (exit 0 + rewritten command, or 1 = passthrough).
 - No missing-index error surface for users — read commands always build the DB if needed and incrementally reindex changed files before answering.
 - `repoctx languages` — surfaces the per-language coverage matrix; read commands attach an `advisory` field to machine output when the query underperforms because of language coverage limits. Agents fall back to `rg` when present.
 - Languages with full coverage: Go, Rust (struct/enum/union/type → `class` per upstream tags.scm), TypeScript + TSX (full coverage via vendored Aider tags.scm: plain class, plain function, arrow function, method, type alias, enum, interface, abstract class — Apache-2.0), JavaScript, Python, Markdown (ATX + setext headings).
@@ -32,14 +35,11 @@ CLI surface complete on Linux, macOS, and Windows. 9 languages indexed (7 full c
 
 ## Test coverage
 
-21 workspace test suites green (live total: `cargo test 2>&1 | grep -c "test result: ok"`). New areas since v0.2.0:
+~28 workspace test suites green (live total: `cargo test 2>&1 | grep -c "test result: ok"`). Notable areas:
 
-- Hook rewrite: 13 unit tests for the rewrite-rule parser (single-ident matchers, quoted-pattern routing, shell metacharacter refusal, regex passthrough).
-- Hook takeover: 11 unit tests for project-local `.claude/settings.json` ownership + user-global scan + warn paths.
-- Config: 7 round-trip + precedence unit tests (CLI > env > settings > default), settings.json hand-edit fallback.
-- Output: 3 new resolve() tests covering the `output.default` config layer.
-- Advisory: 8 advisory generation tests (full/partial language paths, empty-workspace + lang-filter combos).
-- Languages: TS/TSX vendored Aider tags.scm regression tests covering plain class / function / arrow / type alias / enum.
+- **Meta-hook**: `init` (install / global / rtk-displacement / migration / race refusal / dry-run), `doctor` (drift detect + `--fix`), `--uninstall` (entry/script removal, foreign-preserve, restore-backup), and `hook_script_e2e` running the rendered `hook.sh` under bash across the RTK_CHAIN × repoctx-present × rtk-present matrix.
+- **Correctness suite** (CI-gated): rewrite-decision corpus (≥100 rows, both entry points + per-rule coverage) and accuracy parity vs ripgrep across 10 language fixtures with a known-symbol sidecar.
+- Hook rewrite parser, `hook_marker` reader, `hook_scan` classify + race ruleset, config round-trip/precedence, advisory generation, output format snapshots, TS/TSX vendored tags regression.
 
 ## Performance baseline
 

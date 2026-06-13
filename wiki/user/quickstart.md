@@ -78,7 +78,7 @@ repoctx status
 ```
 
 ```text
-schema_version: 2
+schema_version: 3
 files:          81
 symbols:        528
 db_size_bytes:  131072
@@ -127,22 +127,16 @@ repoctx gain
 ```
 
 ```text
+repoctx — Token Savings
 Last 30 days
+════════════════════════════════════════════
 
-Commands:
-  1
+Commands          1
+Returned          15
+Baseline (est.)   1.3K
+Saved             1.2K  (98.8%)
 
-Returned:
-  15 tokens
-
-Estimated baseline:
-  1,257 tokens
-
-Reduction:
-  98.8%
-
-Estimated savings:
-  1.2K tokens
+Efficiency  ████████████████████████ 98.8%
 ```
 
 That's the navigation cost an agent did NOT have to pay because `repoctx` answered with a narrow result instead of forcing it to grep + open whole files. See [`gain.md`](gain.md) for the philosophy and privacy stance.
