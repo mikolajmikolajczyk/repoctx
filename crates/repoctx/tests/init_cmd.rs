@@ -128,6 +128,37 @@ fn idempotent_second_run() {
 }
 
 #[test]
+fn refuses_foreign_hook_unless_forced() {
+    let repo = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    // Seed a project settings.json with an unrecognized Bash hook.
+    let claude = repo.path().join(".claude");
+    std::fs::create_dir_all(&claude).unwrap();
+    std::fs::write(
+        claude.join("settings.json"),
+        r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"my-own-tool"}]}]}}"#,
+    )
+    .unwrap();
+
+    // Without --force: refuse, naming the foreign command.
+    let out = run(repo.path(), home.path(), &["--yes", "--rtk", "off"])
+        .failure()
+        .get_output()
+        .stderr
+        .clone();
+    let s = String::from_utf8_lossy(&out);
+    assert!(s.contains("my-own-tool"), "should name the foreign hook: {s}");
+    assert!(!repo.path().join(".repoctx/hook.sh").exists());
+
+    // With --force: install anyway (takes over the Bash matcher).
+    run(repo.path(), home.path(), &["--yes", "--rtk", "off", "--force"]).success();
+    assert_eq!(
+        bash_command(&claude.join("settings.json")),
+        ".repoctx/hook.sh"
+    );
+}
+
+#[test]
 fn unknown_agent_rejected() {
     let repo = TempDir::new().unwrap();
     let home = TempDir::new().unwrap();

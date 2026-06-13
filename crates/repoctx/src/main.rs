@@ -15,6 +15,7 @@ mod gain_cmd;
 mod hook_cmd;
 mod hook_marker;
 mod hook_rewrite;
+mod hook_scan;
 mod hook_script;
 mod hook_takeover;
 mod index_cmd;

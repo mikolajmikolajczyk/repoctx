@@ -35,6 +35,17 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         );
     }
 
+    // Refuse races (foreign hooks anywhere; repoctx/rtk in a scope that
+    // would double-fire with the target) before doing anything. --force
+    // overrides. See hook_scan + the design doc's ruleset.
+    let target_scope = if opts.global {
+        crate::hook_scan::Scope::UserGlobal
+    } else {
+        crate::hook_scan::Scope::Project
+    };
+    let scan = crate::hook_scan::scan(repo_root);
+    crate::hook_scan::pre_install_check(target_scope, &scan, opts.force)?;
+
     let rtk_present = crate::hook_rewrite::which("rtk").is_some();
     let mut rtk_chain = match opts.rtk {
         HookUseRtk::On => true,
