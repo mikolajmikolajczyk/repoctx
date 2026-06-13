@@ -81,7 +81,10 @@ fn parse_marker_line(line: &str) -> Option<HookMarker> {
     if after_ws.len() == after_suffix.len() {
         return None; // suffix must be followed by whitespace
     }
-    let digits: String = after_ws.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let digits: String = after_ws
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
     if digits.is_empty() {
         return None;
     }
