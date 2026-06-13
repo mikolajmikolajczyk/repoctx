@@ -211,15 +211,16 @@ enum HookSub {
         #[arg(long, hide = true)]
         supports_rtk_chain: bool,
     },
-    /// Re-take ownership of `.claude/settings.json` PreToolUse → Bash
-    /// matcher if another installer (rtk reinstall, manual edit, …)
-    /// added a sibling entry. Idempotent; safe to run anytime.
+    /// Check the installed hook for drift/tamper + scope conflicts, and
+    /// (with `--fix`) regenerate the script + restore the settings entry.
+    /// Exits 1 when issues are found without `--fix`.
     Doctor {
-        #[arg(long, value_name = "PATH")]
-        dir: Option<PathBuf>,
-        /// Plan the doctor pass; do not write.
+        /// Operate on the user-global install (`~/.claude/`).
+        #[arg(short = 'g', long)]
+        global: bool,
+        /// Repair: regenerate the script + restore the settings entry.
         #[arg(long)]
-        dry_run: bool,
+        fix: bool,
     },
     /// Install one agent's files into the target dir.
     Install {
@@ -337,10 +338,7 @@ fn run() -> Result<()> {
                 let code = hook_rewrite::run(&cfg.hook, rtk_chain.map(|v| v != 0))?;
                 std::process::exit(code);
             }
-            HookSub::Doctor { dir, dry_run } => {
-                let target = hook_cmd::resolve_dir(dir, &repo_root);
-                hook_cmd::run_doctor(&repo_root, &target, dry_run, render)
-            }
+            HookSub::Doctor { global, fix } => init_cmd::run_doctor(&repo_root, global, fix),
             HookSub::List => hook_cmd::run_list(render),
             HookSub::Status { dir } => {
                 let target = hook_cmd::resolve_dir(dir, &repo_root);

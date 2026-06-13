@@ -107,18 +107,7 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
     }
 
     // Scope-dependent paths.
-    let (settings_path, script_path, entry_command) = if opts.global {
-        let home = home_dir().context("cannot resolve home directory")?;
-        let script = home.join(".claude/repoctx-hook.sh");
-        let entry = script.display().to_string(); // absolute for global
-        (home.join(".claude/settings.json"), script, entry)
-    } else {
-        (
-            repo_root.join(".claude/settings.json"),
-            repo_root.join(".repoctx/hook.sh"),
-            ".repoctx/hook.sh".to_string(), // relative for project scope
-        )
-    };
+    let (settings_path, script_path, entry_command) = scope_paths(repo_root, opts.global)?;
 
     let version = env!("CARGO_PKG_VERSION");
     let script = crate::hook_script::render(rtk_chain, version, "repoctx");
@@ -219,6 +208,189 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// (settings.json path, hook script path, settings-entry command) for a
+/// scope. Project entry is the relative `.repoctx/hook.sh`; global is the
+/// absolute script path.
+fn scope_paths(repo_root: &Path, global: bool) -> Result<(PathBuf, PathBuf, String)> {
+    if global {
+        let home = home_dir().context("cannot resolve home directory")?;
+        let script = home.join(".claude/repoctx-hook.sh");
+        let entry = script.display().to_string();
+        Ok((home.join(".claude/settings.json"), script, entry))
+    } else {
+        Ok((
+            repo_root.join(".claude/settings.json"),
+            repo_root.join(".repoctx/hook.sh"),
+            ".repoctx/hook.sh".to_string(),
+        ))
+    }
+}
+
+/// Resolve whether chaining should be on, from config (project) or rtk
+/// presence (global, which has no per-repo config).
+fn resolve_rtk_chain(repo_root: &Path, global: bool) -> bool {
+    if global {
+        return crate::hook_rewrite::which("rtk").is_some();
+    }
+    if !repo_root.join(".repoctx/index.db").exists() {
+        return crate::hook_rewrite::which("rtk").is_some();
+    }
+    let Ok(store) = Store::open(repo_root) else {
+        return crate::hook_rewrite::which("rtk").is_some();
+    };
+    let cfg = crate::config::Config::load(&store).unwrap_or_else(|_| crate::config::Config::defaults());
+    match cfg.hook.use_rtk {
+        HookUseRtk::On => true,
+        HookUseRtk::Off => false,
+        HookUseRtk::Auto => cfg.hook.chainable.iter().any(|t| crate::hook_rewrite::which(t).is_some()),
+    }
+}
+
+/// Compare two rendered scripts ignoring the environment/config-driven
+/// value lines (RTK_CHAIN / MIN_VERSION / REPOCTX), so the drift check
+/// catches body/logic tampering or staleness, not a flipped RTK_CHAIN.
+fn structural(script: &str) -> String {
+    script
+        .lines()
+        .filter(|l| {
+            let t = l.trim_start();
+            !t.starts_with("RTK_CHAIN=")
+                && !t.starts_with("MIN_VERSION=")
+                && !t.starts_with("REPOCTX=")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// `repoctx hook doctor [-g] [--fix]` — drift/tamper check + scope-conflict
+/// report; `--fix` regenerates the script + restores the settings entry.
+pub fn run_doctor(repo_root: &Path, global: bool, fix: bool) -> Result<()> {
+    let (settings_path, script_path, entry_command) = scope_paths(repo_root, global)?;
+    let rtk_chain = resolve_rtk_chain(repo_root, global);
+    let version = env!("CARGO_PKG_VERSION");
+    let expected = crate::hook_script::render(rtk_chain, version, "repoctx");
+
+    let mut issues: Vec<String> = Vec::new();
+
+    // 1. Script presence + structural drift.
+    match std::fs::read_to_string(&script_path) {
+        Err(_) => issues.push(format!("hook script not found: {}", script_path.display())),
+        Ok(actual) => {
+            if structural(&actual) != structural(&expected) {
+                issues.push(format!(
+                    "hook script drifted from the current template: {}",
+                    script_path.display()
+                ));
+            }
+        }
+    }
+
+    // 2. Settings entry points at the script.
+    let entry_ok = settings_bash_commands(&settings_path)
+        .iter()
+        .any(|c| c == &entry_command);
+    if !entry_ok {
+        issues.push(format!(
+            "settings.json Bash hook does not point at {entry_command}: {}",
+            settings_path.display()
+        ));
+    }
+
+    // 3. Foreign-hook scan (advisory).
+    let scan = crate::hook_scan::scan(repo_root);
+    let foreign: Vec<&crate::hook_scan::ScopedHook> = scan
+        .iter()
+        .filter(|h| h.kind == crate::hook_scan::HookKind::Foreign)
+        .collect();
+
+    if fix {
+        let backup = if settings_path.exists() {
+            Some(backup_file(&settings_path)?)
+        } else {
+            None
+        };
+        write_script(&script_path, &expected)?;
+        crate::hook_takeover::set_sole_bash_hook(&settings_path, &entry_command, false)?;
+        clear_sentinels();
+        eprintln!("repoctx hook doctor: repaired.");
+        eprintln!("  hook script : {}", script_path.display());
+        eprintln!("  settings    : {} → {entry_command}", settings_path.display());
+        if let Some(b) = backup {
+            eprintln!("  backup      : {}", b.display());
+        }
+        if !foreign.is_empty() {
+            eprintln!("  note: foreign hooks remain (see below) — they still race.");
+            report_foreign(&foreign);
+        }
+        return Ok(());
+    }
+
+    if issues.is_empty() && foreign.is_empty() {
+        eprintln!("repoctx hook doctor: healthy.");
+        return Ok(());
+    }
+    eprintln!("repoctx hook doctor: issues found.");
+    for i in &issues {
+        eprintln!("  - {i}");
+    }
+    report_foreign(&foreign);
+    if !issues.is_empty() {
+        eprintln!("Run `repoctx hook doctor{} --fix` to repair.", if global { " -g" } else { "" });
+    }
+    std::process::exit(1);
+}
+
+fn report_foreign(foreign: &[&crate::hook_scan::ScopedHook]) {
+    if foreign.is_empty() {
+        return;
+    }
+    eprintln!("  foreign PreToolUse → Bash hooks (these race with repoctx):");
+    for h in foreign {
+        eprintln!("    [{}] {}", h.scope.label(), h.command);
+    }
+}
+
+fn settings_bash_commands(path: &Path) -> Vec<String> {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    let Ok(root) = serde_json::from_str::<serde_json::Value>(&text) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    if let Some(arr) = root
+        .get("hooks")
+        .and_then(|h| h.get("PreToolUse"))
+        .and_then(|p| p.as_array())
+    {
+        for entry in arr {
+            if entry.get("matcher").and_then(|m| m.as_str()) != Some("Bash") {
+                continue;
+            }
+            if let Some(hooks) = entry.get("hooks").and_then(|h| h.as_array()) {
+                for h in hooks {
+                    if let Some(c) = h.get("command").and_then(|c| c.as_str()) {
+                        out.push(c.to_string());
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Clear the script's cached version-ok + rtk-missing sentinels so the
+/// next hook run re-validates.
+fn clear_sentinels() {
+    let dir = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")));
+    if let Some(dir) = dir {
+        let _ = std::fs::remove_file(dir.join("repoctx-hook-version-ok"));
+        let _ = std::fs::remove_file(dir.join("repoctx-rtk-missing-warned"));
+    }
 }
 
 fn prompt_yes_no(question: &str, default: bool) -> Result<bool> {

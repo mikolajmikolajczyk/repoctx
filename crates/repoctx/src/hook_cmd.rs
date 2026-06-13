@@ -267,38 +267,3 @@ pub fn run_install(
     Ok(())
 }
 
-/// `repoctx hook doctor` — re-run the takeover step. Used after any
-/// other installer (rtk reinstall, manual edit) has potentially added
-/// a sibling Bash PreToolUse entry. Idempotent.
-pub fn run_doctor(repo_root: &Path, dir: &Path, dry_run: bool, render: Render) -> Result<()> {
-    let report = crate::hook_takeover::run(dir, dry_run)?;
-    if !dry_run && !report.displaced_commands.is_empty() {
-        if let Ok(mut store) = repoctx_store::Store::open(repo_root) {
-            // Merge with any pre-existing chain (don't blow it away).
-            let existing = store
-                .get_setting("hook.chain_commands")
-                .ok()
-                .flatten()
-                .unwrap_or_default();
-            let mut chain: Vec<String> = existing
-                .split('\n')
-                .filter(|s| !s.trim().is_empty())
-                .map(str::to_string)
-                .collect();
-            for cmd in &report.displaced_commands {
-                if !chain.contains(cmd) {
-                    chain.push(cmd.clone());
-                }
-            }
-            let serialized = chain.join("\n");
-            if let Err(e) = crate::config::set(&mut store, "hook.chain_commands", &serialized) {
-                tracing::warn!(error = %e, "could not save hook.chain_commands");
-            }
-        }
-    }
-    crate::output::emit(&report, render)?;
-    if let Ok(scan) = crate::hook_takeover::scan_user_global() {
-        crate::hook_takeover::warn_user_global(&scan);
-    }
-    Ok(())
-}
