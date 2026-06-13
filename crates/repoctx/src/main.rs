@@ -18,6 +18,7 @@ mod hook_rewrite;
 mod hook_script;
 mod hook_takeover;
 mod index_cmd;
+mod init_cmd;
 mod languages_cmd;
 mod outline_cmd;
 mod output;
@@ -125,6 +126,27 @@ enum Cmd {
     Hook {
         #[command(subcommand)]
         sub: HookSub,
+    },
+    /// Install the repoctx hook + agent guidance (first-class onboarding).
+    Init {
+        /// Install at user-global scope (`~/.claude/`) instead of this repo.
+        #[arg(short = 'g', long)]
+        global: bool,
+        /// Agent to set up. Only `claude` is supported today.
+        #[arg(long, default_value = "claude")]
+        agent: String,
+        /// Chain rtk underneath: `auto` (when on PATH) | `on` | `off`.
+        #[arg(long, default_value = "auto")]
+        rtk: String,
+        /// Skip interactive prompts; take defaults / flags.
+        #[arg(short = 'y', long)]
+        yes: bool,
+        /// Overwrite agent files whose content differs.
+        #[arg(long)]
+        force: bool,
+        /// Print the plan; write nothing.
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Surface navigation cost avoided by querying through repoctx.
     Gain {
@@ -316,6 +338,24 @@ fn run() -> Result<()> {
                 hook_cmd::run_install(&target, &repo_root, &agent, dry_run, force, &bin, render)
             }
         },
+        Cmd::Init {
+            global,
+            agent,
+            rtk,
+            yes,
+            force,
+            dry_run,
+        } => {
+            let opts = init_cmd::InitOpts {
+                global,
+                agent,
+                rtk: config::HookUseRtk::parse(&rtk)?,
+                yes,
+                force,
+                dry_run,
+            };
+            init_cmd::run(&repo_root, opts)
+        }
         Cmd::Gain {
             since,
             all,

@@ -201,6 +201,64 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<TakeoverReport> {
     })
 }
 
+/// Make `command` the sole `PreToolUse → Bash` hook in `settings_path`,
+/// preserving non-Bash matchers. Used by `repoctx init` to point the
+/// Bash hook at the committed `.repoctx/hook.sh` script (script-based
+/// world). Returns whether the file content changed. Creates the file +
+/// parent dirs when absent.
+pub fn set_sole_bash_hook(settings_path: &Path, command: &str, dry_run: bool) -> Result<bool> {
+    let mut root = load_or_empty(settings_path)?;
+    let before = serde_json::to_string(&root).unwrap_or_default();
+
+    let hooks = root
+        .as_object_mut()
+        .context("settings.json root is not a JSON object")?
+        .entry("hooks")
+        .or_insert(json!({}));
+    let pretooluse = hooks
+        .as_object_mut()
+        .context("settings.json `hooks` is not a JSON object")?
+        .entry("PreToolUse")
+        .or_insert(json!([]))
+        .as_array_mut()
+        .context("settings.json `hooks.PreToolUse` is not a JSON array")?;
+
+    // Drop every Bash matcher entry, keep the rest, append one fresh.
+    let mut kept: Vec<Value> = pretooluse
+        .drain(..)
+        .filter(|e| e.get("matcher").and_then(|m| m.as_str()) != Some("Bash"))
+        .collect();
+    kept.push(json!({
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": command }]
+    }));
+    *pretooluse = kept;
+
+    let after = serde_json::to_string(&root).unwrap_or_default();
+    let changed = before != after;
+
+    if changed && !dry_run {
+        if let Some(parent) = settings_path.parent() {
+            fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
+        }
+        let pretty = serde_json::to_string_pretty(&root)? + "\n";
+        fs::write(settings_path, pretty)
+            .with_context(|| format!("write {}", settings_path.display()))?;
+    }
+    Ok(changed)
+}
+
+fn load_or_empty(path: &Path) -> Result<Value> {
+    if !path.exists() {
+        return Ok(json!({}));
+    }
+    let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    if text.trim().is_empty() {
+        return Ok(json!({}));
+    }
+    serde_json::from_str(&text).with_context(|| format!("parse {}", path.display()))
+}
+
 /// In-place mutation. Returns the commands displaced by this pass.
 fn takeover(root: &mut Value) -> Result<Vec<String>> {
     let hooks = root
