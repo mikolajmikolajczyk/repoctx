@@ -266,4 +266,3 @@ pub fn run_install(
     }
     Ok(())
 }
-

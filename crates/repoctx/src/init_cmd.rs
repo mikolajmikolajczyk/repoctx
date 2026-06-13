@@ -1,13 +1,14 @@
-//! `repoctx init` — first-class onboarding.
+//! `repoctx init` + `repoctx hook doctor` — first-class onboarding.
 //!
-//! Generates the committed `.repoctx/hook.sh` (dumb-pipe script), points
-//! Claude Code's `PreToolUse → Bash` hook at it, writes `.gitattributes`,
-//! and installs the agent guidance files. `-g` does the same at
-//! user-global scope. See `wiki/decisions/2026-06-13-repoctx-init.md`.
+//! `init` generates the committed `.repoctx/hook.sh` (dumb-pipe script),
+//! points Claude Code's `PreToolUse → Bash` hook at it, writes
+//! `.gitattributes`, installs the agent guidance files, refuses races
+//! (via `hook_scan`), and migrates v0.5.x installs. `-g` does the same at
+//! user-global scope (displacing + chaining a prior rtk hook). `doctor`
+//! checks for drift/tamper + scope conflicts and repairs with `--fix`.
+//! See `wiki/decisions/2026-06-13-repoctx-init.md`.
 //!
-//! Out of scope here (separate issues): foreign-hook race detection
-//! (`b2ad123`), `doctor` drift check (`2307c32`), v0.5.x migration
-//! (`43142e1`), `--uninstall` (`ec698bb`).
+//! Still out of scope here: `init --uninstall` (`ec698bb`).
 
 use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
@@ -240,11 +241,16 @@ fn resolve_rtk_chain(repo_root: &Path, global: bool) -> bool {
     let Ok(store) = Store::open(repo_root) else {
         return crate::hook_rewrite::which("rtk").is_some();
     };
-    let cfg = crate::config::Config::load(&store).unwrap_or_else(|_| crate::config::Config::defaults());
+    let cfg =
+        crate::config::Config::load(&store).unwrap_or_else(|_| crate::config::Config::defaults());
     match cfg.hook.use_rtk {
         HookUseRtk::On => true,
         HookUseRtk::Off => false,
-        HookUseRtk::Auto => cfg.hook.chainable.iter().any(|t| crate::hook_rewrite::which(t).is_some()),
+        HookUseRtk::Auto => cfg
+            .hook
+            .chainable
+            .iter()
+            .any(|t| crate::hook_rewrite::which(t).is_some()),
     }
 }
 
@@ -316,7 +322,10 @@ pub fn run_doctor(repo_root: &Path, global: bool, fix: bool) -> Result<()> {
         clear_sentinels();
         eprintln!("repoctx hook doctor: repaired.");
         eprintln!("  hook script : {}", script_path.display());
-        eprintln!("  settings    : {} → {entry_command}", settings_path.display());
+        eprintln!(
+            "  settings    : {} → {entry_command}",
+            settings_path.display()
+        );
         if let Some(b) = backup {
             eprintln!("  backup      : {}", b.display());
         }
@@ -337,7 +346,10 @@ pub fn run_doctor(repo_root: &Path, global: bool, fix: bool) -> Result<()> {
     }
     report_foreign(&foreign);
     if !issues.is_empty() {
-        eprintln!("Run `repoctx hook doctor{} --fix` to repair.", if global { " -g" } else { "" });
+        eprintln!(
+            "Run `repoctx hook doctor{} --fix` to repair.",
+            if global { " -g" } else { "" }
+        );
     }
     std::process::exit(1);
 }
