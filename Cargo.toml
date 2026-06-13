@@ -9,7 +9,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.1"
+version = "0.7.0"
 edition = "2021"
 rust-version = "1.85"
 license = "LGPL-3.0-or-later"
@@ -45,6 +45,17 @@ tree-sitter-json = "0.24"
 tree-sitter-yaml = "0.7"
 tree-sitter-toml-ng = "0.7"
 tree-sitter-md = { version = "0.5", default-features = false }
+# v0.7.0 language batch (epic 9cf4c18) — official tree-sitter-org crates
+tree-sitter-ruby = "0.23"
+tree-sitter-c = "0.24"
+tree-sitter-cpp = "0.23"
+tree-sitter-bash = "0.25"
+tree-sitter-java = "0.23"
+tree-sitter-c-sharp = "0.23"
+tree-sitter-php = "0.24"
+tree-sitter-lua = "0.5"
+tree-sitter-kotlin-ng = "1.1"
+tree-sitter-swift = "0.7"
 
 # Walking + parallelism
 ignore = "0.4"

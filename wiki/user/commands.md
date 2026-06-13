@@ -262,7 +262,7 @@ rules: [`config.md`](config.md).
 Precedence (highest wins): CLI flag → environment variable → settings
 row → built-in default. Keys today: `hook.rewrite`, `hook.use_rtk`,
 `hook.chainable`, `gain.no_record`, `gain.record_query`,
-`output.default` (plus read-only `hook.script_path`).
+`output.default`, `index.nested_keys` (plus read-only `hook.script_path`).
 
 ## `repoctx init`
 

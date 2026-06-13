@@ -34,6 +34,10 @@ static FILES: &[(&str, &str)] = &[
         include_str!("../../../integrations/opencode/manifest.toml"),
     ),
     (
+        "opencode/plugin.ts",
+        include_str!("../../../integrations/opencode/plugin.ts"),
+    ),
+    (
         "shared/AGENTS.md.fragment",
         include_str!("../../../integrations/shared/AGENTS.md.fragment"),
     ),

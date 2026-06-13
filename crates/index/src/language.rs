@@ -40,6 +40,16 @@ pub enum Language {
     Yaml,
     Toml,
     Markdown,
+    Ruby,
+    C,
+    Cpp,
+    Bash,
+    Java,
+    CSharp,
+    Php,
+    Lua,
+    Kotlin,
+    Swift,
 }
 
 /// All supported languages in canonical display order.
@@ -50,6 +60,16 @@ pub const ALL_LANGUAGES: &[Language] = &[
     Language::TypeScript,
     Language::Tsx,
     Language::JavaScript,
+    Language::C,
+    Language::Cpp,
+    Language::Java,
+    Language::CSharp,
+    Language::Ruby,
+    Language::Php,
+    Language::Kotlin,
+    Language::Swift,
+    Language::Lua,
+    Language::Bash,
     Language::Markdown,
     Language::Toml,
     Language::Json,
@@ -70,6 +90,16 @@ impl Language {
             Self::Yaml => "yaml",
             Self::Toml => "toml",
             Self::Markdown => "markdown",
+            Self::Ruby => "ruby",
+            Self::C => "c",
+            Self::Cpp => "cpp",
+            Self::Bash => "bash",
+            Self::Java => "java",
+            Self::CSharp => "csharp",
+            Self::Php => "php",
+            Self::Lua => "lua",
+            Self::Kotlin => "kotlin",
+            Self::Swift => "swift",
         }
     }
 
@@ -86,6 +116,16 @@ impl Language {
             "yaml" => Self::Yaml,
             "toml" => Self::Toml,
             "markdown" => Self::Markdown,
+            "ruby" => Self::Ruby,
+            "c" => Self::C,
+            "cpp" => Self::Cpp,
+            "bash" => Self::Bash,
+            "java" => Self::Java,
+            "csharp" => Self::CSharp,
+            "php" => Self::Php,
+            "lua" => Self::Lua,
+            "kotlin" => Self::Kotlin,
+            "swift" => Self::Swift,
             _ => return None,
         })
     }
@@ -102,6 +142,16 @@ impl Language {
             "yaml" | "yml" => Self::Yaml,
             "toml" => Self::Toml,
             "md" | "markdown" => Self::Markdown,
+            "rb" => Self::Ruby,
+            "c" | "h" => Self::C,
+            "cc" | "cpp" | "cxx" | "hpp" | "hh" | "hxx" => Self::Cpp,
+            "sh" | "bash" => Self::Bash,
+            "java" => Self::Java,
+            "cs" => Self::CSharp,
+            "php" | "phtml" => Self::Php,
+            "lua" => Self::Lua,
+            "kt" | "kts" => Self::Kotlin,
+            "swift" => Self::Swift,
             _ => return None,
         })
     }
@@ -124,6 +174,16 @@ impl Language {
             Self::Yaml => tree_sitter_yaml::LANGUAGE.into(),
             Self::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
             Self::Markdown => tree_sitter_md::LANGUAGE.into(),
+            Self::Ruby => tree_sitter_ruby::LANGUAGE.into(),
+            Self::C => tree_sitter_c::LANGUAGE.into(),
+            Self::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+            Self::Bash => tree_sitter_bash::LANGUAGE.into(),
+            Self::Java => tree_sitter_java::LANGUAGE.into(),
+            Self::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
+            Self::Php => tree_sitter_php::LANGUAGE_PHP.into(),
+            Self::Lua => tree_sitter_lua::LANGUAGE.into(),
+            Self::Kotlin => tree_sitter_kotlin_ng::LANGUAGE.into(),
+            Self::Swift => tree_sitter_swift::LANGUAGE.into(),
         }
     }
 
@@ -138,6 +198,29 @@ impl Language {
             Self::Yaml => include_str!("../queries/yaml.scm"),
             Self::Toml => include_str!("../queries/toml.scm"),
             Self::Markdown => include_str!("../queries/markdown.scm"),
+            Self::Ruby => tree_sitter_ruby::TAGS_QUERY,
+            Self::C => tree_sitter_c::TAGS_QUERY,
+            Self::Cpp => tree_sitter_cpp::TAGS_QUERY,
+            Self::Bash => include_str!("../queries/bash-tags.scm"),
+            Self::Java => tree_sitter_java::TAGS_QUERY,
+            Self::CSharp => tree_sitter_c_sharp::TAGS_QUERY,
+            Self::Php => tree_sitter_php::TAGS_QUERY,
+            Self::Lua => tree_sitter_lua::TAGS_QUERY,
+            Self::Kotlin => include_str!("../queries/kotlin-tags.scm"),
+            Self::Swift => tree_sitter_swift::TAGS_QUERY,
+        }
+    }
+
+    /// Deep tags query variant for partial-coverage data languages,
+    /// capturing keys at any nesting depth. `None` for languages where the
+    /// normal query already captures everything (the opt-in `nested_keys`
+    /// option falls back to the normal query for those).
+    pub fn tags_query_deep(self) -> Option<&'static str> {
+        match self {
+            Self::Json => Some(include_str!("../queries/json-deep.scm")),
+            Self::Yaml => Some(include_str!("../queries/yaml-deep.scm")),
+            Self::Toml => Some(include_str!("../queries/toml-deep.scm")),
+            _ => None,
         }
     }
 
@@ -152,11 +235,22 @@ impl Language {
             | Self::Tsx
             | Self::JavaScript
             | Self::Python
-            | Self::Markdown => Coverage::Full,
+            | Self::Markdown
+            | Self::Ruby
+            | Self::C
+            | Self::Cpp
+            | Self::Java
+            | Self::CSharp
+            | Self::Php
+            | Self::Lua
+            | Self::Kotlin
+            | Self::Swift => Coverage::Full,
             // JSON/YAML/TOML: only top-level keys (or section headers
             // for TOML) are captured. Nested config-key searches miss.
             // See issue `2c47040` for the opt-in nested-key plan.
-            Self::Json | Self::Yaml | Self::Toml => Coverage::Partial,
+            // Bash: function definitions only (no classes; vars/aliases
+            // not surfaced) — vendored minimal tags query.
+            Self::Json | Self::Yaml | Self::Toml | Self::Bash => Coverage::Partial,
         }
     }
 
@@ -182,6 +276,16 @@ impl Language {
             Self::Toml => {
                 "root pairs + [table] + [[array]] headers; keys inside tables are not surfaced"
             }
+            Self::Ruby => "module / class / method / singleton method (upstream tags.scm)",
+            Self::C => "function / struct / typedef / enum (upstream tags.scm)",
+            Self::Cpp => "class / struct / function / method / enum (upstream tags.scm)",
+            Self::Bash => "function definitions only; variables/aliases not surfaced",
+            Self::Java => "class / interface / method (upstream tags.scm)",
+            Self::CSharp => "class / interface / method / struct (upstream tags.scm)",
+            Self::Php => "class / interface / function / method / trait (upstream tags.scm)",
+            Self::Lua => "function / local function / method (upstream tags.scm)",
+            Self::Kotlin => "class / object / function (vendored minimal query)",
+            Self::Swift => "struct / protocol / function / method (upstream tags.scm; class names not captured)",
         }
     }
 }

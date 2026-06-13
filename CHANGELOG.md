@@ -4,6 +4,20 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-06-13
+
+Language coverage expansion (epic `9cf4c18`) + opt-in nested keys + an opencode runtime plugin.
+
+### Added
+
+- **10 new languages** indexed: Ruby, C, C++, Java, C#, PHP, Lua, Kotlin, Swift (full coverage) and Bash (functions only — partial). 20 languages total now. Grammars are statically linked per the loading-strategy decision (`wiki/decisions/2026-06-13-grammar-loading-strategy.md`); each ships an extraction test. Binary grows ~12.3 MB → ~32 MB (under the 50 MB revisit threshold).
+- **Opt-in nested-key extraction** for JSON/YAML/TOML (`index.nested_keys`, default off). When on, keys at any depth are indexed (not just top-level); flip it and `repoctx index --force` to re-parse. Issue `2c47040`.
+- **opencode runtime plugin** (`44183b3`, tier-2). `repoctx hook install opencode` now also writes `.opencode/plugin/repoctx.ts`, which intercepts the agent's bash `rg`/`grep` calls and rewrites them via `repoctx rewrite` — the same decision the Claude hook makes.
+
+### Notes
+
+- `1a19873` (rename `SymbolKind::Key` → `TopKey`) is obsoleted by `2c47040`: nested keys make "top-level only" a configurable choice, so the kind stays `key`; the top-only default is communicated by the coverage advisory + `repoctx languages` notes.
+
 ## [0.6.1] — 2026-06-13
 
 Internal code-quality pass from the 2026-06-12 audit (`e63eb72`). No user-facing behavior change beyond added logging.

@@ -8,7 +8,7 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use rayon::prelude::*;
-use repoctx_index::parse_file;
+use repoctx_index::{parse_file_with, ParseOptions};
 use repoctx_store::{FileRecord, Store, SymbolRecord};
 use serde::Serialize;
 use tracing::{debug, warn};
@@ -74,6 +74,18 @@ pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Res
         }
     }
 
+    // Opt-in nested-key extraction for JSON/YAML/TOML (issue 2c47040),
+    // read from the per-repo settings table. Flipping it requires a
+    // `repoctx index --force` to re-parse existing files.
+    let parse_opts = ParseOptions {
+        nested_keys: store
+            .get_setting("index.nested_keys")
+            .ok()
+            .flatten()
+            .map(|v| matches!(v.as_str(), "true" | "1" | "yes"))
+            .unwrap_or(false),
+    };
+
     let (tx, rx) = mpsc::sync_channel::<(FileRecord, Vec<SymbolRecord>)>(64);
     let parse_handle = std::thread::spawn(move || {
         to_parse.into_par_iter().for_each_with(tx, |tx, c| {
@@ -84,7 +96,7 @@ pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Res
                     return;
                 }
             };
-            let symbols = match parse_file(&c.rel, c.language, &source) {
+            let symbols = match parse_file_with(&c.rel, c.language, &source, parse_opts) {
                 Ok(v) => v,
                 Err(e) => {
                     debug!(path = %c.abs.display(), error = %e, "parse failed");

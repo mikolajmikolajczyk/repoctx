@@ -1,9 +1,14 @@
 name = "opencode"
-description = "opencode skill at .agents/skills/repoctx/SKILL.md + AGENTS.md guidance block."
+description = "opencode skill + AGENTS.md guidance + a runtime plugin that rewrites rg/grep to repoctx."
 
 [[file]]
 src = "../shared/SKILL.md"
 dest = ".agents/skills/repoctx/SKILL.md"
+mode = "write"
+
+[[file]]
+src = "plugin.ts"
+dest = ".opencode/plugin/repoctx.ts"
 mode = "write"
 
 [[file]]

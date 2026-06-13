@@ -187,10 +187,19 @@ pub struct OutputConfig {
 }
 
 #[derive(Debug, Clone)]
+pub struct IndexConfig {
+    /// Capture nested keys in JSON/YAML/TOML (opt-in). Re-index required
+    /// after flipping (`repoctx index --force`).
+    pub nested_keys: bool,
+    pub nested_keys_source: Source,
+}
+
+#[derive(Debug, Clone)]
 pub struct Config {
     pub hook: HookConfig,
     pub gain: GainConfig,
     pub output: OutputConfig,
+    pub index: IndexConfig,
 }
 
 impl Config {
@@ -217,6 +226,10 @@ impl Config {
             output: OutputConfig {
                 default: OutputDefault::Auto,
                 default_source: Source::Default,
+            },
+            index: IndexConfig {
+                nested_keys: false,
+                nested_keys_source: Source::Default,
             },
         }
     }
@@ -273,6 +286,13 @@ impl Config {
                     Ok(v) => {
                         cfg.gain.record_query = v;
                         cfg.gain.record_query_source = Source::Settings;
+                    }
+                    Err(e) => warn_invalid(&key, &value, e),
+                },
+                "index.nested_keys" => match parse_bool(&value) {
+                    Ok(v) => {
+                        cfg.index.nested_keys = v;
+                        cfg.index.nested_keys_source = Source::Settings;
                     }
                     Err(e) => warn_invalid(&key, &value, e),
                 },
@@ -337,6 +357,15 @@ impl Config {
                 Err(e) => warn_invalid("REPOCTX_GAIN_RECORD_QUERY", &v, e),
             }
         }
+        if let Ok(v) = env::var("REPOCTX_INDEX_NESTED_KEYS") {
+            match parse_bool(&v) {
+                Ok(b) => {
+                    cfg.index.nested_keys = b;
+                    cfg.index.nested_keys_source = Source::Env;
+                }
+                Err(e) => warn_invalid("REPOCTX_INDEX_NESTED_KEYS", &v, e),
+            }
+        }
         if let Ok(v) = env::var("REPOCTX_OUTPUT_DEFAULT") {
             match OutputDefault::parse(&v) {
                 Ok(o) => {
@@ -365,7 +394,9 @@ pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
         "hook.use_rtk" => HookUseRtk::parse(value)?.as_str().to_string(),
         "hook.chainable" => split_list(value).join(","),
         "hook.chain_commands" => value.to_string(),
-        "gain.no_record" | "gain.record_query" => fmt_bool(parse_bool(value)?).to_string(),
+        "gain.no_record" | "gain.record_query" | "index.nested_keys" => {
+            fmt_bool(parse_bool(value)?).to_string()
+        }
         "output.default" => OutputDefault::parse(value)?.as_str().to_string(),
         "hook.script_path" => {
             return Err(anyhow!(
@@ -389,6 +420,7 @@ pub fn known_keys() -> Vec<(&'static str, String)> {
         ("gain.no_record", fmt_bool(false).to_string()),
         ("gain.record_query", fmt_bool(false).to_string()),
         ("output.default", OutputDefault::Auto.as_str().to_string()),
+        ("index.nested_keys", fmt_bool(false).to_string()),
     ]
 }
 

@@ -37,9 +37,28 @@ struct Compiled {
     def_kinds: Vec<(u32, &'static str)>, // (capture index, "function"|"method"|...|"other")
 }
 
+/// Options controlling extraction.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ParseOptions {
+    /// Capture keys at any nesting depth for JSON/YAML/TOML (opt-in). No
+    /// effect on languages without a deep query variant.
+    pub nested_keys: bool,
+}
+
 fn compile(language: Language) -> Result<Compiled> {
+    compile_query(language, language.tags_query())
+}
+
+fn compile_deep(language: Language) -> Result<Compiled> {
+    let q = language
+        .tags_query_deep()
+        .unwrap_or_else(|| language.tags_query());
+    compile_query(language, q)
+}
+
+fn compile_query(language: Language, query_src: &str) -> Result<Compiled> {
     let ts_lang = language.ts_language();
-    let query = Query::new(&ts_lang, language.tags_query())
+    let query = Query::new(&ts_lang, query_src)
         .map_err(|source| ExtractError::QueryCompile { language, source })?;
     let mut name_idxs = Vec::new();
     let mut def_kinds = Vec::new();
@@ -98,13 +117,54 @@ fn compiled_for(language: Language) -> &'static Result<Compiled> {
         Language::Yaml => slot!(Language::Yaml),
         Language::Toml => slot!(Language::Toml),
         Language::Markdown => slot!(Language::Markdown),
+        Language::Ruby => slot!(Language::Ruby),
+        Language::C => slot!(Language::C),
+        Language::Cpp => slot!(Language::Cpp),
+        Language::Bash => slot!(Language::Bash),
+        Language::Java => slot!(Language::Java),
+        Language::CSharp => slot!(Language::CSharp),
+        Language::Php => slot!(Language::Php),
+        Language::Lua => slot!(Language::Lua),
+        Language::Kotlin => slot!(Language::Kotlin),
+        Language::Swift => slot!(Language::Swift),
     }
+}
+
+/// Deep (nested-key) compiled query for the data languages that have a
+/// deep variant. Falls back to the normal cache for everything else.
+fn compiled_deep_for(language: Language) -> &'static Result<Compiled> {
+    macro_rules! slot {
+        ($lang:expr) => {{
+            static CELL: OnceLock<Result<Compiled>> = OnceLock::new();
+            CELL.get_or_init(|| compile_deep($lang))
+        }};
+    }
+    match language {
+        Language::Json => slot!(Language::Json),
+        Language::Yaml => slot!(Language::Yaml),
+        Language::Toml => slot!(Language::Toml),
+        other => compiled_for(other),
+    }
+}
+
+/// Parse `source` and extract symbols with default options.
+pub fn parse_file(file_path: &str, language: Language, source: &str) -> Result<Vec<SymbolRecord>> {
+    parse_file_with(file_path, language, source, ParseOptions::default())
 }
 
 /// Parse `source` and extract symbols. `file_path` is the DB-side path
 /// stored on each emitted `SymbolRecord`.
-pub fn parse_file(file_path: &str, language: Language, source: &str) -> Result<Vec<SymbolRecord>> {
-    let compiled = match compiled_for(language) {
+pub fn parse_file_with(
+    file_path: &str,
+    language: Language,
+    source: &str,
+    opts: ParseOptions,
+) -> Result<Vec<SymbolRecord>> {
+    let compiled = match if opts.nested_keys {
+        compiled_deep_for(language)
+    } else {
+        compiled_for(language)
+    } {
         Ok(c) => c,
         Err(_) => {
             // Compile error: skip the file but don't propagate — keep indexing alive.

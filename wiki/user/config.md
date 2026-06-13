@@ -30,6 +30,7 @@ Adding a new key is non-breaking; older binaries log a warn and ignore.
 | `gain.no_record` | bool | `true` \| `false` | `false` | Persistent `--no-record`. |
 | `gain.record_query` | bool | `true` \| `false` | `false` | Persistent `--record-query`. |
 | `output.default` | enum | `auto` \| `human` \| `toon` \| `json` | `auto` | Persistent output-format choice. `auto` keeps today's behavior (Human on TTY, TOON on pipe). |
+| `index.nested_keys` | bool | `true` \| `false` | `false` | Index JSON/YAML/TOML keys at any depth (not just top-level). Re-index (`repoctx index --force`) after flipping. |
 
 > Removed in 0.5.3: `hook.ref` and `hook.no_cache`. Integration content
 > is embedded in the binary — there is no fetch ref or cache. Old rows in

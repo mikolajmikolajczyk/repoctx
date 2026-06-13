@@ -180,6 +180,12 @@ fn rows(cfg: &Config) -> Vec<ConfigRow> {
             cfg.output.default_source.as_str(),
             &default_for("output.default"),
         ),
+        row(
+            "index.nested_keys",
+            bool_str(cfg.index.nested_keys),
+            cfg.index.nested_keys_source.as_str(),
+            &default_for("index.nested_keys"),
+        ),
     ]
 }
 

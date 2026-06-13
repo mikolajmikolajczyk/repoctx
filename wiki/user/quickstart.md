@@ -33,7 +33,7 @@ indexed 81 files (0 unchanged, 0 removed) in 69 ms
 
 What just happened:
 
-- Tree-sitter parsed every supported file (Go, Rust, TypeScript, JavaScript, Python, JSON, YAML, TOML, Markdown).
+- Tree-sitter parsed every supported file (20 languages: Go, Rust, TypeScript/TSX, JavaScript, Python, Ruby, C, C++, Java, C#, PHP, Lua, Kotlin, Swift, Bash, Markdown, JSON, YAML, TOML).
 - Symbols, file mtimes, and sizes landed in `.repoctx/index.db` (a SQLite file at the repo root).
 - Files larger than 2 MiB, files that aren't UTF-8, and anything matching `.gitignore` were skipped.
 

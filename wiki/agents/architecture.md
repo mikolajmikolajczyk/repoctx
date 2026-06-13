@@ -4,7 +4,7 @@ Repo shape, data flow, key modules. Keep this **descriptive of the current state
 
 ## Status
 
-v0.6.1 shipped 2026-06-13. CLI surface complete: indexing, search, navigation, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
+v0.7.0 shipped 2026-06-13. CLI surface complete: indexing, search, navigation, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
 
 ## Current layout
 
@@ -65,7 +65,7 @@ Future (ADR-0005, via `repoctxd`):
 2. **Query** — `repoctx symbols|outline|definition|context` opens the `store`, executes the request via the `CodeIntelBackend` (Tree-sitter-backed today), and emits human / TOON / JSON.
 3. **Incremental update** — on subsequent `repoctx index` runs, `(mtime_ns, size)` comparison against `store.files` decides which files to reparse (ADR-0006). Only changed files are re-indexed; CASCADE on `files.path` drops their old symbols inside the same transaction (ADR-0007). Deleted paths are detected by absence and pruned.
 4. **Auto-index / auto-reindex** — `symbols` / `outline` / `definition` / `context` run an incremental `index` pass before answering (via `read_cmd::ensure_fresh`): missing DB triggers a from-scratch build, present DB triggers an mtime+size delta pass that only reparses changed files. `status` and `gain` use the lighter `ensure_db` — they only build the DB if missing; they never auto-reindex on top of one, because `status`'s job is to report staleness and `gain` only reads the `usage` table. There's no opt-out — indexing is core to the tool.
-5. **Config layer** — every persistent CLI behavior (`hook.rewrite`, `hook.use_rtk`, `hook.chainable`, `gain.no_record`, `gain.record_query`, `output.default`) lives in a `settings` key/value table inside the same `.repoctx/index.db`. `Config::load(&Store)` resolves four sources in order — CLI flag, env var (`REPOCTX_<SECTION>_<KEY>`), settings row, built-in default — and tracks each value's `Source` for diagnostics. Schema v3 adds the `settings` table; older DBs migrate transparently. (`hook.chain_commands` is a legacy v0.5.x key, migrated away by `repoctx init`.) See `wiki/user/config.md`.
+5. **Config layer** — every persistent CLI behavior (`hook.rewrite`, `hook.use_rtk`, `hook.chainable`, `gain.no_record`, `gain.record_query`, `output.default`, `index.nested_keys`) lives in a `settings` key/value table inside the same `.repoctx/index.db`. `Config::load(&Store)` resolves four sources in order — CLI flag, env var (`REPOCTX_<SECTION>_<KEY>`), settings row, built-in default — and tracks each value's `Source` for diagnostics. Schema v3 adds the `settings` table; older DBs migrate transparently. (`hook.chain_commands` is a legacy v0.5.x key, migrated away by `repoctx init`.) See `wiki/user/config.md`.
 6. **Meta-hook** (`init_cmd` + `hook_script` + `hook_scan` + `hook_rewrite`) — `repoctx init` writes a committed dumb-pipe script (`.repoctx/hook.sh`, or `~/.claude/repoctx-hook.sh` with `-g`) and points `.claude/settings.json`'s sole `PreToolUse → Bash` entry at it. The script (no `jq`) just `exec`s `repoctx hook claude --rtk-chain=$RTK_CHAIN`. The handler tries a conservative semantic rewrite (`rg <ident>`, `rg "fn <ident>"`, `grep -r/-rn` variants); on miss, if chaining is on, it runs the first allowlisted tool on PATH (`hook.chainable`, default rtk) and forwards its output; else exits 1 (silent passthrough). `init` refuses configurations that would race (foreign hook anywhere, or a repoctx/rtk hook in a scope that double-fires) unless `--force`; `repoctx hook doctor` re-renders the expected script and reports/repairs drift. Decision doc: `wiki/decisions/2026-06-13-repoctx-init.md`.
 7. **Gain recording** — each read command tail-records a `usage` row in `store` via `gain::emit_and_record` (aggregates only — no filenames, no query body unless `--record-query`). `repoctx gain` aggregates those rows; token figures are bytes/4 estimates. ADR-0003.
 
@@ -96,9 +96,9 @@ Future:
 - **Source**: `cargo install --git ... --tag v<version>` or `nix run github:.../repoctx`.
 - **Integrations content** is embedded *into* the binary (`include_str!`). `hook install` is offline + version-locked; updating the guidance content means shipping a new binary.
 
-## Initial language set (ADR-0002)
+## Language set
 
-Go, Rust, TypeScript, TSX, JavaScript, Python, JSON, YAML, TOML, Markdown. Grammars statically linked into the `repoctx` binary; no plugin system. ~17 MB stripped Linux binary.
+Initial (ADR-0002): Go, Rust, TypeScript, TSX, JavaScript, Python, JSON, YAML, TOML, Markdown. v0.7.0 batch (epic `9cf4c18`): Ruby, C, C++, Java, C#, PHP, Lua, Kotlin, Swift, Bash. 20 languages total. Grammars statically linked into the `repoctx` binary; no plugin system (see `wiki/decisions/2026-06-13-grammar-loading-strategy.md`). ~32 MB stripped Linux binary. JSON/YAML/TOML are top-level-key by default with opt-in all-depth extraction (`index.nested_keys`).
 
 ## Layering rules
 

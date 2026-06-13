@@ -71,7 +71,9 @@ fn run_script(repo: &Path, home: &Path, path_env: &str, stdin: &str) -> (i32, St
         .spawn()
         .and_then(|mut c| {
             use std::io::Write;
-            c.stdin.take().unwrap().write_all(stdin.as_bytes())?;
+            // The missing-binary path exits before reading stdin; ignore a
+            // broken-pipe write rather than failing the test.
+            let _ = c.stdin.take().unwrap().write_all(stdin.as_bytes());
             c.wait_with_output()
         })
         .unwrap();
@@ -232,10 +234,11 @@ fn rendered_script_is_executable() {
         .spawn()
         .and_then(|mut c| {
             use std::io::Write;
-            c.stdin
+            let _ = c
+                .stdin
                 .take()
                 .unwrap()
-                .write_all(br#"{"tool_input":{"command":"rg parseConfig"}}"#)?;
+                .write_all(br#"{"tool_input":{"command":"rg parseConfig"}}"#);
             c.wait_with_output()
         })
         .unwrap();
