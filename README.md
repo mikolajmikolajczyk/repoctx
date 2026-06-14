@@ -115,9 +115,9 @@ Releases ship four targets per tag at
 Verify the sha256 sidecar, unpack, drop the binary on `PATH`:
 
 ```sh
-shasum -a 256 -c repoctx-0.5.1-x86_64-unknown-linux-gnu.tar.gz.sha256
-tar xzf repoctx-0.5.1-x86_64-unknown-linux-gnu.tar.gz
-sudo mv repoctx-0.5.1-x86_64-unknown-linux-gnu/repoctx /usr/local/bin/
+shasum -a 256 -c repoctx-0.7.1-x86_64-unknown-linux-gnu.tar.gz.sha256
+tar xzf repoctx-0.7.1-x86_64-unknown-linux-gnu.tar.gz
+sudo mv repoctx-0.7.1-x86_64-unknown-linux-gnu/repoctx /usr/local/bin/
 ```
 
 Full PowerShell and `curl` recipes per platform: [`wiki/user/installation.md`](wiki/user/installation.md).
@@ -125,7 +125,7 @@ Full PowerShell and `curl` recipes per platform: [`wiki/user/installation.md`](w
 ### Cargo
 
 ```sh
-cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.5.1
+cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.7.1
 ```
 
 ### Nix
@@ -216,19 +216,20 @@ Agent docs (architecture, conventions, project status) under
 
 ## Contributing
 
-Canonical forge is **Radicle**. The GitHub mirror exists for CI and
-discoverability only — patches and issues there aren't monitored.
+Code lives on **GitHub** — <https://github.com/mikolajmikolajczyk/repoctx>.
+Open a pull request there for any change. Issue tracking and roadmap are
+kept internally on **Radicle**; the Radicle repo is mirrored from GitHub.
 
 ```sh
-rad clone rad:z3ZAf4PfKZnuurn2YNz3t7cTLLUgB
+git clone https://github.com/mikolajmikolajczyk/repoctx
 cd repoctx
 nix develop                            # pinned toolchain + tooling
-rad issue list --all
-git push rad HEAD:refs/patches         # submit a patch
+# branch, commit, then open a PR on GitHub
+gh pr create
 ```
 
-If Radicle isn't your thing, open a GitHub issue describing what
-you'd like to send and we'll figure it out.
+Prefer Radicle? Clone `rad:z3ZAf4PfKZnuurn2YNz3t7cTLLUgB` and browse
+issues with `rad issue list --all`; code review still happens on GitHub.
 
 ## License
 

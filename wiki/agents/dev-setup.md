@@ -57,6 +57,6 @@ What the devShell provides:
 
 Non-Nix fallback (not actively supported): install a recent stable Rust via `rustup`, plus `sqlite` and `pkg-config` from your distro. You'll need to install the pre-commit tooling separately and reproducibility is on you.
 
-## CI + GitHub mirror
+## Forge + CI
 
-Canonical forge is Radicle. A read-only mirror lives at <https://github.com/mikolajmikolajczyk/repoctx> for CI and discoverability only — patches/issues are not monitored there. CI lives in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml): plain `cargo` (no nix) across `ubuntu-latest`, `macos-latest`, `windows-latest`, running `fmt --check`, `build`, `test`, `clippy -D warnings`. To sync: `git push origin main` after a merge.
+Code forge is **GitHub** — <https://github.com/mikolajmikolajczyk/repoctx>. Pull requests there are the canonical review path. **Radicle** (`rad:z3ZAf4PfKZnuurn2YNz3t7cTLLUgB`) hosts internal issue tracking + roadmap; its repo is kept in sync by dual-pushing code. After a merge to `main`, push both remotes: `git push origin main` then `git push rad main`. CI lives in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml): plain `cargo` (no nix) across `ubuntu-latest`, `macos-latest`, `windows-latest`, running `fmt --check`, `build`, `test`, `clippy -D warnings`.

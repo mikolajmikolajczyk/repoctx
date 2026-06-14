@@ -4,6 +4,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **Hook chain-bypass refactored into a single `is_chain_unsafe` guard.** Generalizes the flagged-`rg` bypass so any command the rtk chain corrupts is a one-line add, backed by a fidelity audit re-run on rtk version bumps. `ls` was briefly bypassed (rtk ≤0.41 returned `(empty)` for any directory) but rtk 0.42.4 fixed its `ls` proxy, so `ls` chains again; flagged `rg` (`-i`/`--type`/`-g`, any pipeline segment) stays bypassed — still broken as of rtk 0.42.4.
+
 ## [0.7.1] — 2026-06-14
 
 ### Added
@@ -306,6 +310,10 @@ First tagged release. M0 functional surface complete on Linux, macOS, and Window
 [Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.7.1...HEAD
 [0.7.1]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.7.0
+[0.6.1]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.6.1
+[0.6.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.6.0
+[0.5.3]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.5.3
+[0.5.2]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.5.2
 [0.5.1]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.5.1
 [0.5.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.5.0
 [0.4.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.4.0

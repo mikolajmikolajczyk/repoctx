@@ -128,7 +128,7 @@ fn rendered_script_passthrough_no_chain() {
         repo.path(),
         home.path(),
         &path,
-        r#"{"tool_input":{"command":"ls -la"}}"#,
+        r#"{"tool_input":{"command":"git status"}}"#,
     );
     assert_eq!(code, 1, "passthrough exits 1");
     assert!(stdout.trim().is_empty(), "no payload: {stdout}");
@@ -157,7 +157,7 @@ fn rendered_script_chains_rtk_on_passthrough() {
         repo.path(),
         home.path(),
         &path,
-        r#"{"tool_input":{"command":"ls -la"}}"#,
+        r#"{"tool_input":{"command":"git status"}}"#,
     );
     assert_eq!(code, 0);
     assert!(stdout.contains(r#"{"rtk":"handled"}"#), "stdout={stdout}");

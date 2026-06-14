@@ -54,3 +54,4 @@ What would make us re-open this decision.
 - [2026-06-13 — repoctx init: meta-hook orchestrator](2026-06-13-repoctx-init.md)
 - [2026-06-13 — Grammar loading strategy: static linking](2026-06-13-grammar-loading-strategy.md)
 - [2026-06-13 — Agent benchmark design (taxonomy, repos, thresholds)](2026-06-13-agent-bench.md)
+- [2026-06-14 — Forge split: GitHub for code review, Radicle for issues](2026-06-14-github-primary-forge.md)

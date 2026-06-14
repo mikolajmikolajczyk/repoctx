@@ -42,11 +42,10 @@ cargo clippy --all-targets --locked -- -D warnings
 cargo test --locked
 # 3. Commit + tag (GPG-signed) + push:
 git commit -am "release: v<new>"
-git push rad HEAD:refs/patches                    # land via radicle workflow
 git tag -s v<new> -m "repoctx <new>"
 git tag --verify v<new>                           # verify GPG sig
-git push rad v<new>
-git push origin v<new>                            # triggers .github/workflows/release.yml
+git push origin main --tags                        # GitHub primary; triggers .github/workflows/release.yml
+git push rad main && git push rad v<new>           # mirror to Radicle
 ```
 
 GitHub Releases workflow builds + uploads 4-target archives + sha256 sidecars automatically.
@@ -60,9 +59,9 @@ cargo run -- hook install <agent> --dry-run       # plan, write nothing
 cargo run -- hook install claude --dir /tmp/proj  # content is embedded; no network
 ```
 
-## Radicle
+## Radicle (issues) + GitHub (code review)
 
-See [`../../.agents/skills/radicle/SKILL.md`](../../.agents/skills/radicle/SKILL.md) for the canonical CLI cheat-sheet. Most-used:
+Issue tracking + roadmap live on Radicle; code review is a GitHub PR. See [`../../.agents/skills/radicle/SKILL.md`](../../.agents/skills/radicle/SKILL.md) for the canonical `rad` cheat-sheet. Most-used:
 
 ```sh
 rad issue list --all
@@ -71,5 +70,7 @@ rad issue show <hex7>
 rad issue open --title "<x>" --label "milestone:<m>" --label "priority:<p>"
 rad issue label <hex7> -a state:in-progress
 rad issue state --solved <hex7>
-git push rad HEAD:refs/patches
+
+gh pr create                                      # open a PR (code review on GitHub)
+git push origin main && git push rad main         # dual-push: GitHub primary, Radicle mirror
 ```

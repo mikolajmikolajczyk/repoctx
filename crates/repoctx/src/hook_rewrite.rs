@@ -94,26 +94,45 @@ fn contains_shell_metacharacters(s: &str) -> bool {
     })
 }
 
-/// `rg` carrying any flag is unsafe to hand to the rtk chain: rtk's
-/// `grep` wrapper forwards flags it doesn't recognize to GNU grep, which
-/// loses ripgrep's recursive/gitignore defaults (silent empty results)
-/// and rejects rg-only flags like `--type` / `-g` (hard error). Detect a
-/// `rg ... -flag` invocation in *any* pipeline/list segment so the caller
-/// can bypass the chain and let the agent's real `rg` run untouched. Plain
-/// `rg PATTERN` (no flags) is safe and still chains — rtk's formatted grep
-/// handles it.
+/// A command the rtk chain handles *unfaithfully* — bypass the chain so the
+/// agent's real tool runs untouched. We own chain correctness regardless of
+/// fault, so any command rtk silently corrupts gets added here rather than
+/// filed upstream. This is a denylist: it stays correct across rtk versions
+/// (a bypass only ever forfeits compression, never correctness), but it does
+/// not auto-detect *new* rtk regressions — re-run the fidelity audit on rtk
+/// bumps. Current entry:
 ///
-/// Splitting is quote-agnostic, so a `;`/`|` inside a quoted argument can
-/// over-split into a false positive — harmless: we only ever lose rtk
-/// compression on that compound, never run the wrong command.
-fn is_flagged_rg(command: &str) -> bool {
+/// - **flagged `rg` (`-i` / `--type` / `-g` / …):** rtk forwards rg-only
+///   flags to GNU grep, losing ripgrep's recursive/gitignore defaults
+///   (silent empty) or erroring outright. Still broken as of rtk 0.42.4.
+///
+/// (`ls` lived here too — rtk ≤0.41 returned `(empty)` for any directory —
+/// but rtk 0.42.4 fixed it, so it is back to chaining; restore the bypass if
+/// you must support older rtk.)
+///
+/// Commands rtk *compresses faithfully* stay chained: plain `rg PATTERN`,
+/// `grep`, `cat`, `wc`, `git`, `ls`, `tail`, and the lossy-but-**signaled**
+/// ones (`find` prints "+N more", `head`/`tree` print a truncation marker) —
+/// the agent is never misled there, and that compression is the whole point.
+///
+/// Detection runs per pipeline/list segment. Splitting is quote-agnostic, so
+/// a `;`/`|` inside a quoted argument can over-split into a false positive —
+/// harmless: we only ever lose rtk compression on that compound, never run
+/// the wrong command.
+fn is_chain_unsafe(command: &str) -> bool {
     command
-        .split(|c| matches!(c, '|' | '&' | ';' | '\n'))
-        .any(segment_is_flagged_rg)
+        .split(['|', '&', ';', '\n'])
+        .any(segment_is_chain_unsafe)
 }
 
-/// True when a single command segment is `rg` followed by a flag, before
-/// any redirection. Caller splits the full command on control operators.
+/// True when a single command segment is one rtk corrupts. Caller splits the
+/// full command on control operators. One predicate today (flagged `rg`); add
+/// more `|| segment_is_<x>` as the fidelity canary surfaces them.
+fn segment_is_chain_unsafe(segment: &str) -> bool {
+    segment_is_flagged_rg(segment)
+}
+
+/// True when a segment is `rg` followed by a flag, before any redirection.
 fn segment_is_flagged_rg(segment: &str) -> bool {
     let mut words = segment.split_whitespace();
     if words.next() != Some("rg") {
@@ -377,10 +396,10 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Op
         }
     }
 
-    // Flagged `rg` is unsafe to chain (rtk degrades it to GNU grep —
-    // see is_flagged_rg). Bypass every chain so the real ripgrep runs.
-    if is_flagged_rg(command) {
-        debug!(%command, "flagged rg — bypassing chain so real ripgrep runs");
+    // Commands rtk corrupts (broken `ls`, flagged `rg` → GNU grep — see
+    // is_chain_unsafe) bypass every chain so the agent's real tool runs.
+    if is_chain_unsafe(command) {
+        debug!(%command, "chain-unsafe command — bypassing chain so the real tool runs");
         return Ok(None);
     }
 
@@ -608,38 +627,48 @@ mod tests {
     #[test]
     fn flagged_rg_bypasses_chain() {
         // Flagged rg → bypass (rtk would degrade it to GNU grep).
-        assert!(is_flagged_rg("rg -i Foo"));
-        assert!(is_flagged_rg("rg --type rust Foo"));
-        assert!(is_flagged_rg("rg -g '*.rs' Foo"));
-        assert!(is_flagged_rg("rg -n Foo"));
+        assert!(is_chain_unsafe("rg -i Foo"));
+        assert!(is_chain_unsafe("rg --type rust Foo"));
+        assert!(is_chain_unsafe("rg -g '*.rs' Foo"));
+        assert!(is_chain_unsafe("rg -n Foo"));
         // Flag before a pipe is still caught.
-        assert!(is_flagged_rg("rg -i Foo | head"));
+        assert!(is_chain_unsafe("rg -i Foo | head"));
         // Flagged rg in a *later* segment is caught too (the Option-1 fix).
-        assert!(is_flagged_rg("cat f.log | rg -i Foo"));
-        assert!(is_flagged_rg("cmd && rg --type rust Foo"));
-        assert!(is_flagged_rg("echo hi; rg -g '*.rs' Foo"));
-        assert!(is_flagged_rg("a | b | rg -n Foo | head"));
+        assert!(is_chain_unsafe("cat f.log | rg -i Foo"));
+        assert!(is_chain_unsafe("cmd && rg --type rust Foo"));
+        assert!(is_chain_unsafe("echo hi; rg -g '*.rs' Foo"));
+        assert!(is_chain_unsafe("a | b | rg -n Foo | head"));
         // Flagged rg with a redirect is still caught (flag precedes it).
-        assert!(is_flagged_rg("rg -i Foo > out.txt"));
-        assert!(is_flagged_rg("rg -i Foo 2>/dev/null"));
-        assert!(is_flagged_rg("rg --type rust Foo >> log"));
-        assert!(is_flagged_rg("rg -n Foo < input"));
-        assert!(is_flagged_rg("rg -i Foo 2>&1 | head"));
+        assert!(is_chain_unsafe("rg -i Foo > out.txt"));
+        assert!(is_chain_unsafe("rg -i Foo 2>/dev/null"));
+        assert!(is_chain_unsafe("rg --type rust Foo >> log"));
+        assert!(is_chain_unsafe("rg -n Foo < input"));
+        assert!(is_chain_unsafe("rg -i Foo 2>&1 | head"));
     }
 
     #[test]
-    fn unflagged_rg_still_chains() {
-        // Plain rg (rtk handles it) and non-rg commands are not bypassed.
-        assert!(!is_flagged_rg("rg Foo"));
-        assert!(!is_flagged_rg("rg Foo | head"));
+    fn faithful_commands_still_chain() {
+        // Plain rg, grep, and the commands rtk compresses faithfully are
+        // not bypassed (rtk's compression is the whole point).
+        assert!(!is_chain_unsafe("rg Foo"));
+        assert!(!is_chain_unsafe("rg Foo | head"));
         // Unflagged rg in a later segment also still chains.
-        assert!(!is_flagged_rg("cat f.log | rg Foo"));
+        assert!(!is_chain_unsafe("cat f.log | rg Foo"));
         // Plain rg with a redirect is unflagged (redirect ends the scan).
-        assert!(!is_flagged_rg("rg Foo > out.txt"));
-        assert!(!is_flagged_rg(r#"rg "fn foo""#));
-        assert!(!is_flagged_rg("grep -r Foo ."));
-        assert!(!is_flagged_rg("git status"));
-        assert!(!is_flagged_rg(""));
+        assert!(!is_chain_unsafe("rg Foo > out.txt"));
+        assert!(!is_chain_unsafe(r#"rg "fn foo""#));
+        assert!(!is_chain_unsafe("grep -r Foo ."));
+        assert!(!is_chain_unsafe("git status"));
+        assert!(!is_chain_unsafe("cat README.md"));
+        // ls chains again (rtk 0.42.4 fixed its ls proxy).
+        assert!(!is_chain_unsafe("ls"));
+        assert!(!is_chain_unsafe("ls -la"));
+        assert!(!is_chain_unsafe("cd crates && ls"));
+        assert!(!is_chain_unsafe("find . -name '*.rs'"));
+        assert!(!is_chain_unsafe("tree"));
+        assert!(!is_chain_unsafe("head -5 README.md"));
+        assert!(!is_chain_unsafe("tail -5 README.md"));
+        assert!(!is_chain_unsafe(""));
     }
 
     // ── Rewrite-decision corpus (issue 573eccc) ──────────────────────

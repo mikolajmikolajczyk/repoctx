@@ -62,7 +62,7 @@ If a decision spans more than the immediate work but isn't an architectural prom
 
 - **Tool choice with lock-in:** "Build *requires* Nix" → ADR. "Nix is primary, npm works as fallback" → no ADR.
 - **Library swap that changes a public interface:** if downstream code notices the change → ADR. If purely internal → no ADR.
-- **Process / workflow decision** (e.g. "Patches go through Radicle, GitHub mirror is CI-only") → ADR if it's a durable contract with collaborators; skip if it's a personal preference.
+- **Process / workflow decision** (e.g. "Code review happens on GitHub PRs, Radicle holds internal issues") → ADR if it's a durable contract with collaborators; skip if it's a personal preference.
 
 ## Format
 

@@ -39,17 +39,18 @@ docs/adr-0002-layering
 
 Why a convention at all on a solo project: future-me, AI agents, and `git branch --list 'feat/*'` queries all want predictability.
 
-Push branch as patch:
+Push branch + open a PR on GitHub:
 
 ```sh
-git push rad HEAD:refs/patches
+git push -u origin feat/<slug>
+gh pr create
 ```
 
 Conventional Branch is **not** Conventional Commits — commit messages still follow Conventional Commits separately (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `release:`).
 
-## Patch description template
+## PR description template
 
-Not a hard requirement, but matches what the project expects. Put this in the patch body when you `git push rad HEAD:refs/patches`:
+Not a hard requirement, but matches what the project expects. Put this in the PR body (`gh pr create --body …` or the GitHub editor):
 
 ```markdown
 ## Why
@@ -71,12 +72,14 @@ Not a hard requirement, but matches what the project expects. Put this in the pa
 <anything reviewers / future-you should know>
 ```
 
-Checked boxes in the patch body let future-you see at a glance what landed vs what slipped.
+Checked boxes in the PR body let future-you see at a glance what landed vs what slipped.
 
-## Issue → patch → solved flow
+## Issue → PR → solved flow
+
+Issues stay on Radicle; code review is a GitHub PR. The two are linked by the hex7 in the commit/PR subject.
 
 ```sh
-# 1. Start
+# 1. Start (Radicle issue)
 rad issue label <hex7> -a state:in-progress
 
 # 2. Branch
@@ -85,14 +88,18 @@ git checkout -b feat/<hex7>-<slug>
 # 3. Work + commit (Conventional Commits, GPG-signed)
 git commit -m "feat: <subject> (<hex7>)"
 
-# 4. Push as patch (single-issue: hex7 in title; multi: hex7 per commit subject)
-git push rad HEAD:refs/patches
+# 4. Push + open PR on GitHub (hex7 in the PR title; multi-issue: hex7 per commit subject)
+git push -u origin feat/<hex7>-<slug>
+gh pr create
 
-# 5. After patch merges into default branch
+# 5. After the PR merges into the default branch, sync the Radicle mirror
+git checkout main && git pull origin main && git push rad main
+
+# 6. Mark the Radicle issue solved
 rad issue state --solved <hex7>
 ```
 
-If a patch covers multiple issues, **don't `--solved` them until the default branch actually contains the merge**. Solving early misleads the board.
+If a PR covers multiple issues, **don't `--solved` them until the default branch actually contains the merge**. Solving early misleads the board.
 
 ## Release flow
 
@@ -103,8 +110,8 @@ Tagged releases are rare — once per minor-version's worth of solved issues. St
 3. Bump `workspace.package.version` in the root `Cargo.toml` and the `version` literal in `flake.nix`'s `buildRustPackage` call. Move the `[Unreleased]` block in `CHANGELOG.md` into `[X.Y.Z] — YYYY-MM-DD` and add a new empty `[Unreleased]`.
 4. Commit as `release: vX.Y.Z` (Conventional Commits). One commit per release.
 5. Annotated, GPG-signed tag: `git tag -s vX.Y.Z -m "vX.Y.Z"`.
-6. Push: `git push rad main`, then `git push rad vX.Y.Z`, then `git push origin main --tags`.
-7. (Optional, post-release) draft a GitHub release pointing at the tag — the mirror exists for discoverability, not as the canonical home.
+6. Push to GitHub (primary) then mirror to Radicle: `git push origin main --tags`, then `git push rad main && git push rad vX.Y.Z`.
+7. Draft a GitHub release pointing at the tag — GitHub is the canonical code home, so the release lives there.
 
 **Never tag without explicit user request.** The CHANGELOG bump + flake version bump can land first as a normal patch; the tag is a separate, deliberate action.
 

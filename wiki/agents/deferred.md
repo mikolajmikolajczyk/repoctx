@@ -14,11 +14,12 @@ Things **deliberately not implemented**. If something seems missing and is liste
 
 ## Entries
 
-### LSP backend, `repoctxd` daemon, `refs`/`hover`/`callers`
+### LSP backend, `repoctxd` daemon, `refs`/`hover`
 
-- **Why deferred:** semantic queries need warm long-lived LSP servers; ADR-0005 puts that in a separate daemon. The current Tree-sitter backend is the by-design first cut.
+- **Why deferred:** type-aware semantic queries need warm long-lived LSP servers; ADR-0005 puts that in a separate daemon. The current Tree-sitter backend is the by-design first cut.
 - **Revisit when:** Tree-sitter surface (index / symbols / outline / definition / context) is shipped and validated by real agent use.
 - **Tracked in:** `58b45d5` (LSP-daemon placeholder epic).
+- **Note:** `callers` is no longer in this entry — it is being un-deferred via a **static, name-based call graph** (accuracy class of `definition`, not LSP-grade) planned for v0.8.0, epic `af42572`. `refs`/`hover` stay deferred to the LSP path.
 
 ### Fuzzy symbol matching
 
@@ -46,8 +47,8 @@ Things **deliberately not implemented**. If something seems missing and is liste
 
 ### Dynamic grammar loading / plugin system
 
-- **Why deferred:** ADR-0002 statically links the 9 grammars; plugin loading adds a trust and ABI surface with no current demand.
-- **Revisit when:** a language outside the initial set is needed by a real consumer.
+- **Why deferred:** ADR-0002 statically links all 20 bundled grammars; plugin loading adds a trust and ABI surface with no current demand.
+- **Revisit when:** a language outside the bundled set is needed by a real consumer.
 - **Tracked in:** none — ADR-0002 records the call.
 
 ### Watch mode / filesystem notifications

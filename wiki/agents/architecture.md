@@ -4,7 +4,7 @@ Repo shape, data flow, key modules. Keep this **descriptive of the current state
 
 ## Status
 
-v0.7.0 shipped 2026-06-13. CLI surface complete: indexing, search, navigation, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
+v0.7.1 shipped 2026-06-14 (flagged-`rg` hook-chain fix + agent benchmark harness; v0.7.0 the prior day added the language-coverage expansion). CLI surface complete: indexing, search, navigation, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
 
 ## Current layout
 

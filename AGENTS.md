@@ -48,7 +48,7 @@ Details: [`wiki/agents/working-on-issues.md`](wiki/agents/working-on-issues.md).
 
 ## Working on issues / patches
 
-This repo uses **Radicle** as its canonical forge (any GitHub/GitLab mirror is CI-only). Read [`.agents/skills/radicle/SKILL.md`](.agents/skills/radicle/SKILL.md) before driving `rad`. Issues follow [`.agents/skills/radboard/SKILL.md`](.agents/skills/radboard/SKILL.md) label conventions (`state:*`, `priority:*`, `milestone:*`, `epic`, `parent:<hex7>`, `blocked:*`).
+**Code review happens on GitHub** — open a pull request (`gh pr create`) against <https://github.com/mikolajmikolajczyk/repoctx>. **Issue tracking + roadmap stay on Radicle** (internal); read [`.agents/skills/radicle/SKILL.md`](.agents/skills/radicle/SKILL.md) before driving `rad`. Issues follow [`.agents/skills/radboard/SKILL.md`](.agents/skills/radboard/SKILL.md) label conventions (`state:*`, `priority:*`, `milestone:*`, `epic`, `parent:<hex7>`, `blocked:*`). Push code to **both** remotes so the Radicle issue repo stays current: `git push origin main && git push rad main`.
 
 ## Quick dev loop
 

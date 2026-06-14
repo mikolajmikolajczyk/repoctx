@@ -22,7 +22,7 @@ exact path. The script is a **dumb pipe** — no `jq`, no JSON parsing:
 # repoctx-hook-version: 1
 set -euo pipefail
 RTK_CHAIN=1                      # 0 | 1 — chain rtk underneath on passthrough
-MIN_VERSION="0.6.0"
+MIN_VERSION="0.7.1"              # = the binary version that generated the script
 REPOCTX="repoctx"
 
 # repoctx missing → print install link; chain rtk if configured; never block Bash

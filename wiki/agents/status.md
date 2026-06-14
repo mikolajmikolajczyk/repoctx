@@ -4,9 +4,9 @@ Snapshot of what works, what's in flight, what's broken. **Not the roadmap** —
 
 Update this when a feature lands, breaks, or gets pulled. Stale status is worse than no status — if you can't keep it fresh, link straight to Radicle issue filters instead.
 
-## Works (as of v0.7.0, 2026-06-13)
+## Works (as of v0.7.1, 2026-06-14)
 
-CLI surface complete on Linux, macOS, and Windows. 20 languages indexed (16 full coverage + 4 partial). `repoctx init` wires repoctx into Claude Code as the sole PreToolUse hook (a committed `.repoctx/hook.sh` dumb-pipe script + in-binary rewrite/chain), chaining rtk underneath with race detection, `hook doctor` drift repair, and `--uninstall`. Integration content is embedded in the binary (no network). Per-repo config layer + agent-coverage advisory live. `gain` token figures are bytes/4 estimates (method-consistent ratio); precise BPE counting lives in the bench suite.
+CLI surface complete on Linux, macOS, and Windows. 20 languages indexed (16 full coverage + 4 partial). `repoctx init` wires repoctx into Claude Code as the sole PreToolUse hook (a committed `.repoctx/hook.sh` dumb-pipe script + in-binary rewrite/chain), chaining rtk underneath with race detection, `hook doctor` drift repair, and `--uninstall`. Flagged `rg` (`-i`/`--type`/`-g`, in any pipeline/list segment) bypasses the rtk chain so the agent's real ripgrep runs (v0.7.1). Integration content is embedded in the binary (no network). Per-repo config layer + agent-coverage advisory live. `gain` token figures are bytes/4 estimates (method-consistent ratio); precise BPE counting lives in the bench suite — the agent benchmark harness (`scripts/agent-bench/`) + results page (`wiki/bench/results.md`) gate token savings on three real codebases.
 
 - `repoctx index` — incremental walk + Tree-sitter parse + SQLite upsert; rayon parses, single sequential writer; skip rules per epic contract (gitignored, `> 2 MiB`, non-UTF-8, `.git`, `.repoctx`); `--force` reparses all; deleted files pruned. ~80 ms cold / ~7 ms no-op on this repo.
 - `repoctx symbols <query>` — case-insensitive substring across the index; `--kind`, `--lang`, `--limit` filters; deterministic `ORDER BY name COLLATE NOCASE, file_path, start_line`; empty result = exit 0 + `count: 0`.

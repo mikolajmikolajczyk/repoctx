@@ -1,6 +1,6 @@
 # Commands reference
 
-Ten commands: `index`, `symbols`, `outline`, `definition`, `context`, `status`, `languages`, `config`, `hook`, `gain`. All examples below were verified against the v0.4.0 binary on 2026-06-12.
+Commands: `index`, `symbols`, `outline`, `definition`, `context`, `status`, `languages`, `config`, `init`, `hook`, `gain`, plus the debug-only `rewrite`. Command set current as of v0.7.1 (2026-06-14).
 
 ## Global flags
 
@@ -293,6 +293,15 @@ Full reference: [`hook.md`](hook.md).
 | `repoctx hook claude [--rtk-chain=0\|1]` | PreToolUse handler (called by the hook script, not by hand). |
 
 Per-agent files are embedded in the binary — install works offline and always matches your installed version.
+
+## `repoctx rewrite`
+
+Debug/bench helper: ask whether a bash command *would* be rewritten by the hook, without the JSON wrapping. Exit 0 + the rewritten command on stdout when it rewrites; exit 1 on passthrough. Mirrors the hook's decision (see [`hook.md`](hook.md)).
+
+```sh
+repoctx rewrite "rg parseConfig"     # -> repoctx symbols parseConfig --json (exit 0)
+repoctx rewrite "rg -i foo"          # -> (no output, exit 1: passthrough)
+```
 
 ## `repoctx gain`
 
