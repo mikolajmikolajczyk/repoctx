@@ -4,6 +4,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **rtk fidelity canary** (`scripts/rtk-fidelity/`, manual / never-CI). Drives probe commands through the real `repoctx hook claude` path, classifies each as bypass / semantic-rewrite / chain, and for chained commands compares rtk output against the real tool — hard-failing the silent false-empty class (what broke `ls` in rtk ≤0.41). Run it on rtk version bumps to catch new chain regressions the `is_chain_unsafe` denylist can't predict.
+
 ### Changed
 
 - **Hook chain-bypass refactored into a single `is_chain_unsafe` guard.** Generalizes the flagged-`rg` bypass so any command the rtk chain corrupts is a one-line add, backed by a fidelity audit re-run on rtk version bumps. `ls` was briefly bypassed (rtk ≤0.41 returned `(empty)` for any directory) but rtk 0.42.4 fixed its `ls` proxy, so `ls` chains again; flagged `rg` (`-i`/`--type`/`-g`, any pipeline segment) stays bypassed — still broken as of rtk 0.42.4.
