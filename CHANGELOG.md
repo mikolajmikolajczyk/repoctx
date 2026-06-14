@@ -11,7 +11,7 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ### Fixed
 
-- **Flagged `rg` no longer degraded by the rtk chain.** When the hook can't structurally rewrite an `rg` command and it carries any flag (`-i`, `--type`, `-g`, …), it now bypasses the rtk chain entirely so the agent's real ripgrep runs. Previously these were handed to rtk's `grep` wrapper, which forwards unrecognized flags to GNU grep — silently losing ripgrep's recursive/gitignore defaults (empty results) and erroring on rg-only flags. Plain `rg PATTERN` and bare-identifier rewrites are unchanged.
+- **Flagged `rg` no longer degraded by the rtk chain.** When the hook can't structurally rewrite an `rg` command and it carries any flag (`-i`, `--type`, `-g`, …), it now bypasses the rtk chain entirely so the agent's real ripgrep runs. Previously these were handed to rtk's `grep` wrapper, which forwards unrecognized flags to GNU grep — silently losing ripgrep's recursive/gitignore defaults (empty results) and erroring on rg-only flags. Plain `rg PATTERN` and bare-identifier rewrites are unchanged. Detection now scans every pipeline/list segment, so flagged `rg` in a compound command (`cat f | rg -i x`, `cmd && rg --type rust x`) is caught too, not just a leading `rg`.
 
 ## [0.7.0] — 2026-06-13
 

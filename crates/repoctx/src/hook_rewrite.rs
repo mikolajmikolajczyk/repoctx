@@ -98,19 +98,29 @@ fn contains_shell_metacharacters(s: &str) -> bool {
 /// `grep` wrapper forwards flags it doesn't recognize to GNU grep, which
 /// loses ripgrep's recursive/gitignore defaults (silent empty results)
 /// and rejects rg-only flags like `--type` / `-g` (hard error). Detect a
-/// leading `rg ... -flag` so the caller can bypass the chain and let the
-/// agent's real `rg` run untouched. Plain `rg PATTERN` (no flags) is
-/// safe and still chains — rtk's formatted grep handles it.
+/// `rg ... -flag` invocation in *any* pipeline/list segment so the caller
+/// can bypass the chain and let the agent's real `rg` run untouched. Plain
+/// `rg PATTERN` (no flags) is safe and still chains — rtk's formatted grep
+/// handles it.
 ///
-/// Whitespace-split (quote-agnostic) and stop at the first shell control
-/// operator so a flag inside `rg -i foo | head` is still caught.
+/// Splitting is quote-agnostic, so a `;`/`|` inside a quoted argument can
+/// over-split into a false positive — harmless: we only ever lose rtk
+/// compression on that compound, never run the wrong command.
 fn is_flagged_rg(command: &str) -> bool {
-    let mut words = command.split_whitespace();
+    command
+        .split(|c| matches!(c, '|' | '&' | ';' | '\n'))
+        .any(segment_is_flagged_rg)
+}
+
+/// True when a single command segment is `rg` followed by a flag, before
+/// any redirection. Caller splits the full command on control operators.
+fn segment_is_flagged_rg(segment: &str) -> bool {
+    let mut words = segment.split_whitespace();
     if words.next() != Some("rg") {
         return false;
     }
     for w in words {
-        if matches!(w, "|" | "||" | "&&" | ";" | ">" | ">>" | "<" | "&") {
+        if matches!(w, ">" | ">>" | "<") {
             break;
         }
         if w.starts_with('-') {
@@ -604,6 +614,11 @@ mod tests {
         assert!(is_flagged_rg("rg -n Foo"));
         // Flag before a pipe is still caught.
         assert!(is_flagged_rg("rg -i Foo | head"));
+        // Flagged rg in a *later* segment is caught too (the Option-1 fix).
+        assert!(is_flagged_rg("cat f.log | rg -i Foo"));
+        assert!(is_flagged_rg("cmd && rg --type rust Foo"));
+        assert!(is_flagged_rg("echo hi; rg -g '*.rs' Foo"));
+        assert!(is_flagged_rg("a | b | rg -n Foo | head"));
     }
 
     #[test]
@@ -611,6 +626,8 @@ mod tests {
         // Plain rg (rtk handles it) and non-rg commands are not bypassed.
         assert!(!is_flagged_rg("rg Foo"));
         assert!(!is_flagged_rg("rg Foo | head"));
+        // Unflagged rg in a later segment also still chains.
+        assert!(!is_flagged_rg("cat f.log | rg Foo"));
         assert!(!is_flagged_rg(r#"rg "fn foo""#));
         assert!(!is_flagged_rg("grep -r Foo ."));
         assert!(!is_flagged_rg("git status"));
