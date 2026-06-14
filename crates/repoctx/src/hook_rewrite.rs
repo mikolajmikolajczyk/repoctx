@@ -619,6 +619,12 @@ mod tests {
         assert!(is_flagged_rg("cmd && rg --type rust Foo"));
         assert!(is_flagged_rg("echo hi; rg -g '*.rs' Foo"));
         assert!(is_flagged_rg("a | b | rg -n Foo | head"));
+        // Flagged rg with a redirect is still caught (flag precedes it).
+        assert!(is_flagged_rg("rg -i Foo > out.txt"));
+        assert!(is_flagged_rg("rg -i Foo 2>/dev/null"));
+        assert!(is_flagged_rg("rg --type rust Foo >> log"));
+        assert!(is_flagged_rg("rg -n Foo < input"));
+        assert!(is_flagged_rg("rg -i Foo 2>&1 | head"));
     }
 
     #[test]
@@ -628,6 +634,8 @@ mod tests {
         assert!(!is_flagged_rg("rg Foo | head"));
         // Unflagged rg in a later segment also still chains.
         assert!(!is_flagged_rg("cat f.log | rg Foo"));
+        // Plain rg with a redirect is unflagged (redirect ends the scan).
+        assert!(!is_flagged_rg("rg Foo > out.txt"));
         assert!(!is_flagged_rg(r#"rg "fn foo""#));
         assert!(!is_flagged_rg("grep -r Foo ."));
         assert!(!is_flagged_rg("git status"));

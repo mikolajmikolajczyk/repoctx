@@ -574,6 +574,66 @@ expect = 'passthrough'
 why = 'extended-regex flag + metachars'
 
 # ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — flagged rg with redirects (bypass class)
+#
+# These carry an rg-only flag, so the semantic rewrite declines AND the
+# chain-bypass (`is_flagged_rg`, unit-tested in src/hook_rewrite.rs) fires
+# when chaining is on. Either way the agent's real ripgrep must run
+# untouched — including with the redirect preserved.
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'rg -i foo > out.txt'
+expect = 'passthrough'
+why = 'flagged rg + stdout redirect'
+
+[[case]]
+cmd = 'rg -i foo 2>/dev/null'
+expect = 'passthrough'
+why = 'flagged rg + stderr redirect'
+
+[[case]]
+cmd = 'rg --type rust foo >> log'
+expect = 'passthrough'
+why = 'rg-only --type + append redirect'
+
+[[case]]
+cmd = 'rg -n foo < input'
+expect = 'passthrough'
+why = 'flagged rg + stdin redirect'
+
+[[case]]
+cmd = 'rg -i foo 2>&1 | head'
+expect = 'passthrough'
+why = 'flagged rg + fd dup + pipe'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — flagged rg in a compound command (bypass class)
+#
+# rg is not the leading word here; the bypass must still catch it in a
+# later pipeline/list segment so it is never handed to the rtk chain
+# (which degrades flagged rg to GNU grep). Decision stays passthrough.
+# ─────────────────────────────────────────────────────────────────────
+[[case]]
+cmd = 'cat f | rg -i foo'
+expect = 'passthrough'
+why = 'flagged rg after a pipe'
+
+[[case]]
+cmd = 'echo hi; rg --type rust foo'
+expect = 'passthrough'
+why = 'flagged rg after a command separator'
+
+[[case]]
+cmd = 'a && rg -n foo || true'
+expect = 'passthrough'
+why = 'flagged rg inside an && / || list'
+
+[[case]]
+cmd = 'a | b | rg -i foo | c'
+expect = 'passthrough'
+why = 'flagged rg mid-pipeline'
+
+# ─────────────────────────────────────────────────────────────────────
 # MUST PASSTHROUGH — adversarial / edge
 # ─────────────────────────────────────────────────────────────────────
 [[case]]
