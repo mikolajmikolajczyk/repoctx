@@ -94,6 +94,32 @@ fn contains_shell_metacharacters(s: &str) -> bool {
     })
 }
 
+/// `rg` carrying any flag is unsafe to hand to the rtk chain: rtk's
+/// `grep` wrapper forwards flags it doesn't recognize to GNU grep, which
+/// loses ripgrep's recursive/gitignore defaults (silent empty results)
+/// and rejects rg-only flags like `--type` / `-g` (hard error). Detect a
+/// leading `rg ... -flag` so the caller can bypass the chain and let the
+/// agent's real `rg` run untouched. Plain `rg PATTERN` (no flags) is
+/// safe and still chains — rtk's formatted grep handles it.
+///
+/// Whitespace-split (quote-agnostic) and stop at the first shell control
+/// operator so a flag inside `rg -i foo | head` is still caught.
+fn is_flagged_rg(command: &str) -> bool {
+    let mut words = command.split_whitespace();
+    if words.next() != Some("rg") {
+        return false;
+    }
+    for w in words {
+        if matches!(w, "|" | "||" | "&&" | ";" | ">" | ">>" | "<" | "&") {
+            break;
+        }
+        if w.starts_with('-') {
+            return true;
+        }
+    }
+    false
+}
+
 const RULES: &[Rule] = &[
     Rule {
         name: "rg <ident>",
@@ -341,6 +367,13 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Op
         }
     }
 
+    // Flagged `rg` is unsafe to chain (rtk degrades it to GNU grep —
+    // see is_flagged_rg). Bypass every chain so the real ripgrep runs.
+    if is_flagged_rg(command) {
+        debug!(%command, "flagged rg — bypassing chain so real ripgrep runs");
+        return Ok(None);
+    }
+
     // Legacy chain dispatch (v0.5.x `hook.chain_commands`). Fresh
     // script-based installs leave this empty and rely on the rtk chain
     // below instead.
@@ -560,6 +593,28 @@ mod tests {
         assert!(try_semantic_rewrite("ls -la").is_none());
         assert!(try_semantic_rewrite("git status").is_none());
         assert!(try_semantic_rewrite("cat README.md").is_none());
+    }
+
+    #[test]
+    fn flagged_rg_bypasses_chain() {
+        // Flagged rg → bypass (rtk would degrade it to GNU grep).
+        assert!(is_flagged_rg("rg -i Foo"));
+        assert!(is_flagged_rg("rg --type rust Foo"));
+        assert!(is_flagged_rg("rg -g '*.rs' Foo"));
+        assert!(is_flagged_rg("rg -n Foo"));
+        // Flag before a pipe is still caught.
+        assert!(is_flagged_rg("rg -i Foo | head"));
+    }
+
+    #[test]
+    fn unflagged_rg_still_chains() {
+        // Plain rg (rtk handles it) and non-rg commands are not bypassed.
+        assert!(!is_flagged_rg("rg Foo"));
+        assert!(!is_flagged_rg("rg Foo | head"));
+        assert!(!is_flagged_rg(r#"rg "fn foo""#));
+        assert!(!is_flagged_rg("grep -r Foo ."));
+        assert!(!is_flagged_rg("git status"));
+        assert!(!is_flagged_rg(""));
     }
 
     // ── Rewrite-decision corpus (issue 573eccc) ──────────────────────

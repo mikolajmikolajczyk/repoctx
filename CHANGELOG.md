@@ -9,6 +9,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 - **Agent benchmark harness** (epic `b20a3c9`, manual / never-CI) under `scripts/agent-bench/`: bats suites that gate token savings on three SHA-pinned real codebases (helix, vuejs/core, rust-analyzer), plus `report.sh` for the per-query number table. Metric is `bytes/4`, method-consistent with `repoctx gain` (no model-specific tokenizer). Design + thresholds: `wiki/decisions/2026-06-13-agent-bench.md`.
 - **Benchmark results page** (`wiki/bench/results.md`) + **[why repoctx saves tokens](wiki/user/why-repoctx.md)**. v0.7.0 baseline: **~99% token savings vs ripgrep-worst** on `definition` / `symbols` / `outline` across all three repos; `context` 65–99% (it returns the actual source window). README links both.
 
+### Fixed
+
+- **Flagged `rg` no longer degraded by the rtk chain.** When the hook can't structurally rewrite an `rg` command and it carries any flag (`-i`, `--type`, `-g`, …), it now bypasses the rtk chain entirely so the agent's real ripgrep runs. Previously these were handed to rtk's `grep` wrapper, which forwards unrecognized flags to GNU grep — silently losing ripgrep's recursive/gitignore defaults (empty results) and erroring on rg-only flags. Plain `rg PATTERN` and bare-identifier rewrites are unchanged.
+
 ## [0.7.0] — 2026-06-13
 
 Language coverage expansion (epic `9cf4c18`) + opt-in nested keys + an opencode runtime plugin.
