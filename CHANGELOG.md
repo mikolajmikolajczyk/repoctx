@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-06-14
+
 ### Added
 
 - **Agent benchmark harness** (epic `b20a3c9`, manual / never-CI) under `scripts/agent-bench/`: bats suites that gate token savings on three SHA-pinned real codebases (helix, vuejs/core, rust-analyzer), plus `report.sh` for the per-query number table. Metric is `bytes/4`, method-consistent with `repoctx gain` (no model-specific tokenizer). Design + thresholds: `wiki/decisions/2026-06-13-agent-bench.md`.
@@ -301,7 +303,9 @@ First tagged release. M0 functional surface complete on Linux, macOS, and Window
 - Release binary size: ~14 MB on x86_64-linux (9 statically-linked Tree-sitter grammars, accepted cost per ADR-0002).
 - TypeScript upstream `tags.scm` covers interface / abstract class / method signatures only; plain `class`/`function` are not tagged. Documented in [`wiki/user/commands.md`](wiki/user/commands.md).
 
-[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.7.0
 [0.5.1]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.5.1
 [0.5.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.5.0
 [0.4.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.4.0
