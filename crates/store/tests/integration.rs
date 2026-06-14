@@ -1,9 +1,22 @@
 use std::path::PathBuf;
 
 use repoctx_store::{
-    from_db_path, to_db_path, FileRecord, Store, SymbolFilter, SymbolRecord, SUPPORTED_VERSION,
+    from_db_path, to_db_path, CallRecord, FileRecord, Store, SymbolFilter, SymbolRecord,
+    SUPPORTED_VERSION,
 };
 use tempfile::tempdir;
+
+fn cr(file: &str, caller: &str, caller_line: u32, callee: &str, site_line: u32) -> CallRecord {
+    CallRecord {
+        file_path: file.into(),
+        caller_name: caller.into(),
+        caller_start_line: caller_line,
+        callee_name: callee.into(),
+        site_line,
+        site_column: 4,
+        resolution: "syntactic".into(),
+    }
+}
 
 fn fr(path: &str, mtime: i64, size: i64, lang: &str) -> FileRecord {
     FileRecord {
@@ -30,6 +43,76 @@ fn sr(file: &str, name: &str, kind: &str, line: u32) -> SymbolRecord {
 fn schema_version_after_open() {
     let s = Store::open_in_memory().unwrap();
     assert_eq!(s.schema_version().unwrap(), SUPPORTED_VERSION);
+}
+
+#[test]
+fn call_edges_resolve_ambiguous_and_unresolved() {
+    let mut s = Store::open_in_memory().unwrap();
+    // a.rs: main (line 1) calls helper + an external fn.
+    s.upsert_file(
+        &fr("a.rs", 1, 10, "rust"),
+        &[
+            sr("a.rs", "main", "function", 1),
+            sr("a.rs", "helper", "function", 5),
+        ],
+    )
+    .unwrap();
+    s.upsert_calls(
+        "a.rs",
+        &[
+            cr("a.rs", "main", 1, "helper", 2),
+            cr("a.rs", "main", 1, "external_fn", 3),
+        ],
+    )
+    .unwrap();
+    // b.rs: a SECOND `helper` def — makes the callee name ambiguous.
+    s.upsert_file(
+        &fr("b.rs", 1, 10, "rust"),
+        &[sr("b.rs", "helper", "function", 1)],
+    )
+    .unwrap();
+
+    // callers_of(helper): one call site, but `helper` resolves to two defs
+    // -> two rows, both with caller `main` (ambiguity surfaced as candidates).
+    let callers = s.callers_of("helper").unwrap();
+    assert_eq!(callers.len(), 2, "one site x two helper candidates");
+    assert!(callers.iter().all(|e| e.caller.name == "main"));
+    assert!(callers
+        .iter()
+        .all(|e| e.callee.as_ref().unwrap().name == "helper"));
+
+    // callees_of(main): helper (2 candidates) + external_fn (unresolved).
+    let callees = s.callees_of("main").unwrap();
+    assert_eq!(callees.len(), 3);
+    let unresolved: Vec<_> = callees.iter().filter(|e| e.callee.is_none()).collect();
+    assert_eq!(unresolved.len(), 1, "external_fn is unresolved");
+    assert_eq!(unresolved[0].callee_name, "external_fn");
+    let helper_rows = callees.iter().filter(|e| e.callee_name == "helper").count();
+    assert_eq!(helper_rows, 2, "helper resolves to two candidate defs");
+}
+
+#[test]
+fn call_edges_pruned_on_file_reindex() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(
+        &fr("a.rs", 1, 10, "rust"),
+        &[sr("a.rs", "main", "function", 1)],
+    )
+    .unwrap();
+    s.upsert_calls("a.rs", &[cr("a.rs", "main", 1, "gone", 2)])
+        .unwrap();
+    assert_eq!(s.callers_of("gone").unwrap().len(), 1);
+    // Re-index the file with no calls -> cascade clears the old edge.
+    s.upsert_file(
+        &fr("a.rs", 2, 11, "rust"),
+        &[sr("a.rs", "main", "function", 1)],
+    )
+    .unwrap();
+    assert_eq!(
+        s.callers_of("gone").unwrap().len(),
+        0,
+        "stale edge cascaded away"
+    );
 }
 
 #[test]

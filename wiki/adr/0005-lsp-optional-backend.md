@@ -73,3 +73,4 @@ Per-invocation LSP spawning forfeits the whole reason to use LSP. A long-lived p
 - ADR-0001 (CLI-first) — `repoctxd` is additive, not a reversal.
 - ADR-0002 (Tree-sitter primary) — remains the default and always-available answer source.
 - ADR-0004 (backend abstraction) — `LspBackend` is one more `CodeIntelBackend` impl; the daemon is an implementation detail behind it.
+- ADR-0010 (static call graph) — ships `callers`/`callees` now as name-based `'syntactic'` edges; this daemon later writes `'semantic'` edges into the same `calls` table (no schema fork).

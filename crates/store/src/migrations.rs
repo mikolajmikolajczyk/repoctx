@@ -8,7 +8,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::error::{Result, StoreError};
 
 /// Highest schema version this binary supports.
-pub const SUPPORTED_VERSION: u32 = 3;
+pub const SUPPORTED_VERSION: u32 = 4;
 
 /// Migration scripts indexed by target version. Position N is the SQL to
 /// move the DB from version N-1 to version N.
@@ -72,6 +72,33 @@ const MIGRATIONS: &[&str] = &[
         key   TEXT PRIMARY KEY NOT NULL,
         value TEXT NOT NULL
     );
+    "#,
+    // -> v4 (static call graph; epic af42572, ADR-0010)
+    //
+    // One row per call SITE. Edges are stored name-based and caller-located,
+    // NOT by symbol id: symbol ids are reassigned on every reindex, so a
+    // stored cross-file callee id would dangle when the *other* file is
+    // reparsed. Callee resolution is done at query time by joining
+    // `callee_name` to `symbols(name)` — unresolved (external) callees simply
+    // find no match, ambiguous ones find several. `resolution` is 'syntactic'
+    // for these Tree-sitter edges; a future LSP backend writes 'semantic'
+    // rows into the same table (ADR-0005). Cascades with the file via
+    // file_path FK, so re-indexing a file replaces its edges atomically.
+    r#"
+    CREATE TABLE calls (
+        id                INTEGER PRIMARY KEY,
+        file_path         TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
+        caller_name       TEXT NOT NULL,
+        caller_start_line INTEGER NOT NULL,
+        callee_name       TEXT NOT NULL,
+        site_line         INTEGER NOT NULL,
+        site_column       INTEGER NOT NULL,
+        resolution        TEXT NOT NULL DEFAULT 'syntactic'
+    );
+
+    CREATE INDEX calls_callee_idx    ON calls(callee_name);
+    CREATE INDEX calls_caller_idx    ON calls(caller_name);
+    CREATE INDEX calls_file_path_idx ON calls(file_path);
     "#,
 ];
 

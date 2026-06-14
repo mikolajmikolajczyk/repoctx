@@ -19,7 +19,7 @@ Things **deliberately not implemented**. If something seems missing and is liste
 - **Why deferred:** type-aware semantic queries need warm long-lived LSP servers; ADR-0005 puts that in a separate daemon. The current Tree-sitter backend is the by-design first cut.
 - **Revisit when:** Tree-sitter surface (index / symbols / outline / definition / context) is shipped and validated by real agent use.
 - **Tracked in:** `58b45d5` (LSP-daemon placeholder epic).
-- **Note:** `callers` is no longer in this entry — it is being un-deferred via a **static, name-based call graph** (accuracy class of `definition`, not LSP-grade) planned for v0.8.0, epic `af42572`. `refs`/`hover` stay deferred to the LSP path.
+- **Note:** `callers` is no longer in this entry — it is being un-deferred via a **static, name-based call graph** (accuracy class of `definition`, not LSP-grade) planned for v0.8.0, epic `af42572`, design recorded in [ADR-0010](../adr/0010-static-call-graph.md). `refs`/`hover` stay deferred to the LSP path.
 
 ### Fuzzy symbol matching
 

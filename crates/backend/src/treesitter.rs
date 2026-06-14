@@ -11,7 +11,7 @@ use repoctx_store::{Store, SymbolFilter};
 use crate::error::{BackendError, Result};
 use crate::kind::SymbolKind;
 use crate::trait_def::CodeIntelBackend;
-use crate::types::{HoverInfo, Location, PositionQuery, Symbol, SymbolQuery};
+use crate::types::{CallEdge, HoverInfo, Location, PositionQuery, Symbol, SymbolQuery};
 
 pub struct TreeSitterBackend {
     store: Store,
@@ -75,6 +75,58 @@ impl CodeIntelBackend for TreeSitterBackend {
             capability: "hover",
         })
     }
+
+    fn callers(&self, name: &str) -> Result<Vec<CallEdge>> {
+        to_call_edges(self.store.callers_of(name)?)
+    }
+
+    fn callees(&self, name: &str) -> Result<Vec<CallEdge>> {
+        to_call_edges(self.store.callees_of(name)?)
+    }
+}
+
+/// Convert store edge rows into [`CallEdge`]s, marking `ambiguous` when a
+/// `callee_name` resolves to more than one distinct repo symbol across the
+/// result set.
+fn to_call_edges(rows: Vec<repoctx_store::CallEdgeRow>) -> Result<Vec<CallEdge>> {
+    use std::collections::{HashMap, HashSet};
+    let mut candidates: HashMap<String, HashSet<(String, u32)>> = HashMap::new();
+    for r in &rows {
+        if let Some(c) = &r.callee {
+            candidates
+                .entry(r.callee_name.clone())
+                .or_default()
+                .insert((c.file_path.clone(), c.start_line));
+        }
+    }
+    let mut out = Vec::with_capacity(rows.len());
+    for r in rows {
+        let ambiguous = candidates
+            .get(&r.callee_name)
+            .map(|s| s.len() > 1)
+            .unwrap_or(false);
+        let site = Location {
+            path: r.caller.file_path.clone(),
+            start_line: r.site_line,
+            start_column: r.site_column,
+            end_line: r.site_line,
+            end_column: r.site_column,
+        };
+        let caller = to_symbol(r.caller)?;
+        let callee = match r.callee {
+            Some(c) => Some(to_symbol(c)?),
+            None => None,
+        };
+        out.push(CallEdge {
+            caller,
+            callee_name: r.callee_name,
+            callee,
+            site,
+            resolution: r.resolution,
+            ambiguous,
+        });
+    }
+    Ok(out)
 }
 
 fn to_symbol(r: repoctx_store::SymbolRecord) -> Result<Symbol> {

@@ -2,7 +2,7 @@
 
 use std::sync::OnceLock;
 
-use repoctx_store::SymbolRecord;
+use repoctx_store::{CallRecord, SymbolRecord};
 use thiserror::Error;
 use tracing::debug;
 use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
@@ -227,6 +227,158 @@ pub fn parse_file_with(
     }
 
     Ok(dedupe_overlaps(out))
+}
+
+// ── Call-site extraction (static call graph, epic af42572 / ADR-0010) ──
+
+/// Compiled call-site query: the query plus the capture indices named
+/// `@callee`.
+struct CompiledCalls {
+    query: Query,
+    callee_idxs: Vec<u32>,
+}
+
+fn compile_calls(language: Language) -> Option<Result<CompiledCalls>> {
+    let src = language.calls_query()?;
+    let build = || {
+        let ts_lang = language.ts_language();
+        let query = Query::new(&ts_lang, src)
+            .map_err(|source| ExtractError::QueryCompile { language, source })?;
+        let callee_idxs = query
+            .capture_names()
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| **c == "callee")
+            .map(|(i, _)| i as u32)
+            .collect();
+        Ok(CompiledCalls { query, callee_idxs })
+    };
+    Some(build())
+}
+
+/// Lazily compiled call query per language. `None` for languages without a
+/// call query (everything outside the core 8).
+fn compiled_calls_for(language: Language) -> Option<&'static Result<CompiledCalls>> {
+    macro_rules! slot {
+        ($lang:expr) => {{
+            static CELL: OnceLock<Option<Result<CompiledCalls>>> = OnceLock::new();
+            CELL.get_or_init(|| compile_calls($lang)).as_ref()
+        }};
+    }
+    match language {
+        Language::Rust => slot!(Language::Rust),
+        Language::Python => slot!(Language::Python),
+        Language::JavaScript => slot!(Language::JavaScript),
+        Language::TypeScript => slot!(Language::TypeScript),
+        Language::Tsx => slot!(Language::Tsx),
+        Language::Go => slot!(Language::Go),
+        Language::C => slot!(Language::C),
+        Language::Cpp => slot!(Language::Cpp),
+        Language::Java => slot!(Language::Java),
+        _ => None,
+    }
+}
+
+/// Extract call edges from `source`. Each `@callee` capture becomes one
+/// [`CallRecord`] attributed to its nearest enclosing function/method symbol
+/// (the caller). `symbols` are the already-extracted symbols for this file,
+/// used for that containment lookup. Calls with no enclosing callable (e.g.
+/// module top-level) are dropped — they have no caller to attribute.
+///
+/// Callees are recorded by name only; resolution to symbols happens at query
+/// time in the store (name-based, per ADR-0010). Returns `Ok(empty)` for
+/// languages without a call query.
+pub fn parse_calls_with(
+    file_path: &str,
+    language: Language,
+    source: &str,
+    symbols: &[SymbolRecord],
+) -> Result<Vec<CallRecord>> {
+    let compiled = match compiled_calls_for(language) {
+        Some(Ok(c)) => c,
+        Some(Err(_)) => {
+            debug!(?language, "calls query failed to compile; skipping");
+            return Ok(Vec::new());
+        }
+        None => return Ok(Vec::new()),
+    };
+
+    let mut parser = Parser::new();
+    parser
+        .set_language(&language.ts_language())
+        .map_err(|_| ExtractError::SetLanguage(language))?;
+    let tree = parser.parse(source, None).ok_or(ExtractError::Parse)?;
+
+    let bytes = source.as_bytes();
+    let mut cursor = QueryCursor::new();
+    let mut matches = cursor.matches(&compiled.query, tree.root_node(), bytes);
+
+    let mut out = Vec::new();
+    while let Some(m) = matches.next() {
+        for cap in m.captures {
+            if !compiled.callee_idxs.contains(&cap.index) {
+                continue;
+            }
+            let callee_name = node_text(cap.node, bytes);
+            if callee_name.is_empty() {
+                continue;
+            }
+            let site = cap.node.start_position();
+            let Some(caller) = enclosing_callable(cap.node, symbols) else {
+                continue;
+            };
+            out.push(CallRecord {
+                file_path: file_path.to_string(),
+                caller_name: caller.name.clone(),
+                caller_start_line: caller.start_line,
+                callee_name: callee_name.to_string(),
+                site_line: site.row as u32,
+                site_column: site.column as u32,
+                resolution: "syntactic".to_string(),
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// Node kinds that introduce a callable across the core-8 grammars. Used to
+/// find a call site's enclosing function/method by walking up the tree —
+/// more robust than symbol line ranges, since some tags queries (C/C++)
+/// capture only the declarator line, not the whole body.
+fn is_caller_def_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        "function_item"            // Rust
+            | "function_definition" // Python, C, C++
+            | "function_declaration" // Go, JS, TS
+            | "method_definition"   // JS, TS
+            | "method_declaration"  // Go, Java
+            | "constructor_declaration" // Java
+    )
+}
+
+/// Nearest enclosing function/method of a call site: walk up from the call
+/// node to the first callable-def ancestor, then match it to a symbol by
+/// start line (and function/method kind). Returns `None` for calls with no
+/// enclosing callable (e.g. module top-level).
+fn enclosing_callable<'a>(
+    call_node: Node,
+    symbols: &'a [SymbolRecord],
+) -> Option<&'a SymbolRecord> {
+    let mut cur = Some(call_node);
+    while let Some(node) = cur {
+        if is_caller_def_kind(node.kind()) {
+            let row = node.start_position().row as u32;
+            if let Some(s) = symbols
+                .iter()
+                .find(|s| s.start_line == row && matches!(s.kind.as_str(), "function" | "method"))
+            {
+                return Some(s);
+            }
+        }
+        cur = node.parent();
+    }
+    None
 }
 
 /// Tree-sitter `tags.scm` files often pair a specific pattern (e.g. method

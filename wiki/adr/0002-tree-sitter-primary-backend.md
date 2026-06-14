@@ -67,3 +67,4 @@ Adding a language = adding a grammar dep + the upstream tag query + a small mapp
 - ADR-0004 (backend abstraction) — defines how Tree-sitter and LSP coexist behind one API.
 - ADR-0005 (LSP via `repoctxd`) — the semantic-enrichment path.
 - ADR-0007 (incremental file-local updates) — consumes Tree-sitter parses.
+- ADR-0010 (static call graph) — un-defers `callers` via name-based syntax edges; the "`callers` deferred to the LSP path" note above is superseded for the static (`'syntactic'`) case.

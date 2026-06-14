@@ -15,4 +15,4 @@ pub use error::{BackendError, Result};
 pub use kind::{SymbolKind, UnknownKindError};
 pub use trait_def::CodeIntelBackend;
 pub use treesitter::TreeSitterBackend;
-pub use types::{HoverInfo, Location, PositionQuery, Symbol, SymbolQuery};
+pub use types::{CallEdge, HoverInfo, Location, PositionQuery, Symbol, SymbolQuery};

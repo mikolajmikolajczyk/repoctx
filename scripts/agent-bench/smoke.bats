@@ -25,8 +25,8 @@ RS
 use crate::widget::Widget;
 // $n uses Widget in several places to look like a real module.
 fn ${n}_one(w: &Widget) -> u32 { w.size }
-fn ${n}_two(w: &Widget) -> u32 { w.size + 1 }
-fn ${n}_three(w: &Widget) -> u32 { w.size + 2 }
+fn ${n}_two(w: &Widget) -> u32 { ${n}_one(w) + 1 }
+fn ${n}_three(w: &Widget) -> u32 { ${n}_two(w) + 2 }
 RS
   done
   cat > "$REPO/config.json" <<'JSON'
@@ -62,4 +62,15 @@ teardown() { rm -rf "$REPO"; }
   [ "$output" -eq 90 ]
   run savings_pct 5 0
   [ "$output" -eq 0 ]
+}
+
+@test "callers: direct edge present and counted" {
+  # a_two calls a_one -> callers(a_one) is exactly one edge.
+  repoctx_json "$REPO" callers a_one | grep -q '"count":1'
+}
+
+@test "callgraph: transitive down reaches depth 2" {
+  # a_three -> a_two -> a_one : a_one is reachable two hops down.
+  repoctx_json "$REPO" callgraph a_three --direction down --depth 2 \
+    | grep -q '"callee_name":"a_one"'
 }

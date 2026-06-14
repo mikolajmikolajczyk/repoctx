@@ -8,7 +8,7 @@ use tracing::debug;
 use crate::error::{Result, StoreError};
 use crate::like;
 use crate::migrations;
-use crate::record::{FileRecord, SymbolRecord};
+use crate::record::{CallEdgeRow, CallRecord, FileRecord, SymbolRecord};
 
 const SQLITE_BUSY_TIMEOUT_MS: u32 = 5000;
 
@@ -81,7 +81,10 @@ impl Store {
         migrations::read_version(&self.conn)
     }
 
-    /// Replace one file's record + its symbols atomically.
+    /// Replace one file's record + its symbols atomically. The
+    /// `DELETE FROM files` cascades to `symbols` and `calls`, so call edges
+    /// for the file are cleared here; re-insert them with [`upsert_calls`]
+    /// in the same indexing pass.
     pub fn upsert_file(&mut self, file: &FileRecord, symbols: &[SymbolRecord]) -> Result<()> {
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM files WHERE path = ?1", params![file.path])?;
@@ -104,6 +107,36 @@ impl Store {
                     s.start_column,
                     s.end_line,
                     s.end_column,
+                ])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Replace the call edges for one file. Old edges were already removed by
+    /// [`upsert_file`]'s cascading delete; this inserts the freshly extracted
+    /// ones. Call it right after `upsert_file` for the same file.
+    pub fn upsert_calls(&mut self, file_path: &str, calls: &[CallRecord]) -> Result<()> {
+        if calls.is_empty() {
+            return Ok(());
+        }
+        let tx = self.conn.transaction()?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO calls(file_path, caller_name, caller_start_line, callee_name, site_line, site_column, resolution)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )?;
+            for c in calls {
+                debug_assert_eq!(c.file_path, file_path);
+                stmt.execute(params![
+                    c.file_path,
+                    c.caller_name,
+                    c.caller_start_line,
+                    c.callee_name,
+                    c.site_line,
+                    c.site_column,
+                    c.resolution,
                 ])?;
             }
         }
@@ -288,6 +321,82 @@ impl Store {
                 start_column: row.get(4)?,
                 end_line: row.get(5)?,
                 end_column: row.get(6)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Direct callers of `name`: every call edge whose callee name is `name`.
+    /// The caller is the resolved enclosing symbol; the callee column carries
+    /// the resolved target(s) of `name` (several rows when `name` is
+    /// ambiguous, `None` only if `name` itself is unindexed). Edges across the
+    /// whole repo, ordered deterministically.
+    pub fn callers_of(&self, name: &str) -> Result<Vec<CallEdgeRow>> {
+        self.call_edges("c.callee_name = ?1", name)
+    }
+
+    /// Direct callees of `name`: every call edge made from within a symbol
+    /// named `name`. The callee is `Some` when its name resolves to a repo
+    /// symbol and `None` when external/unresolved.
+    pub fn callees_of(&self, name: &str) -> Result<Vec<CallEdgeRow>> {
+        self.call_edges("c.caller_name = ?1", name)
+    }
+
+    /// Shared join for `callers_of`/`callees_of`. `where_clause` selects on
+    /// `c.callee_name`/`c.caller_name`; `bind` is the symbol name.
+    fn call_edges(&self, where_clause: &str, bind: &str) -> Result<Vec<CallEdgeRow>> {
+        let sql = format!(
+            "SELECT caller_s.file_path, caller_s.name, caller_s.kind,
+                    caller_s.start_line, caller_s.start_column, caller_s.end_line, caller_s.end_column,
+                    c.callee_name,
+                    callee_s.file_path, callee_s.name, callee_s.kind,
+                    callee_s.start_line, callee_s.start_column, callee_s.end_line, callee_s.end_column,
+                    c.site_line, c.site_column, c.resolution
+             FROM calls c
+             JOIN symbols caller_s
+               ON caller_s.file_path = c.file_path
+              AND caller_s.name = c.caller_name
+              AND caller_s.start_line = c.caller_start_line
+             LEFT JOIN symbols callee_s
+               ON callee_s.name = c.callee_name
+             WHERE {where_clause}
+             ORDER BY caller_s.file_path ASC, caller_s.start_line ASC,
+                      c.site_line ASC, c.site_column ASC,
+                      callee_s.file_path ASC, callee_s.start_line ASC"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([bind], |row| {
+            let callee = match row.get::<_, Option<String>>(8)? {
+                Some(file_path) => Some(SymbolRecord {
+                    file_path,
+                    name: row.get(9)?,
+                    kind: row.get(10)?,
+                    start_line: row.get(11)?,
+                    start_column: row.get(12)?,
+                    end_line: row.get(13)?,
+                    end_column: row.get(14)?,
+                }),
+                None => None,
+            };
+            Ok(CallEdgeRow {
+                caller: SymbolRecord {
+                    file_path: row.get(0)?,
+                    name: row.get(1)?,
+                    kind: row.get(2)?,
+                    start_line: row.get(3)?,
+                    start_column: row.get(4)?,
+                    end_line: row.get(5)?,
+                    end_column: row.get(6)?,
+                },
+                callee_name: row.get(7)?,
+                callee,
+                site_line: row.get(15)?,
+                site_column: row.get(16)?,
+                resolution: row.get(17)?,
             })
         })?;
         let mut out = Vec::new();

@@ -16,5 +16,5 @@ mod store;
 pub use error::{Result, StoreError};
 pub use gain::{CommandBreakdown, GainTotals, UsageRecord};
 pub use migrations::SUPPORTED_VERSION;
-pub use record::{from_db_path, to_db_path, FileRecord, SymbolRecord};
+pub use record::{from_db_path, to_db_path, CallEdgeRow, CallRecord, FileRecord, SymbolRecord};
 pub use store::{Counts, Store, SymbolFilter};

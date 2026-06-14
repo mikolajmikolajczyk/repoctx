@@ -211,6 +211,25 @@ impl Language {
         }
     }
 
+    /// Call-site query for the static call graph (epic af42572 / ADR-0010).
+    /// `Some` for the core-8 languages; `None` for the rest (call-graph
+    /// extraction is a no-op there until the follow-up child adds them).
+    /// Captures the callee name node as `@callee`.
+    pub fn calls_query(self) -> Option<&'static str> {
+        match self {
+            Self::Rust => Some(include_str!("../queries/rust-calls.scm")),
+            Self::Python => Some(include_str!("../queries/python-calls.scm")),
+            Self::JavaScript | Self::TypeScript | Self::Tsx => {
+                Some(include_str!("../queries/javascript-calls.scm"))
+            }
+            Self::Go => Some(include_str!("../queries/go-calls.scm")),
+            Self::C => Some(include_str!("../queries/c-calls.scm")),
+            Self::Cpp => Some(include_str!("../queries/cpp-calls.scm")),
+            Self::Java => Some(include_str!("../queries/java-calls.scm")),
+            _ => None,
+        }
+    }
+
     /// Deep tags query variant for partial-coverage data languages,
     /// capturing keys at any nesting depth. `None` for languages where the
     /// normal query already captures everything (the opt-in `nested_keys`

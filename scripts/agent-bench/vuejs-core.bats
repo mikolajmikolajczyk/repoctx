@@ -41,6 +41,13 @@ def_saves() { # <name>
   assert_savings_above "$rc" "$rg" 80
 }
 
+@test "callers: computed" {
+  # Call graph (ADR-0010); thresholds provisional, tune after a clone run.
+  rc="$(repoctx_tokens "$BENCH_REPO" callers computed --limit 50)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" computed)"
+  assert_savings_above "$rc" "$rg" 50
+}
+
 @test "TS definition carries no advisory (full coverage)" {
   assert_no_advisory "$BENCH_REPO" definition reactive
 }

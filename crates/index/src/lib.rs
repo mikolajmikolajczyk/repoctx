@@ -6,5 +6,5 @@
 mod extractor;
 mod language;
 
-pub use extractor::{parse_file, parse_file_with, ExtractError, ParseOptions};
+pub use extractor::{parse_calls_with, parse_file, parse_file_with, ExtractError, ParseOptions};
 pub use language::{Coverage, Language, ALL_LANGUAGES};

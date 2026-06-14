@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `outline`, `definition`, `context`, `status`, `languages`, `config`, `init`, `hook`, `gain`, plus the debug-only `rewrite`. Command set current as of v0.7.1 (2026-06-14).
+Commands: `index`, `symbols`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `status`, `languages`, `config`, `init`, `hook`, `gain`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010.)
 
 ## Global flags
 
@@ -187,6 +187,59 @@ repoctx context resolve_window --context 2 --limit 1
   244      }
   …
 ```
+
+## `repoctx callers <name>` / `repoctx callees <name>`
+
+Direct call-graph edges (static, Tree-sitter; ADR-0010).
+
+- `callers <name>` — every call site whose callee is named `<name>` (who calls it).
+- `callees <name>` — every call made from within a symbol named `<name>` (what it calls).
+
+| Flag | Effect |
+|---|---|
+| `--limit <N>` | Maximum number of edges. Default `50`. `0` = unlimited. |
+
+Each edge carries the resolved caller symbol, the callee (resolved symbol or `null` when external/unresolved), the call-site location, `resolution` (`syntactic` now; `semantic` once an LSP backend lands), and `ambiguous` (the callee name resolves to more than one symbol).
+
+```sh
+repoctx callers parse_config
+```
+
+```json
+{"count":1,"items":[{
+  "caller":{"name":"main","kind":"function","location":{"path":"src/main.rs","start_line":3,"start_column":0,"end_line":9,"end_column":1}},
+  "callee_name":"parse_config",
+  "callee":{"name":"parse_config","kind":"function","location":{"path":"src/config.rs","start_line":40,"start_column":0,"end_line":52,"end_column":1}},
+  "site":{"path":"src/main.rs","start_line":5,"start_column":4,"end_line":5,"end_column":4},
+  "resolution":"syntactic","ambiguous":false}]}
+```
+
+## `repoctx callgraph <name>`
+
+Transitive call graph from `<name>` — breadth-first over edges, cycle-safe, depth-bounded.
+
+| Flag | Effect |
+|---|---|
+| `--depth <N>` | Traversal depth. Default `3`. `1` = direct edges only. |
+| `--direction <up\|down\|both>` | `down` = callees (what it calls), `up` = callers (who calls it), `both`. Default `down`. |
+
+Each item is a call edge tagged with `depth` (1 = direct) and `direction`. A safety cap (2000 edges) truncates pathological fan-out, surfaced via the advisory.
+
+```sh
+repoctx callgraph handle_request --depth 2 --direction down
+```
+
+### Accuracy caveats (read before trusting the graph)
+
+The call graph is **name-based and approximate — the same accuracy class as `definition`**, not LSP-grade:
+
+- **No receiver-type disambiguation.** `a.foo()` and `b.foo()` both resolve to *every* symbol named `foo`. Such edges are flagged `ambiguous: true`.
+- **External/unresolved callees are listed with `callee: null`** (stdlib, third-party, or dynamically dispatched). The name is shown; the location is unknown.
+- **Dynamic dispatch, function pointers, and higher-order calls are invisible.**
+- **Cross-language edges are out of scope.**
+- **Languages:** the core 8 (Rust, Python, JavaScript, TypeScript, Go, C, C++, Java). Other indexed languages return no edges until a follow-up adds their call queries.
+
+When edges are ambiguous or unresolved, the command emits an `advisory` pointing at `rg` as the fallback. Treat the output as a strong hint, not a proof.
 
 ## `repoctx status`
 

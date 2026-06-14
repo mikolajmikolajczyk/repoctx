@@ -6,6 +6,7 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ### Added
 
+- **Static call graph** (epic `af42572`, ADR-0010): new `callers <name>`, `callees <name>`, and `callgraph <name> --depth N --direction up|down|both` commands. Call sites are extracted from Tree-sitter syntax for the core 8 languages (Rust, Python, JavaScript, TypeScript, Go, C, C++, Java) and callees resolved by name — the same accuracy class as `definition` (approximate: no receiver-type disambiguation, dynamic dispatch invisible; ambiguous/unresolved edges flagged and advised). Schema v4 `calls` table; edges resolve at query time so they survive incremental reindex, and a future LSP backend can write precise `semantic` edges into the same table. JSON/TOON/human output, gain-recorded.
 - **rtk fidelity canary** (`scripts/rtk-fidelity/`, manual / never-CI). Drives probe commands through the real `repoctx hook claude` path, classifies each as bypass / semantic-rewrite / chain, and for chained commands compares rtk output against the real tool — hard-failing the silent false-empty class (what broke `ls` in rtk ≤0.41). Run it on rtk version bumps to catch new chain regressions the `is_chain_unsafe` denylist can't predict.
 
 ### Changed

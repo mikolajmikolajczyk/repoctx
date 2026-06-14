@@ -6,6 +6,7 @@ use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
 mod advisory;
+mod callgraph_cmd;
 mod config;
 mod config_cmd;
 mod context_cmd;
@@ -23,6 +24,7 @@ mod init_cmd;
 mod languages_cmd;
 mod outline_cmd;
 mod output;
+mod output_calls;
 mod output_symbols;
 mod read_cmd;
 mod repo_root;
@@ -111,6 +113,28 @@ enum Cmd {
         lang: Option<String>,
         #[arg(long, default_value_t = 50)]
         limit: usize,
+    },
+    /// Find direct callers of a symbol (who calls it). Static, name-based.
+    Callers {
+        name: String,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
+    /// Find direct callees of a symbol (what it calls). Static, name-based.
+    Callees {
+        name: String,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
+    /// Transitive call graph from a symbol (static, name-based).
+    Callgraph {
+        name: String,
+        /// Traversal depth (1 = direct edges only).
+        #[arg(long, default_value_t = 3)]
+        depth: u32,
+        /// Direction to walk: `up` (callers), `down` (callees), or `both`.
+        #[arg(long, default_value = "down")]
+        direction: String,
     },
     /// Print the per-language coverage matrix (how well repoctx
     /// indexes each language). Agents check this before deciding to
@@ -331,6 +355,30 @@ fn run() -> Result<()> {
             lang,
             limit,
         } => symbols_cmd::run(&repo_root, query, kind, lang, limit, render, gain_opts),
+        Cmd::Callers { name, limit } => callgraph_cmd::run(
+            &repo_root,
+            name,
+            callgraph_cmd::Edges::Callers,
+            limit,
+            render,
+            gain_opts,
+        ),
+        Cmd::Callees { name, limit } => callgraph_cmd::run(
+            &repo_root,
+            name,
+            callgraph_cmd::Edges::Callees,
+            limit,
+            render,
+            gain_opts,
+        ),
+        Cmd::Callgraph {
+            name,
+            depth,
+            direction,
+        } => {
+            let dir = callgraph_cmd::Direction::parse(&direction)?;
+            callgraph_cmd::run_graph(&repo_root, name, depth, dir, render, gain_opts)
+        }
         Cmd::Hook { sub } => match sub {
             HookSub::Claude {
                 rtk_chain,

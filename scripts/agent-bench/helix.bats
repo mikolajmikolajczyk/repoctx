@@ -41,6 +41,21 @@ def_saves() { # <name>
   assert_savings_above "$rc" "$rg" 80
 }
 
+@test "callers: render" {
+  # Who calls render — rg-worst opens every file mentioning "render";
+  # `callers` returns just the edges. Thresholds provisional (ADR-0010
+  # call graph); tune after a real clone run.
+  rc="$(repoctx_tokens "$BENCH_REPO" callers render --limit 50)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" render)"
+  assert_savings_above "$rc" "$rg" 50
+}
+
+@test "callgraph: render up depth 2" {
+  rc="$(repoctx_tokens "$BENCH_REPO" callgraph render --direction up --depth 2)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" render)"
+  assert_savings_above "$rc" "$rg" 50
+}
+
 @test "full-coverage definition carries no advisory" {
   assert_no_advisory "$BENCH_REPO" definition Selection
 }

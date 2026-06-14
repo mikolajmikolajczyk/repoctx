@@ -56,6 +56,8 @@ All under their issue-948b131 budgets.
 
 `rad issue list --label state:in-progress` is the source of truth.
 
+- **Static call graph** (epic `af42572`, milestone v0.8.0) — landed on `main`, unreleased: `callers` / `callees` / `callgraph` over a name-based Tree-sitter call graph for the core 8 langs (Rust, Python, JS, TS, Go, C, C++, Java). Schema v4 `calls` table, ADR-0010. Remaining: call queries for the other indexed langs (`3412476`).
+
 ## Broken / regressions
 
 None known.

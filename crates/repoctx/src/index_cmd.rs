@@ -8,8 +8,8 @@ use std::time::Instant;
 
 use anyhow::{Context, Result};
 use rayon::prelude::*;
-use repoctx_index::{parse_file_with, ParseOptions};
-use repoctx_store::{FileRecord, Store, SymbolRecord};
+use repoctx_index::{parse_calls_with, parse_file_with, ParseOptions};
+use repoctx_store::{CallRecord, FileRecord, Store, SymbolRecord};
 use serde::Serialize;
 use tracing::{debug, warn};
 
@@ -86,7 +86,7 @@ pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Res
             .unwrap_or(false),
     };
 
-    let (tx, rx) = mpsc::sync_channel::<(FileRecord, Vec<SymbolRecord>)>(64);
+    let (tx, rx) = mpsc::sync_channel::<(FileRecord, Vec<SymbolRecord>, Vec<CallRecord>)>(64);
     let parse_handle = std::thread::spawn(move || {
         to_parse.into_par_iter().for_each_with(tx, |tx, c| {
             let source = match std::fs::read_to_string(&c.abs) {
@@ -103,13 +103,22 @@ pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Res
                     Vec::new()
                 }
             };
+            // Call edges (static call graph, ADR-0010). No-op for languages
+            // without a call query; never blocks the file's symbol indexing.
+            let calls = match parse_calls_with(&c.rel, c.language, &source, &symbols) {
+                Ok(v) => v,
+                Err(e) => {
+                    debug!(path = %c.abs.display(), error = %e, "call extraction failed");
+                    Vec::new()
+                }
+            };
             let record = FileRecord {
                 path: c.rel,
                 mtime_ns: c.mtime_ns,
                 size: c.size,
                 language: c.language.slug().to_string(),
             };
-            if tx.send((record, symbols)).is_err() {
+            if tx.send((record, symbols, calls)).is_err() {
                 // Writer hung up (receiver dropped) — nothing more to do.
                 debug!(path = %c.abs.display(), "index: writer closed; dropping parse result");
             }
@@ -117,10 +126,13 @@ pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Res
     });
 
     let mut indexed = 0usize;
-    while let Ok((file, symbols)) = rx.recv() {
+    while let Ok((file, symbols, calls)) = rx.recv() {
         if let Err(e) = store.upsert_file(&file, &symbols) {
             warn!(path = %file.path, error = %e, "upsert failed");
             continue;
+        }
+        if let Err(e) = store.upsert_calls(&file.path, &calls) {
+            warn!(path = %file.path, error = %e, "call upsert failed");
         }
         indexed += 1;
     }
