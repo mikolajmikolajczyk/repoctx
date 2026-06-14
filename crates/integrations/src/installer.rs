@@ -55,6 +55,7 @@ pub struct Installer {
     dir: PathBuf,
     force: bool,
     dry_run: bool,
+    global: bool,
     vars: BTreeMap<String, String>,
 }
 
@@ -64,12 +65,22 @@ impl Installer {
             dir,
             force: false,
             dry_run: false,
+            global: false,
             vars: BTreeMap::new(),
         }
     }
 
     pub fn force(mut self, on: bool) -> Self {
         self.force = on;
+        self
+    }
+
+    /// User-global scope: install only files whose dest lives under
+    /// `.claude/` (the skill), skipping repo-root guidance like `AGENTS.md`
+    /// that only makes sense inside a project. `dir` should be the home
+    /// directory so `.claude/skills/…` resolves to `~/.claude/skills/…`.
+    pub fn global(mut self, on: bool) -> Self {
+        self.global = on;
         self
     }
 
@@ -87,8 +98,13 @@ impl Installer {
 
     pub fn install(self, agent: &str) -> Result<InstallResult> {
         let manifest = crate::content::manifest(agent)?;
-        let mut written = Vec::with_capacity(manifest.files.len());
-        for file in &manifest.files {
+        let files: Vec<File> = manifest
+            .files
+            .into_iter()
+            .filter(|f| !self.global || is_global_scoped(&f.dest))
+            .collect();
+        let mut written = Vec::with_capacity(files.len());
+        for file in &files {
             let bytes = crate::content::file(agent, &file.src)?;
             let text = match std::str::from_utf8(&bytes) {
                 Ok(s) => self.apply_vars(s),
@@ -100,7 +116,7 @@ impl Installer {
             let action = self.dispatch(file, text.as_bytes())?;
             written.push(action);
         }
-        let removal = removal_recipe(agent, &manifest.files);
+        let removal = removal_recipe(agent, &files);
         Ok(InstallResult {
             agent: agent.to_string(),
             dir: self.dir.clone(),
@@ -273,6 +289,14 @@ fn find_section(haystack: &str, start: &str, end: &str) -> Option<(usize, usize)
     let after_start = s + start.len();
     let e_rel = haystack[after_start..].find(end)?;
     Some((s, after_start + e_rel + end.len()))
+}
+
+/// A manifest dest is valid at user-global scope when it lives under a
+/// skills directory the agent reads from a home dir (`~/.claude/skills/`,
+/// `~/.agents/skills/`). Repo-root files like `AGENTS.md` / `CLAUDE.md` are
+/// project-only and skipped for a global install.
+fn is_global_scoped(dest: &str) -> bool {
+    dest.starts_with(".claude/skills/") || dest.starts_with(".agents/skills/")
 }
 
 fn removal_recipe(agent: &str, files: &[File]) -> String {

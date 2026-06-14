@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `status`, `languages`, `config`, `init`, `hook`, `gain`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `status`, `languages`, `config`, `init`, `hook`, `gain`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -187,6 +187,33 @@ repoctx context resolve_window --context 2 --limit 1
   244      }
   …
 ```
+
+## `repoctx search <pattern>`
+
+Textually-complete search: the symbol definitions named `<pattern>` **plus**
+every textual occurrence ripgrep finds (comments, strings, anything),
+compressed to `file:line`. This is the no-loss complement to `symbols` —
+repoctx runs real ripgrep under the hood and owns the compression.
+
+| Flag | Effect |
+|---|---|
+| `--lang <slug>` | Restrict textual matches to a language (maps to rg `--type`). |
+| `--limit <N>` | Cap files returned. Default `50` (also capped at 40 internally). |
+
+Caps keep token cost low: ≤40 files, ≤8 matches/file, lines truncated at 200
+chars. Truncation is flagged (`truncated` + `advisory`). If ripgrep isn't on
+PATH, you get the symbol definitions only + an advisory.
+
+```json
+{"pattern":"parse_config",
+ "symbols":[{"name":"parse_config","kind":"function","location":{...}}],
+ "matches":{"count":12,"files":[{"path":"src/main.rs","lines":[{"line":5,"text":"    parse_config();"}],"truncated":false}],"truncated":false}}
+```
+
+Use `search` when you might care about non-symbol mentions (a value in a
+comment/string, a config key). Use `symbols`/`definition` when you only want
+the structural answer. The hook rewrites ambiguous `rg <ident>` to `search`,
+so you usually get this automatically.
 
 ## `repoctx callers <name>` / `repoctx callees <name>`
 

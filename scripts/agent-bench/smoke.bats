@@ -74,3 +74,20 @@ teardown() { rm -rf "$REPO"; }
   repoctx_json "$REPO" callgraph a_three --direction down --depth 2 \
     | grep -q '"callee_name":"a_one"'
 }
+
+@test "search beats rg-worst (defs + compressed matches)" {
+  # search returns MORE than symbols (every textual match) but still far
+  # below opening every candidate file. Lower threshold than symbol queries.
+  rc="$(repoctx_tokens "$REPO" search Widget)"
+  rg="$(rg_worst_tokens "$REPO" Widget)"
+  # Tiny fixture -> modest margin (this is a wiring check); the real
+  # savings show on the per-repo suites where rg-worst opens large files.
+  assert_savings_above "$rc" "$rg" 10
+}
+
+@test "search includes a non-symbol (comment) mention" {
+  # The widget.rs comment mentions Widget but isn't a symbol — search must
+  # still surface it (no textual loss). repoctx symbols would drop it.
+  printf '// a stray Widget mention in a comment\n' >> "$REPO/src/widget.rs"
+  repoctx_json "$REPO" search Widget | grep -q 'stray Widget mention'
+}

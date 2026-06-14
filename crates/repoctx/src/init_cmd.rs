@@ -166,28 +166,39 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         }
     }
 
-    // Agent guidance files (project scope only — no project to write into
-    // for a global install).
-    if !opts.global {
-        let repo_name = repo_root
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or_default()
-            .to_string();
-        Installer::new(repo_root.to_path_buf())
-            .force(opts.force)
-            .var("REPOCTX_BIN", "repoctx")
-            .var("REPO_NAME", repo_name)
-            .var("REPO_ROOT", repo_root.display().to_string())
-            .install("claude")
-            .context("install claude guidance files")?;
-    }
+    // Agent guidance files. Project scope installs the skill + repo-root
+    // AGENTS.md fragment into the repo; global scope installs only the skill
+    // into ~/.claude/skills/ (no project to hold an AGENTS.md).
+    let guidance_dir = if opts.global {
+        home_dir().context("cannot resolve home directory")?
+    } else {
+        repo_root.to_path_buf()
+    };
+    let repo_name = repo_root
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
+    Installer::new(guidance_dir.clone())
+        .force(opts.force)
+        .global(opts.global)
+        .var("REPOCTX_BIN", "repoctx")
+        .var("REPO_NAME", repo_name)
+        .var("REPO_ROOT", repo_root.display().to_string())
+        .install("claude")
+        .context("install claude guidance files")?;
 
     eprintln!("repoctx init: done.");
     eprintln!("  hook script : {}", script_path.display());
     eprintln!(
         "  settings    : {} → {entry_command}",
         settings_path.display()
+    );
+    eprintln!(
+        "  skill       : {}",
+        guidance_dir
+            .join(".claude/skills/repoctx/SKILL.md")
+            .display()
     );
     eprintln!("  rtk chaining: {}", if rtk_chain { "on" } else { "off" });
     if displacing_global_rtk && rtk_chain {
@@ -299,6 +310,9 @@ pub fn run_uninstall(
         eprintln!("  left alone: .repoctx/index.db + config, CLAUDE.md, .claude/skills/repoctx/.");
         eprintln!("  to remove guidance: delete the repoctx block in CLAUDE.md + rm .claude/skills/repoctx/SKILL.md");
         eprintln!("  to wipe the index + config: rm -rf .repoctx");
+    } else {
+        eprintln!("  left alone: ~/.claude/skills/repoctx/ (the global skill).");
+        eprintln!("  to remove guidance: rm -rf ~/.claude/skills/repoctx");
     }
     Ok(())
 }

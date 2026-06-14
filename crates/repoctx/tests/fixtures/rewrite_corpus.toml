@@ -29,75 +29,75 @@
 cmd = 'rg foo'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols foo --json'
+to = 'repoctx search foo --json'
 
 [[case]]
 cmd = 'rg parseConfig'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols parseConfig --json'
+to = 'repoctx search parseConfig --json'
 
 [[case]]
 cmd = 'rg Editor'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols Editor --json'
+to = 'repoctx search Editor --json'
 
 [[case]]
 cmd = 'rg _private'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols _private --json'
+to = 'repoctx search _private --json'
 
 [[case]]
 cmd = 'rg snake_case_name'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols snake_case_name --json'
+to = 'repoctx search snake_case_name --json'
 
 [[case]]
 cmd = 'rg CamelCase'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols CamelCase --json'
+to = 'repoctx search CamelCase --json'
 
 [[case]]
 cmd = 'rg x123'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols x123 --json'
+to = 'repoctx search x123 --json'
 
 [[case]]
 cmd = 'rg fn'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols fn --json'
+to = 'repoctx search fn --json'
 
 [[case]]
 cmd = 'rg HTTPServer'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols HTTPServer --json'
+to = 'repoctx search HTTPServer --json'
 
 # whitespace normalization still rewrites
 [[case]]
 cmd = 'rg     foo'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols foo --json'
+to = 'repoctx search foo --json'
 
 [[case]]
 cmd = '  rg trimmed  '
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols trimmed --json'
+to = 'repoctx search trimmed --json'
 
 # long identifier
 [[case]]
 cmd = 'rg averyveryverylongidentifiername_that_keeps_going_and_going_yes'
 expect = 'rewrite'
 rule = 'rg <ident>'
-to = 'repoctx symbols averyveryverylongidentifiername_that_keeps_going_and_going_yes --json'
+to = 'repoctx search averyveryverylongidentifiername_that_keeps_going_and_going_yes --json'
 
 # ─────────────────────────────────────────────────────────────────────
 # MUST REWRITE — rule: rg "fn <ident>" / class / struct / function
@@ -151,37 +151,37 @@ to = 'repoctx definition handler --json'
 cmd = 'grep -r Editor .'
 expect = 'rewrite'
 rule = 'grep -r <ident> .'
-to = 'repoctx symbols Editor --json'
+to = 'repoctx search Editor --json'
 
 [[case]]
 cmd = 'grep -R Editor .'
 expect = 'rewrite'
 rule = 'grep -r <ident> .'
-to = 'repoctx symbols Editor --json'
+to = 'repoctx search Editor --json'
 
 [[case]]
 cmd = 'grep -r foo .'
 expect = 'rewrite'
 rule = 'grep -r <ident> .'
-to = 'repoctx symbols foo --json'
+to = 'repoctx search foo --json'
 
 [[case]]
 cmd = 'grep -r my_func .'
 expect = 'rewrite'
 rule = 'grep -r <ident> .'
-to = 'repoctx symbols my_func --json'
+to = 'repoctx search my_func --json'
 
 [[case]]
 cmd = 'grep -R Widget .'
 expect = 'rewrite'
 rule = 'grep -r <ident> .'
-to = 'repoctx symbols Widget --json'
+to = 'repoctx search Widget --json'
 
 [[case]]
 cmd = 'grep -r HttpClient .'
 expect = 'rewrite'
 rule = 'grep -r <ident> .'
-to = 'repoctx symbols HttpClient --json'
+to = 'repoctx search HttpClient --json'
 
 # ─────────────────────────────────────────────────────────────────────
 # MUST REWRITE — rule: grep -rn "fn <ident>" (and friends)
@@ -377,67 +377,111 @@ expect = 'passthrough'
 why = 'backslash metachar / escaped quote'
 
 # ─────────────────────────────────────────────────────────────────────
-# MUST PASSTHROUGH — rg flags change semantics
+# MUST REWRITE — rule: rg [flags] <ident> (navigation flags → search/context)
+#
+# Navigation flags change rg's OUTPUT, not the intent (locate <ident>).
+# repoctx already returns file:line, is case-insensitive, and maps --type.
 # ─────────────────────────────────────────────────────────────────────
 [[case]]
 cmd = 'rg -n foo'
-expect = 'passthrough'
-why = 'line numbers requested'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx search foo --json'
 
 [[case]]
 cmd = 'rg -l foo'
-expect = 'passthrough'
-why = 'files-with-matches'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx search foo --json'
 
+[[case]]
+cmd = 'rg -i foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx search foo --json'
+
+[[case]]
+cmd = 'rg -w foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx search foo --json'
+
+[[case]]
+cmd = 'rg -in foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx search foo --json'
+
+[[case]]
+cmd = 'rg --files-with-matches foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx search foo --json'
+
+[[case]]
+cmd = 'rg -F foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx search foo --json'
+
+[[case]]
+cmd = 'rg --type rust foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx search foo --json --lang rust'
+
+[[case]]
+cmd = 'rg -t py foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx search foo --json --lang python'
+
+[[case]]
+cmd = 'rg -A 3 foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx context foo --context 3 --json'
+
+[[case]]
+cmd = 'rg -B 2 foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx context foo --context 2 --json'
+
+[[case]]
+cmd = 'rg -C 2 foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx context foo --context 2 --json'
+
+[[case]]
+cmd = 'rg -C5 foo'
+expect = 'rewrite'
+rule = 'rg [flags] <ident> (navigation flags → search/context)'
+to = 'repoctx context foo --context 5 --json'
+
+# ─────────────────────────────────────────────────────────────────────
+# MUST PASSTHROUGH — rg flags repoctx can't honor (textual/output intent)
+# ─────────────────────────────────────────────────────────────────────
 [[case]]
 cmd = 'rg -c foo'
 expect = 'passthrough'
-why = 'count mode'
+why = 'count mode — textual intent, not symbol lookup'
 
 [[case]]
 cmd = 'rg -v foo'
 expect = 'passthrough'
-why = 'invert match'
-
-[[case]]
-cmd = 'rg -i foo'
-expect = 'passthrough'
-why = 'case-insensitive flag'
-
-[[case]]
-cmd = 'rg -w foo'
-expect = 'passthrough'
-why = 'word-boundary flag'
+why = 'invert match — not a symbol lookup'
 
 [[case]]
 cmd = 'rg --json foo'
 expect = 'passthrough'
-why = 'rg json output'
+why = 'rg json output flag not in the nav allowlist'
 
 [[case]]
-cmd = 'rg -A 3 foo'
+cmd = 'rg -o foo'
 expect = 'passthrough'
-why = 'trailing context lines'
-
-[[case]]
-cmd = 'rg -B 2 foo'
-expect = 'passthrough'
-why = 'leading context lines'
-
-[[case]]
-cmd = 'rg -C 2 foo'
-expect = 'passthrough'
-why = 'surrounding context lines'
-
-[[case]]
-cmd = 'rg --files-with-matches foo'
-expect = 'passthrough'
-why = 'long flag'
-
-[[case]]
-cmd = 'rg -F foo'
-expect = 'passthrough'
-why = 'fixed-strings flag'
+why = 'only-matching — textual extraction intent'
 
 # ─────────────────────────────────────────────────────────────────────
 # MUST PASSTHROUGH — multiple patterns / extra args

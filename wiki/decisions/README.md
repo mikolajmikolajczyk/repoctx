@@ -55,3 +55,5 @@ What would make us re-open this decision.
 - [2026-06-13 — Grammar loading strategy: static linking](2026-06-13-grammar-loading-strategy.md)
 - [2026-06-13 — Agent benchmark design (taxonomy, repos, thresholds)](2026-06-13-agent-bench.md)
 - [2026-06-14 — Forge split: GitHub for code review, Radicle for issues](2026-06-14-github-primary-forge.md)
+- [2026-06-14 — Flag-aware hook rewrite (navigation flags → repoctx)](2026-06-14-flag-aware-rewrite.md)
+- [2026-06-14 — Textually-complete search (`repoctx search`)](2026-06-14-textually-complete-search.md)

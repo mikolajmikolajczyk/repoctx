@@ -66,13 +66,62 @@ struct Rule {
 /// Result of a successful match: what the agent wanted + what
 /// `repoctx` command answers it.
 struct RewriteIntent {
-    kind: &'static str, // "symbols" | "definition"
+    kind: &'static str, // "search" | "definition" | "context"
     ident: String,
+    /// `--lang <slug>` for `search` (from rg `--type`). None = all langs.
+    lang: Option<String>,
+    /// Context window for `context` (from rg `-A/-B/-C`). Only set when
+    /// `kind == "context"`.
+    context: Option<u32>,
 }
 
 impl RewriteIntent {
+    /// Ambiguous-intent searches route to `repoctx search` (textually
+    /// complete: symbol defs + every ripgrep match), NOT `repoctx symbols`
+    /// (which silently drops comment/string/non-symbol matches). See epic
+    /// f4cb992.
+    fn search(ident: impl Into<String>) -> Self {
+        Self {
+            kind: "search",
+            ident: ident.into(),
+            lang: None,
+            context: None,
+        }
+    }
+
+    fn definition(ident: impl Into<String>) -> Self {
+        Self {
+            kind: "definition",
+            ident: ident.into(),
+            lang: None,
+            context: None,
+        }
+    }
+
+    fn context(ident: impl Into<String>, lines: u32) -> Self {
+        Self {
+            kind: "context",
+            ident: ident.into(),
+            lang: None,
+            context: Some(lines),
+        }
+    }
+
+    fn with_lang(mut self, lang: Option<String>) -> Self {
+        self.lang = lang;
+        self
+    }
+
     fn to_command(&self) -> String {
-        format!("repoctx {} {} --json", self.kind, self.ident)
+        if self.kind == "context" {
+            let n = self.context.unwrap_or(5);
+            return format!("repoctx context {} --context {n} --json", self.ident);
+        }
+        let mut s = format!("repoctx {} {} --json", self.kind, self.ident);
+        if let Some(lang) = &self.lang {
+            s.push_str(&format!(" --lang {lang}"));
+        }
+        s
     }
 }
 
@@ -161,6 +210,11 @@ const RULES: &[Rule] = &[
         skip_when_quoted: false,
     },
     Rule {
+        name: "rg [flags] <ident> (navigation flags → search/context)",
+        matcher: rg_flagged_ident,
+        skip_when_quoted: true,
+    },
+    Rule {
         name: "grep -r <ident> .",
         matcher: grep_r_single_ident,
         skip_when_quoted: true,
@@ -184,10 +238,7 @@ fn rg_single_ident(argv: &[&str]) -> Option<RewriteIntent> {
     if !is_safe_identifier(ident) {
         return None;
     }
-    Some(RewriteIntent {
-        kind: "symbols",
-        ident: ident.to_string(),
-    })
+    Some(RewriteIntent::search(ident))
 }
 
 fn rg_quoted_definition(argv: &[&str]) -> Option<RewriteIntent> {
@@ -221,10 +272,7 @@ fn grep_r_single_ident(argv: &[&str]) -> Option<RewriteIntent> {
     if !is_safe_identifier(ident) {
         return None;
     }
-    Some(RewriteIntent {
-        kind: "symbols",
-        ident: ident.to_string(),
-    })
+    Some(RewriteIntent::search(ident))
 }
 
 fn grep_rn_quoted_definition(argv: &[&str]) -> Option<RewriteIntent> {
@@ -258,10 +306,120 @@ fn parse_definition_pattern(pat: &str) -> Option<RewriteIntent> {
     if !is_safe_identifier(ident) {
         return None;
     }
-    Some(RewriteIntent {
-        kind: "definition",
-        ident: ident.to_string(),
-    })
+    Some(RewriteIntent::definition(ident))
+}
+
+/// `rg [navigation-flags] <ident>` — a flagged search whose flags change
+/// rg's *output* but not the *intent* (locate `<ident>`). Rewrites to
+/// `repoctx search`/`context` so the agent's habitual flagged `rg` still
+/// gets repoctx instead of bypassing to ripgrep. Only a curated allowlist of
+/// flags is accepted; anything else (regex, paths, `-v`/`-o`/`-c`, multiple
+/// positionals) returns None → the command bypasses to real ripgrep.
+fn rg_flagged_ident(argv: &[&str]) -> Option<RewriteIntent> {
+    if argv.first() != Some(&"rg") {
+        return None;
+    }
+    let mut lang: Option<String> = None;
+    let mut context: Option<u32> = None;
+    let mut idents: Vec<&str> = Vec::new();
+    let mut saw_flag = false;
+
+    let mut i = 1;
+    while i < argv.len() {
+        let a = argv[i];
+        // --type <t> / -t <t> / --type=<t>  → --lang
+        if a == "--type" || a == "-t" {
+            saw_flag = true;
+            i += 1;
+            lang = Some(map_rg_type(argv.get(i)?)?);
+        } else if let Some(t) = a.strip_prefix("--type=") {
+            saw_flag = true;
+            lang = Some(map_rg_type(t)?);
+        }
+        // context: -A/-B/-C <n> / --context <n> / -C<n> / --context=<n>
+        else if a == "-A" || a == "-B" || a == "-C" || a == "--context" {
+            saw_flag = true;
+            i += 1;
+            let n: u32 = argv.get(i)?.parse().ok()?;
+            context = Some(context.map_or(n, |c| c.max(n)));
+        } else if let Some(n) = a
+            .strip_prefix("--context=")
+            .or_else(|| a.strip_prefix("-A"))
+            .or_else(|| a.strip_prefix("-B"))
+            .or_else(|| a.strip_prefix("-C"))
+            .filter(|s| !s.is_empty())
+        {
+            saw_flag = true;
+            let n: u32 = n.parse().ok()?;
+            context = Some(context.map_or(n, |c| c.max(n)));
+        }
+        // long boolean nav flags
+        else if a.starts_with("--") {
+            match a {
+                "--files-with-matches"
+                | "--ignore-case"
+                | "--word-regexp"
+                | "--line-number"
+                | "--smart-case"
+                | "--case-sensitive"
+                | "--fixed-strings" => saw_flag = true,
+                _ => return None,
+            }
+        }
+        // short boolean nav flags, possibly bundled (-in, -il, …)
+        else if let Some(rest) = a.strip_prefix('-').filter(|_| a.len() >= 2) {
+            if !rest
+                .chars()
+                .all(|c| matches!(c, 'i' | 'n' | 'l' | 'w' | 's' | 'S' | 'F'))
+            {
+                return None;
+            }
+            saw_flag = true;
+        } else {
+            idents.push(a);
+        }
+        i += 1;
+    }
+
+    // Exactly one bare-identifier positional, and at least one flag (the
+    // no-flag case is `rg_single_ident`'s job).
+    if !saw_flag || idents.len() != 1 || !is_safe_identifier(idents[0]) {
+        return None;
+    }
+    let ident = idents[0];
+    match context {
+        Some(n) => Some(RewriteIntent::context(ident, n)),
+        None => Some(RewriteIntent::search(ident).with_lang(lang)),
+    }
+}
+
+/// Map a ripgrep `--type` name to a repoctx language slug. Unknown types
+/// return None so the command bypasses rather than rewriting with a wrong
+/// `--lang`.
+fn map_rg_type(t: &str) -> Option<String> {
+    let slug = match t {
+        "rust" => "rust",
+        "go" => "go",
+        "py" | "python" => "python",
+        "js" | "javascript" => "javascript",
+        "ts" | "typescript" => "typescript",
+        "c" => "c",
+        "cpp" | "cxx" | "cc" => "cpp",
+        "java" => "java",
+        "ruby" | "rb" => "ruby",
+        "csharp" | "cs" => "csharp",
+        "php" => "php",
+        "lua" => "lua",
+        "kotlin" | "kt" => "kotlin",
+        "swift" => "swift",
+        "json" => "json",
+        "yaml" | "yml" => "yaml",
+        "toml" => "toml",
+        "md" | "markdown" => "markdown",
+        "sh" | "bash" => "bash",
+        _ => return None,
+    };
+    Some(slug.to_string())
 }
 
 /// Cheap shell tokenizer: splits on whitespace, respects double
@@ -552,14 +710,51 @@ mod tests {
     #[test]
     fn rg_single_ident_matches() {
         let (cmd, _) = try_semantic_rewrite("rg parseConfig").unwrap();
-        assert_eq!(cmd, "repoctx symbols parseConfig --json");
+        assert_eq!(cmd, "repoctx search parseConfig --json");
     }
 
     #[test]
-    fn rg_with_flags_passthrough() {
-        assert!(try_semantic_rewrite("rg -n foo").is_none());
-        assert!(try_semantic_rewrite("rg -l foo").is_none());
+    fn rg_navigation_flags_rewrite_to_symbols() {
+        // Output-shaping flags don't change the "locate <ident>" intent.
+        for cmd in [
+            "rg -n foo",
+            "rg -l foo",
+            "rg -i foo",
+            "rg -w foo",
+            "rg -in foo",
+        ] {
+            let (got, _) = try_semantic_rewrite(cmd).unwrap_or_else(|| panic!("{cmd}"));
+            assert_eq!(got, "repoctx search foo --json", "{cmd}");
+        }
+    }
+
+    #[test]
+    fn rg_type_flag_maps_to_lang() {
+        let (got, _) = try_semantic_rewrite("rg --type rust foo").unwrap();
+        assert_eq!(got, "repoctx search foo --json --lang rust");
+        let (got, _) = try_semantic_rewrite("rg -t py foo").unwrap();
+        assert_eq!(got, "repoctx search foo --json --lang python");
+    }
+
+    #[test]
+    fn rg_context_flags_map_to_context_command() {
+        let (got, _) = try_semantic_rewrite("rg -C 3 foo").unwrap();
+        assert_eq!(got, "repoctx context foo --context 3 --json");
+        let (got, _) = try_semantic_rewrite("rg -C5 foo").unwrap();
+        assert_eq!(got, "repoctx context foo --context 5 --json");
+    }
+
+    #[test]
+    fn rg_non_navigation_flags_passthrough() {
+        // Textual / output intents repoctx can't honor stay passthrough.
         assert!(try_semantic_rewrite("rg --json foo").is_none());
+        assert!(try_semantic_rewrite("rg -c foo").is_none());
+        assert!(try_semantic_rewrite("rg -v foo").is_none());
+        assert!(try_semantic_rewrite("rg -o foo").is_none());
+        // Unknown --type bails rather than guessing a wrong --lang.
+        assert!(try_semantic_rewrite("rg --type cobol foo").is_none());
+        // A real path/regex arg is not a bare identifier.
+        assert!(try_semantic_rewrite("rg -n foo src/").is_none());
     }
 
     #[test]
@@ -594,9 +789,9 @@ mod tests {
     #[test]
     fn grep_r_single_ident_matches() {
         let (cmd, _) = try_semantic_rewrite("grep -r Editor .").unwrap();
-        assert_eq!(cmd, "repoctx symbols Editor --json");
+        assert_eq!(cmd, "repoctx search Editor --json");
         let (cmd, _) = try_semantic_rewrite("grep -R Editor .").unwrap();
-        assert_eq!(cmd, "repoctx symbols Editor --json");
+        assert_eq!(cmd, "repoctx search Editor --json");
     }
 
     #[test]

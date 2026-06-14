@@ -267,3 +267,34 @@ fn unknown_agent_rejected() {
         .clone();
     assert!(String::from_utf8_lossy(&out).contains("unsupported agent 'aider'"));
 }
+
+#[test]
+fn project_install_writes_skill_and_claude_md() {
+    let repo = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    run(repo.path(), home.path(), &["--yes", "--rtk", "off"]).success();
+    let skill = repo.path().join(".claude/skills/repoctx/SKILL.md");
+    assert!(skill.exists(), "project skill written");
+    assert!(std::fs::read_to_string(&skill)
+        .unwrap()
+        .contains("callgraph"));
+    // Project scope also writes the repo-root CLAUDE.md guidance block.
+    assert!(repo.path().join("CLAUDE.md").exists());
+}
+
+#[test]
+fn global_install_writes_skill_into_home_not_agents_md() {
+    let repo = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    run(repo.path(), home.path(), &["--yes", "--rtk", "off", "-g"]).success();
+    // Skill lands under ~/.claude/skills with the call-graph content.
+    let skill = home.path().join(".claude/skills/repoctx/SKILL.md");
+    assert!(skill.exists(), "global skill written to ~/.claude/skills");
+    assert!(std::fs::read_to_string(&skill)
+        .unwrap()
+        .contains("callgraph"));
+    // No stray repo-root guidance dumped into HOME.
+    assert!(!home.path().join("AGENTS.md").exists(), "no ~/AGENTS.md");
+    // And it must NOT touch the repo for a global install.
+    assert!(!repo.path().join(".claude/skills/repoctx/SKILL.md").exists());
+}

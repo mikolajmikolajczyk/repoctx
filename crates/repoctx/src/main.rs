@@ -28,6 +28,7 @@ mod output_calls;
 mod output_symbols;
 mod read_cmd;
 mod repo_root;
+mod search_cmd;
 mod status_cmd;
 mod symbols_cmd;
 mod walk;
@@ -109,6 +110,14 @@ enum Cmd {
         query: String,
         #[arg(long)]
         kind: Option<String>,
+        #[arg(long)]
+        lang: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
+    /// Textually-complete search: symbol defs + every ripgrep match (compressed).
+    Search {
+        pattern: String,
         #[arg(long)]
         lang: Option<String>,
         #[arg(long, default_value_t = 50)]
@@ -355,6 +364,11 @@ fn run() -> Result<()> {
             lang,
             limit,
         } => symbols_cmd::run(&repo_root, query, kind, lang, limit, render, gain_opts),
+        Cmd::Search {
+            pattern,
+            lang,
+            limit,
+        } => search_cmd::run(&repo_root, pattern, lang, limit, render, gain_opts),
         Cmd::Callers { name, limit } => callgraph_cmd::run(
             &repo_root,
             name,

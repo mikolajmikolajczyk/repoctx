@@ -1,6 +1,6 @@
 ---
 name: repoctx
-description: Use repoctx for fast, indexed code navigation in this repo. Beats grep/find/cat on structural questions about symbols, definitions, and surrounding source.
+description: Use repoctx for fast, indexed code navigation in this repo. Beats grep/find/cat on structural questions about symbols, definitions, the call graph (who-calls / callees / callgraph), and surrounding source.
 ---
 
 # repoctx
@@ -17,6 +17,8 @@ Use this skill when the user's question is **structural**:
 - "Where is X defined?"
 - "What's the body of function Y?"
 - "What public symbols does this file expose?"
+- "Who calls function Z?" / "What does Z call?"
+- "Trace the call chain from Z."
 - "Are there any TODO-tagged sections?"
 - "Show me every type that mentions Foo."
 
@@ -41,6 +43,19 @@ with `--kind` (`function`, `method`, `class`, `interface`, `type`,
 
 Use this for **exploration** when you don't know the exact identifier.
 
+### `{REPOCTX_BIN} search <pattern>`
+
+Textually-complete search: the symbol definitions named `<pattern>` **plus**
+every textual occurrence ripgrep finds — comments, strings, config values,
+anything `symbols` would miss — compressed to `file:line` (≤40 files, ≤8
+matches/file). `--lang <slug>` restricts by language. This is what `rg
+<ident>` rewrites to, so you usually get it automatically.
+
+Use `search` when a mention in a comment/string/config might matter; use
+`symbols`/`definition` when you only want the structural answer. Output:
+`{pattern, symbols:[…], matches:{count, files:[{path, lines:[{line,text}]}]}}`.
+An `advisory` fires on truncation or if ripgrep isn't installed.
+
 ### `{REPOCTX_BIN} definition <name>`
 
 Exact-name (case-sensitive) lookup. Auto-filters to definition kinds —
@@ -61,6 +76,38 @@ flags hits whose indexed `(mtime_ns, size)` no longer matches disk.
 
 Prefer this over `definition` + a follow-up file Read — one round trip
 instead of two.
+
+### `{REPOCTX_BIN} callers <name>` / `callees <name>`
+
+Direct call-graph edges. `callers` = who calls `name`; `callees` = what
+`name` calls. `--limit` caps results (default 50). Each edge gives the
+caller symbol, the callee (resolved symbol, or `null` when
+external/unresolved), the call site, and an `ambiguous` flag.
+
+Use these instead of `rg "name("` — you get structured caller/callee
+symbols with locations, not raw text matches.
+
+### `{REPOCTX_BIN} callgraph <name> [--depth N] [--direction up|down|both]`
+
+Transitive call graph from `name`. `--depth` (default 3) bounds the walk;
+`--direction down` follows callees, `up` follows callers, `both` does
+both. Each edge is tagged with `depth` and `direction`. Cycle-safe.
+
+**Accuracy — read before trusting it.** The call graph is name-based and
+approximate, the same accuracy class as `definition`:
+
+- No receiver-type disambiguation — `a.foo()` and `b.foo()` both resolve
+  to every `foo` (such edges are flagged `ambiguous: true`).
+- External / stdlib / dynamically-dispatched callees show `callee: null`
+  (name shown, location unknown).
+- Function pointers, higher-order calls, and cross-language edges are
+  invisible.
+- Languages: the core 8 — Rust, Python, JavaScript, TypeScript, Go, C,
+  C++, Java. Other languages return no edges yet.
+
+When edges are ambiguous or unresolved the command emits an `advisory`;
+treat the graph as a strong hint and cross-check with `rg` when it
+matters.
 
 ### `{REPOCTX_BIN} outline <file>`
 
@@ -107,14 +154,26 @@ If `repoctx hook install claude` ran on this repo, some of your
 equivalents before Claude Code executes them. You don't need to do
 anything — the rewrite is automatic for these patterns:
 
-- `rg <identifier>` → `repoctx symbols <identifier> --json`
+- `rg <identifier>` → `repoctx search <identifier> --json`
+  (textually complete: symbol defs **+** every ripgrep match — no loss)
 - `rg "fn <name>"` / `class` / `struct` / `function` →
   `repoctx definition <name> --json`
+- **Navigation flags on a bare identifier are understood** (they change
+  rg's output, not the intent):
+  - `rg -n` / `-l` / `-i` / `-w` / `-F <ident>` → `repoctx search`
+  - `rg --type <lang> <ident>` → `repoctx search <ident> --lang <lang>`
+  - `rg -A/-B/-C <n> <ident>` → `repoctx context <ident> --context <n>`
 - Same shapes for `grep -r` / `grep -rn`
 
+There is **no** transparent rewrite for the call graph — `rg "name("`
+stays a literal search (the `(` is a regex metacharacter). Call
+`callers` / `callees` / `callgraph` explicitly when you want call edges.
+
 Hard passthrough (your command runs as-is): regex patterns, shell
-metacharacters, multiple identifiers, paths other than `.`, and
-single-quoted literals (`rg "TODO"` stays a literal grep). Any
+metacharacters, multiple identifiers, explicit paths, single-quoted
+literals (`rg "TODO"` stays a literal grep), and non-navigation flags
+that change the result set rather than its formatting (`-c` count, `-v`
+invert, `-o` only-matching, `--json`, unknown `--type`). Any
 other PreToolUse hook the user had installed (rtk, etc.) runs as
 a chain after our rewrite layer — so all your other commands still
 get whatever optimizations were there before.
@@ -170,6 +229,13 @@ will tell you so.
 
 # Where is `parse_config` defined?
 {REPOCTX_BIN} definition parse_config
+
+# Who calls `parse_config`, and what does it call?
+{REPOCTX_BIN} callers parse_config
+{REPOCTX_BIN} callees parse_config
+
+# Trace two hops of what `handle_request` calls
+{REPOCTX_BIN} callgraph handle_request --depth 2 --direction down
 
 # Show me the resolve_path function with 10 lines of context
 {REPOCTX_BIN} context resolve_path --context 10 --limit 1

@@ -108,7 +108,7 @@ fn rendered_script_rewrites_rg() {
     );
     assert_eq!(code, 0, "rewrite exits 0");
     assert!(
-        stdout.contains("repoctx symbols parseConfig --json"),
+        stdout.contains("repoctx search parseConfig --json"),
         "stdout={stdout}"
     );
 }
@@ -243,5 +243,5 @@ fn rendered_script_is_executable() {
         })
         .unwrap();
     assert_eq!(out.status.code().unwrap_or(-1), 0);
-    assert!(String::from_utf8_lossy(&out.stdout).contains("repoctx symbols parseConfig"));
+    assert!(String::from_utf8_lossy(&out.stdout).contains("repoctx search parseConfig"));
 }

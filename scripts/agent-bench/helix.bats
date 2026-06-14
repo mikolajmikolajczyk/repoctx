@@ -41,6 +41,14 @@ def_saves() { # <name>
   assert_savings_above "$rc" "$rg" 80
 }
 
+@test "search: Selection" {
+  # Textually-complete search (epic f4cb992): defs + every match, compressed.
+  # Returns more than `symbols`, so a lower bar — still well below rg-worst.
+  rc="$(repoctx_tokens "$BENCH_REPO" search Selection --limit 30)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" Selection)"
+  assert_savings_above "$rc" "$rg" 40
+}
+
 @test "callers: render" {
   # Who calls render — rg-worst opens every file mentioning "render";
   # `callers` returns just the edges. Thresholds provisional (ADR-0010
