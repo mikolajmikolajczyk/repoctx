@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.2] — 2026-06-15
+
 ### Added
 
 - **`repoctx discover --samples` — opt-in local command capture** (issue #7 follow-up). With `hook.telemetry_samples = true` (default **off**, local-only), the hook also stores the command **body** per idiom (capped at 20/idiom, truncated to 500 chars) so you can see what's hiding in `other`/`regex` and design rewrite rules from real commands. `repoctx discover --samples [--idiom <bucket>]` lists them. Schema v7 `hook_samples` table. Unlike the aggregate `hook_events`, these rows do hold command text — hence opt-in and local.
