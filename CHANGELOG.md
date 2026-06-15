@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-06-15
+
 ### Added
 
 - **`repoctx search` — textually-complete search** (epic `f4cb992`). Returns the symbol definitions named the pattern **plus** every textual occurrence ripgrep finds (comments, strings, anything `symbols` would miss), compressed to `file:line` (caps: 40 files, 8 matches/file, 200-char lines; truncation flagged). repoctx runs real ripgrep under the hood and owns the compression. The hook now rewrites ambiguous searches (`rg foo`, `rg -n/-l/-i/-w/-F`, `rg --type L`, `grep -r foo .`) to `repoctx search` instead of the lossy `repoctx symbols` — no more silently-dropped textual matches. Structural intents still map to `definition`/`context`; `repoctx symbols` remains an explicit command. Falls back to symbol-only + advisory if ripgrep isn't installed.
@@ -314,7 +316,8 @@ First tagged release. M0 functional surface complete on Linux, macOS, and Window
 - Release binary size: ~14 MB on x86_64-linux (9 statically-linked Tree-sitter grammars, accepted cost per ADR-0002).
 - TypeScript upstream `tags.scm` covers interface / abstract class / method signatures only; plain `class`/`function` are not tagged. Documented in [`wiki/user/commands.md`](wiki/user/commands.md).
 
-[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.7.0
 [0.6.1]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.6.1
