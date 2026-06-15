@@ -8,7 +8,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::error::{Result, StoreError};
 
 /// Highest schema version this binary supports.
-pub const SUPPORTED_VERSION: u32 = 6;
+pub const SUPPORTED_VERSION: u32 = 7;
 
 /// Migration scripts indexed by target version. Position N is the SQL to
 /// move the DB from version N-1 to version N.
@@ -140,6 +140,24 @@ const MIGRATIONS: &[&str] = &[
     );
 
     CREATE INDEX hook_events_idiom_idx ON hook_events(idiom);
+    "#,
+    // -> v7 (opt-in hook telemetry command samples; issue #7 follow-up)
+    //
+    // UNLIKE hook_events, rows here DO hold the command body — so designers
+    // can see what's hiding in `other`/`regex` and write rewrite rules from
+    // real commands. OFF by default (`hook.telemetry_samples`); local-only;
+    // capped per idiom so it can't grow unbounded.
+    r#"
+    CREATE TABLE hook_samples (
+        id         INTEGER PRIMARY KEY,
+        ts_unix_ns INTEGER NOT NULL,
+        tool       TEXT NOT NULL,
+        idiom      TEXT NOT NULL,
+        outcome    TEXT NOT NULL,
+        command    TEXT NOT NULL
+    );
+
+    CREATE INDEX hook_samples_idiom_idx ON hook_samples(idiom);
     "#,
 ];
 

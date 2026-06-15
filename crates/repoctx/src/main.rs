@@ -164,7 +164,15 @@ enum Cmd {
     },
     /// Report hook passthrough telemetry: per grep/rg/find idiom, how often
     /// it was rewritten to repoctx vs left as grep. Shows the adoption gap.
-    Discover,
+    Discover {
+        /// Show captured command samples instead of the aggregate table.
+        /// Requires `hook.telemetry_samples = true`.
+        #[arg(long)]
+        samples: bool,
+        /// Filter samples to one idiom bucket (e.g. `other`, `regex`).
+        #[arg(long)]
+        idiom: Option<String>,
+    },
     /// Print the per-language coverage matrix (how well repoctx
     /// indexes each language). Agents check this before deciding to
     /// fall back to ripgrep.
@@ -424,7 +432,13 @@ fn run() -> Result<()> {
         }
         Cmd::Deps { file } => deps_cmd::run_deps(&repo_root, file, render, gain_opts),
         Cmd::Rdeps { module } => deps_cmd::run_rdeps(&repo_root, module, render, gain_opts),
-        Cmd::Discover => discover_cmd::run(&repo_root, render),
+        Cmd::Discover { samples, idiom } => {
+            if samples {
+                discover_cmd::run_samples(&repo_root, idiom, render)
+            } else {
+                discover_cmd::run(&repo_root, render)
+            }
+        }
         Cmd::Hook { sub } => match sub {
             HookSub::Claude {
                 rtk_chain,

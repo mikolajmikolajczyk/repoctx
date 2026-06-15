@@ -93,6 +93,17 @@ pub struct HookEventStat {
     pub count: u64,
 }
 
+/// One captured hook command sample (opt-in, `hook.telemetry_samples`).
+/// Holds the command body so rewrite rules can be designed from real
+/// commands. Local-only, capped per idiom.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HookSample {
+    pub tool: String,
+    pub idiom: String,
+    pub outcome: String,
+    pub command: String,
+}
+
 /// Native filesystem path -> DB path string (`/`-separated, lossy on non-UTF-8 components).
 pub fn to_db_path(p: &Path) -> String {
     let mut out = String::new();

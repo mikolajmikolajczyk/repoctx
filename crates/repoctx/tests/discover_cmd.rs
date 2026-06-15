@@ -98,6 +98,63 @@ fn telemetry_opt_out_records_nothing() {
 }
 
 #[test]
+fn samples_captured_only_when_enabled() {
+    let tmp = fixture();
+    let root = tmp.path();
+
+    // Default off: no samples even after a command.
+    hook(root, "rg some-thing");
+    let off = Command::cargo_bin("repoctx")
+        .unwrap()
+        .args([
+            "--repo",
+            root.to_str().unwrap(),
+            "--json",
+            "discover",
+            "--samples",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let off: Value = serde_json::from_slice(&off).unwrap();
+    assert_eq!(off["count"].as_u64().unwrap(), 0);
+
+    // Enable, run a command, sample is captured with its body.
+    Command::cargo_bin("repoctx")
+        .unwrap()
+        .args([
+            "--repo",
+            root.to_str().unwrap(),
+            "config",
+            "set",
+            "hook.telemetry_samples",
+            "true",
+        ])
+        .assert()
+        .success();
+    hook(root, "rg widget-panel");
+    let on = Command::cargo_bin("repoctx")
+        .unwrap()
+        .args([
+            "--repo",
+            root.to_str().unwrap(),
+            "--json",
+            "discover",
+            "--samples",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let on: Value = serde_json::from_slice(&on).unwrap();
+    let samples = on["samples"].as_array().unwrap();
+    assert!(samples.iter().any(|s| s["command"] == "rg widget-panel"));
+}
+
+#[test]
 fn discover_empty_repo_has_advisory() {
     let tmp = tempfile::tempdir().unwrap();
     let v = discover(tmp.path());

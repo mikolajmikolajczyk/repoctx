@@ -334,7 +334,7 @@ Output fields:
 
 | Field | Meaning |
 |---|---|
-| `schema_version` | DB schema version (currently `6`). |
+| `schema_version` | DB schema version (currently `7`). |
 | `files` | Total indexed files. |
 | `symbols` | Total symbols across all files. |
 | `db_size_bytes` | On-disk size of `.repoctx/index.db`. |
@@ -480,4 +480,5 @@ What it's for: deciding which grep idioms to teach the hook to rewrite next. A h
 
 - **Recording** happens in the hook on every grep/rg/find command, **aggregate-only** — no command body, no pattern, no paths (same privacy stance as `gain`). Best-effort: never blocks or fails a command; only writes when an index DB already exists.
 - **Opt out** with `hook.telemetry = false` (or `REPOCTX_HOOK_TELEMETRY=0`).
+- **See the actual commands**: aggregate buckets tell you *where* the gap is, not *what* the commands are. Enable `hook.telemetry_samples = true` (default off, local-only) to also capture command bodies, then `repoctx discover --samples [--idiom <bucket>]` lists them (capped 20/idiom). Use it to design rewrite rules from real commands — e.g. inspect what's hiding in `other`.
 - Idiom buckets are heuristic (`bare-ident`, `flagged-nav-ident`, `literal-string`, `regex`, `call-shape`, `import-shape`, `multi-term`, `explicit-path`, `find`, `other`); refined from the data they collect. `literal-string` = single-token literal patterns (kebab-case, `@scope/pkg`) that `repoctx search` can serve.

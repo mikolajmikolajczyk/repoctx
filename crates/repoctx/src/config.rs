@@ -174,6 +174,10 @@ pub struct HookConfig {
     /// Local-only, aggregate (no command bodies); powers `repoctx discover`.
     pub telemetry: bool,
     pub telemetry_source: Source,
+    /// Also capture command BODIES into per-idiom samples (`discover
+    /// --samples`). OFF by default; local-only. Requires `telemetry`.
+    pub telemetry_samples: bool,
+    pub telemetry_samples_source: Source,
 }
 
 #[derive(Debug, Clone)]
@@ -222,6 +226,8 @@ impl Config {
                 chain_commands_source: Source::Default,
                 telemetry: true,
                 telemetry_source: Source::Default,
+                telemetry_samples: false,
+                telemetry_samples_source: Source::Default,
             },
             gain: GainConfig {
                 no_record: false,
@@ -285,6 +291,13 @@ impl Config {
                     Ok(v) => {
                         cfg.hook.telemetry = v;
                         cfg.hook.telemetry_source = Source::Settings;
+                    }
+                    Err(e) => warn_invalid(&key, &value, e),
+                },
+                "hook.telemetry_samples" => match parse_bool(&value) {
+                    Ok(v) => {
+                        cfg.hook.telemetry_samples = v;
+                        cfg.hook.telemetry_samples_source = Source::Settings;
                     }
                     Err(e) => warn_invalid(&key, &value, e),
                 },
@@ -352,6 +365,15 @@ impl Config {
                 Err(e) => warn_invalid("REPOCTX_HOOK_TELEMETRY", &v, e),
             }
         }
+        if let Ok(v) = env::var("REPOCTX_HOOK_TELEMETRY_SAMPLES") {
+            match parse_bool(&v) {
+                Ok(b) => {
+                    cfg.hook.telemetry_samples = b;
+                    cfg.hook.telemetry_samples_source = Source::Env;
+                }
+                Err(e) => warn_invalid("REPOCTX_HOOK_TELEMETRY_SAMPLES", &v, e),
+            }
+        }
         if let Ok(v) = env::var("REPOCTX_GAIN_NO_RECORD") {
             match parse_bool(&v) {
                 Ok(b) => {
@@ -416,9 +438,11 @@ pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
         "hook.use_rtk" => HookUseRtk::parse(value)?.as_str().to_string(),
         "hook.chainable" => split_list(value).join(","),
         "hook.chain_commands" => value.to_string(),
-        "hook.telemetry" | "gain.no_record" | "gain.record_query" | "index.nested_keys" => {
-            fmt_bool(parse_bool(value)?).to_string()
-        }
+        "hook.telemetry"
+        | "hook.telemetry_samples"
+        | "gain.no_record"
+        | "gain.record_query"
+        | "index.nested_keys" => fmt_bool(parse_bool(value)?).to_string(),
         "output.default" => OutputDefault::parse(value)?.as_str().to_string(),
         "hook.script_path" => {
             return Err(anyhow!(
@@ -440,6 +464,7 @@ pub fn known_keys() -> Vec<(&'static str, String)> {
         ("hook.chainable", "rtk".to_string()),
         ("hook.chain_commands", String::new()),
         ("hook.telemetry", fmt_bool(true).to_string()),
+        ("hook.telemetry_samples", fmt_bool(false).to_string()),
         ("gain.no_record", fmt_bool(false).to_string()),
         ("gain.record_query", fmt_bool(false).to_string()),
         ("output.default", OutputDefault::Auto.as_str().to_string()),

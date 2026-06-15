@@ -340,12 +340,21 @@ fn is_nav_flag(flag: &str) -> bool {
     ) || flag.starts_with("--type")
 }
 
+/// Per-idiom cap on captured command samples (opt-in).
+const MAX_SAMPLES_PER_IDIOM: usize = 20;
+/// Truncate captured command bodies so a pathological one-liner can't bloat
+/// the table.
+const MAX_SAMPLE_LEN: usize = 500;
+
 /// Best-effort telemetry write. No-op unless an index DB already exists (so
-/// we never create `.repoctx/` just to log) and `enabled`. Errors swallowed —
-/// telemetry must never affect the command.
+/// we never create `.repoctx/` just to log) and `enabled`. When `samples` is
+/// on, also stores the command body (opt-in, `hook.telemetry_samples`).
+/// Errors swallowed — telemetry must never affect the command.
 fn record_event(
     repo_root: &std::path::Path,
     enabled: bool,
+    samples: bool,
+    command: &str,
     idiom: &Option<(&'static str, &'static str)>,
     outcome: &str,
 ) {
@@ -358,6 +367,10 @@ fn record_event(
     }
     if let Ok(mut store) = repoctx_store::Store::open(repo_root) {
         let _ = store.record_hook_event(tool, id, outcome);
+        if samples {
+            let body: String = command.chars().take(MAX_SAMPLE_LEN).collect();
+            let _ = store.record_hook_sample(tool, id, outcome, &body, MAX_SAMPLES_PER_IDIOM);
+        }
     }
 }
 
@@ -716,7 +729,14 @@ fn run_inner(
     if matches!(cfg.rewrite, HookRewrite::Auto | HookRewrite::Force) {
         if let Some((rewritten, rule_name)) = try_semantic_rewrite(command) {
             debug!(rule = rule_name, %command, %rewritten, "semantic rewrite");
-            record_event(repo_root, cfg.telemetry, &idiom, "rewritten");
+            record_event(
+                repo_root,
+                cfg.telemetry,
+                cfg.telemetry_samples,
+                command,
+                &idiom,
+                "rewritten",
+            );
             let reply = PreToolUseOutput {
                 hook_specific_output: HookSpecificOutput {
                     hook_event_name: "PreToolUse",
@@ -735,7 +755,14 @@ fn run_inner(
     // is_chain_unsafe) bypass every chain so the agent's real tool runs.
     if is_chain_unsafe(command) {
         debug!(%command, "chain-unsafe command — bypassing chain so the real tool runs");
-        record_event(repo_root, cfg.telemetry, &idiom, "passthrough");
+        record_event(
+            repo_root,
+            cfg.telemetry,
+            cfg.telemetry_samples,
+            command,
+            &idiom,
+            "passthrough",
+        );
         return Ok(None);
     }
 
@@ -746,7 +773,14 @@ fn run_inner(
         match exec_chain(chain, stdin_bytes) {
             Ok(Some(stdout)) => {
                 debug!(%chain, "chain handled the rewrite");
-                record_event(repo_root, cfg.telemetry, &idiom, "chained");
+                record_event(
+                    repo_root,
+                    cfg.telemetry,
+                    cfg.telemetry_samples,
+                    command,
+                    &idiom,
+                    "chained",
+                );
                 return Ok(Some(stdout));
             }
             Ok(None) => continue,
@@ -771,7 +805,14 @@ fn run_inner(
             match exec_chain(&format!("{tool} hook claude"), stdin_bytes) {
                 Ok(Some(stdout)) => {
                     debug!(%tool, "chain handled the rewrite");
-                    record_event(repo_root, cfg.telemetry, &idiom, "chained");
+                    record_event(
+                        repo_root,
+                        cfg.telemetry,
+                        cfg.telemetry_samples,
+                        command,
+                        &idiom,
+                        "chained",
+                    );
                     return Ok(Some(stdout));
                 }
                 Ok(None) => {}
@@ -783,7 +824,14 @@ fn run_inner(
         }
     }
 
-    record_event(repo_root, cfg.telemetry, &idiom, "passthrough");
+    record_event(
+        repo_root,
+        cfg.telemetry,
+        cfg.telemetry_samples,
+        command,
+        &idiom,
+        "passthrough",
+    );
     Ok(None)
 }
 

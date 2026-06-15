@@ -118,6 +118,79 @@ pub fn run(repo_root: &Path, render: Render) -> Result<()> {
     emit(&report, render)
 }
 
+/// One captured command sample for output.
+#[derive(Debug, Clone, Serialize)]
+pub struct SampleRow {
+    pub idiom: String,
+    pub tool: String,
+    pub outcome: String,
+    pub command: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SamplesReport {
+    pub count: usize,
+    pub samples: Vec<SampleRow>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub advisory: Option<String>,
+}
+
+impl HumanRender for SamplesReport {
+    fn human(&self) -> String {
+        if self.samples.is_empty() {
+            let mut s = "no command samples captured".to_string();
+            if let Some(a) = &self.advisory {
+                s.push_str("\n\nadvisory: ");
+                s.push_str(a);
+            }
+            return s;
+        }
+        let mut s = format!("captured command samples ({})\n", self.count);
+        for r in &self.samples {
+            s.push_str(&format!("[{:<16}] {}\n", r.idiom, r.command));
+        }
+        s.trim_end().to_string()
+    }
+}
+
+/// `repoctx discover --samples [--idiom X]` — show captured command bodies.
+pub fn run_samples(repo_root: &Path, idiom: Option<String>, render: Render) -> Result<()> {
+    if !repo_root.join(".repoctx/index.db").exists() {
+        let report = SamplesReport {
+            count: 0,
+            samples: Vec::new(),
+            advisory: Some("no index DB here — nothing recorded".to_string()),
+        };
+        return emit(&report, render);
+    }
+    let store = Store::open(repo_root).context("open store")?;
+    let rows = store.hook_samples(idiom.as_deref())?;
+    let advisory = if rows.is_empty() {
+        Some(
+            "no samples — enable capture with `repoctx config set \
+             hook.telemetry_samples true`, then run some grep/rg commands"
+                .to_string(),
+        )
+    } else {
+        None
+    };
+    let samples: Vec<SampleRow> = rows
+        .into_iter()
+        .map(|s| SampleRow {
+            idiom: s.idiom,
+            tool: s.tool,
+            outcome: s.outcome,
+            command: s.command,
+        })
+        .collect();
+    let report = SamplesReport {
+        count: samples.len(),
+        samples,
+        advisory,
+    };
+    emit(&report, render)
+}
+
 /// Point at the biggest leak: the highest-volume idiom that's mostly
 /// passing through rather than being rewritten.
 fn discover_advisory(idioms: &[IdiomRow]) -> Option<String> {

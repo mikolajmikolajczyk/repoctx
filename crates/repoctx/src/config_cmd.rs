@@ -169,6 +169,12 @@ fn rows(cfg: &Config) -> Vec<ConfigRow> {
             &default_for("hook.telemetry"),
         ),
         row(
+            "hook.telemetry_samples",
+            bool_str(cfg.hook.telemetry_samples),
+            cfg.hook.telemetry_samples_source.as_str(),
+            &default_for("hook.telemetry_samples"),
+        ),
+        row(
             "gain.no_record",
             bool_str(cfg.gain.no_record),
             cfg.gain.no_record_source.as_str(),
