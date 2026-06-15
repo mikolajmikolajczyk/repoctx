@@ -308,6 +308,13 @@ fn idiom_for<S: AsRef<str>>(tool: &str, args: &[S]) -> &'static str {
             "bare-ident"
         };
     }
+    // A single-token literal with no regex metachars — kebab-case, scoped
+    // packages (`@scope/pkg`), `a:b`, etc. Common in TS/CSS and rewritable
+    // to `repoctx search` (literal text), so it's a rewrite candidate, not
+    // noise. Multi-word / empty patterns stay `other`.
+    if !pattern.is_empty() && !pattern.chars().any(|c| c.is_whitespace()) {
+        return "literal-string";
+    }
     "other"
 }
 
@@ -887,6 +894,13 @@ mod tests {
         assert_eq!(c("rg foo.*bar"), Some(("rg", "regex")));
         assert_eq!(c(r#"rg "foo\(""#), Some(("rg", "call-shape")));
         assert_eq!(c("rg import"), Some(("rg", "import-shape")));
+        // Literal non-identifier patterns (kebab / scoped pkg) are rewrite
+        // candidates, not `other`.
+        assert_eq!(c("rg storage-idb"), Some(("rg", "literal-string")));
+        assert_eq!(c("rg @scope/pkg"), Some(("rg", "literal-string")));
+        assert_eq!(c("rg -l some-component"), Some(("rg", "literal-string")));
+        // Multi-word / empty stays `other`.
+        assert_eq!(c(r#"rg "todo fix later""#), Some(("rg", "other")));
         assert_eq!(c("find . -name x"), Some(("find", "find")));
         // Not a grep-family command -> no telemetry.
         assert_eq!(c("cargo build"), None);

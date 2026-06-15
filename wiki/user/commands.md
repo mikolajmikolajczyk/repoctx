@@ -480,4 +480,4 @@ What it's for: deciding which grep idioms to teach the hook to rewrite next. A h
 
 - **Recording** happens in the hook on every grep/rg/find command, **aggregate-only** — no command body, no pattern, no paths (same privacy stance as `gain`). Best-effort: never blocks or fails a command; only writes when an index DB already exists.
 - **Opt out** with `hook.telemetry = false` (or `REPOCTX_HOOK_TELEMETRY=0`).
-- Idiom buckets are heuristic (`bare-ident`, `flagged-nav-ident`, `regex`, `call-shape`, `import-shape`, `multi-term`, `explicit-path`, `find`, `other`); refined from the data they collect.
+- Idiom buckets are heuristic (`bare-ident`, `flagged-nav-ident`, `literal-string`, `regex`, `call-shape`, `import-shape`, `multi-term`, `explicit-path`, `find`, `other`); refined from the data they collect. `literal-string` = single-token literal patterns (kebab-case, `@scope/pkg`) that `repoctx search` can serve.
