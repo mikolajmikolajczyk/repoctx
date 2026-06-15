@@ -44,7 +44,12 @@ file + clone are present.
 | `lib/helpers.bash` | `repoctx_tokens`, `rg_worst_tokens`, `rg_best_tokens`, `savings_pct`, `assert_savings_above`, `assert_advisory_present`/`assert_no_advisory` |
 | `smoke.bats` | helper self-test against a tiny in-test fixture (no clone) |
 | `run.sh` | build + clone + run driver |
-| `<repo>.bats` | per-repo suites (helix / rust-analyzer / vuejs-core) — added by issues `255bac3` / `22b09a3` / `866f929` |
+| `report.sh` | emit the per-query number table (feeds `wiki/bench/results.md`) |
+| `<repo>.bats` | per-repo suites: helix / rust-analyzer / vuejs-core / **linux** (C scale + call-graph target) |
+
+All suites cover every command family: `definition` / `context` / `symbols` /
+`outline` / `search` / `callers` / `callees` / `callgraph`. Latest numbers
+(incl. the Linux kernel) live in [`wiki/bench/results.md`](../../wiki/bench/results.md).
 
 ## Writing a suite
 

@@ -41,11 +41,29 @@ def_saves() { # <name>
   assert_savings_above "$rc" "$rg" 80
 }
 
+@test "search: computed" {
+  rc="$(repoctx_tokens "$BENCH_REPO" search computed --limit 30)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" computed)"
+  assert_savings_above "$rc" "$rg" 90
+}
+
 @test "callers: computed" {
-  # Call graph (ADR-0010); thresholds provisional, tune after a clone run.
+  # Call graph (ADR-0010). Measured 99% vs rg-worst (v0.9.0).
   rc="$(repoctx_tokens "$BENCH_REPO" callers computed --limit 50)"
   rg="$(rg_worst_tokens "$BENCH_REPO" computed)"
-  assert_savings_above "$rc" "$rg" 50
+  assert_savings_above "$rc" "$rg" 90
+}
+
+@test "callees: computed" {
+  rc="$(repoctx_tokens "$BENCH_REPO" callees computed --limit 50)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" computed)"
+  assert_savings_above "$rc" "$rg" 90
+}
+
+@test "callgraph: computed down depth 2" {
+  rc="$(repoctx_tokens "$BENCH_REPO" callgraph computed --direction down --depth 2)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" computed)"
+  assert_savings_above "$rc" "$rg" 90
 }
 
 @test "TS definition carries no advisory (full coverage)" {

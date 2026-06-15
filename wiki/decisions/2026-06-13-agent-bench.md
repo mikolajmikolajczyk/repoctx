@@ -38,27 +38,33 @@ hitting **59 files**. Even the best case (read one ~5–20 KB source file =
 Per repo, queries are drawn from four command families, weighted by how
 central each is to the agent navigation loop:
 
-| Family | Weight | What it proves |
-|---|---|---|
-| `definition <name>` | 40% | the flagship "where is X defined" — biggest rg blowup (many candidate files) |
-| `context <name>` | 25% | "show me X with surrounding code" — replaces rg + open-file |
-| `symbols <query>` | 20% | exploratory substring search |
-| `outline <file>` | 15% | "what's in this file" — replaces reading the whole file |
+| Family | What it proves |
+|---|---|
+| `definition <name>` | the flagship "where is X defined" — biggest rg blowup (many candidate files) |
+| `context <name>` | "show me X with surrounding code" — replaces rg + open-file |
+| `symbols <query>` | exploratory substring search |
+| `outline <file>` | "what's in this file" — replaces reading the whole file |
+| `search <pattern>` (v0.8.0) | textually-complete search — defs + every match, compressed (returns more, so lower vs-best) |
+| `callers`/`callees`/`callgraph` (v0.8.0) | who-calls / what-it-calls / transitive — grep can't answer this structurally at all; rg-worst = the open-every-mentioning-file workflow |
 
-Each suite picks ≥ 3 queries per family from real, recognizable symbols
-in that repo (e.g. `Selection`, `Editor`, `Transaction` for helix).
+Each suite picks queries per family from real, recognizable symbols in that
+repo (e.g. `Selection`, `Editor`, `Transaction` for helix; `kmalloc`,
+`schedule`, `task_struct` for the kernel).
 
 ## Target repos (pinned)
 
-| Repo | Lang | SHA | Issue |
+| Repo | Lang | Ref | Issue |
 |---|---|---|---|
 | helix-editor/helix | Rust ~150k LOC | `14eda106f0a3e6a5fc6fb5cbd96bda9774f64ae1` | `255bac3` |
 | rust-lang/rust-analyzer | Rust ~500k LOC | `e79b8223f7e0f000d75e7bf9a8f5b590ff7eb7f8` | `22b09a3` |
 | vuejs/core | TypeScript | `478e3e83acd34dd213a860be4a2a2bf2090dc26b` | `866f929` |
+| torvalds/linux | C ~62k files / 1.08M symbols | `v6.6` (tag) | — |
 
 helix = mid-size Rust baseline; rust-analyzer = large-repo stress; vuejs/core
-exercises the vendored TS/TSX `tags.scm`. Shallow-clone at the SHA so runs
-are reproducible.
+exercises the vendored TS/TSX `tags.scm`; the Linux kernel = C call-graph +
+extreme scale (rg-worst hits tens of millions of tokens, so it's the clearest
+demonstration of the savings). Refs are immutable (SHA or tag); the clone is a
+`--depth 1` fetch of just that tree (the kernel's full history is many GB).
 
 ## Threshold bands (pass/fail)
 
@@ -68,8 +74,10 @@ reports real per-repo aggregates.
 
 | Metric | Threshold |
 |---|---|
-| Per-query savings vs rg-worst — `definition` / `symbols` / `outline` | ≥ 80% |
+| Per-query savings vs rg-worst — `definition` / `symbols` / `outline` | ≥ 80% (kernel ≥ 95%) |
 | Per-query savings vs rg-worst — `context` | ≥ 60% |
+| Per-query savings vs rg-worst — `search` | ≥ 85% |
+| Per-query savings vs rg-worst — `callers` / `callees` / `callgraph` | ≥ 90% |
 | Per-query savings vs rg-best (top file only) | ≥ 50% |
 | Suite aggregate savings vs rg-worst | ≥ 90% |
 | Advisory firing rate on partial-coverage zero-/sparse-hit queries | 100% |
@@ -93,7 +101,8 @@ Excludes the one-time `git clone`. Index build + all queries:
 | helix | ≤ 30 s |
 | vuejs/core | ≤ 30 s |
 | rust-analyzer | ≤ 90 s |
-| whole suite | ≤ 5 min |
+| linux | index ~minutes (62k files); rg-worst dominates wall-clock |
+| whole suite | ≤ 5 min (excl. linux rg-worst, which scans the whole kernel) |
 
 (helix indexed in ~0.2 s here; budgets are generous for CI-less laptops.)
 

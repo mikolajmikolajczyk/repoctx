@@ -42,26 +42,31 @@ def_saves() { # <name>
 }
 
 @test "search: Selection" {
-  # Textually-complete search (epic f4cb992): defs + every match, compressed.
-  # Returns more than `symbols`, so a lower bar — still well below rg-worst.
+  # Textually-complete search: defs + every match, compressed. Returns more
+  # than `symbols` but still ~98% below rg-worst (measured v0.9.0).
   rc="$(repoctx_tokens "$BENCH_REPO" search Selection --limit 30)"
   rg="$(rg_worst_tokens "$BENCH_REPO" Selection)"
-  assert_savings_above "$rc" "$rg" 40
+  assert_savings_above "$rc" "$rg" 85
 }
 
 @test "callers: render" {
-  # Who calls render — rg-worst opens every file mentioning "render";
-  # `callers` returns just the edges. Thresholds provisional (ADR-0010
-  # call graph); tune after a real clone run.
+  # Who calls render — rg-worst opens every file mentioning "render"; `callers`
+  # returns just the edges. Measured 99% vs rg-worst.
   rc="$(repoctx_tokens "$BENCH_REPO" callers render --limit 50)"
   rg="$(rg_worst_tokens "$BENCH_REPO" render)"
-  assert_savings_above "$rc" "$rg" 50
+  assert_savings_above "$rc" "$rg" 90
+}
+
+@test "callees: render" {
+  rc="$(repoctx_tokens "$BENCH_REPO" callees render --limit 50)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" render)"
+  assert_savings_above "$rc" "$rg" 90
 }
 
 @test "callgraph: render up depth 2" {
   rc="$(repoctx_tokens "$BENCH_REPO" callgraph render --direction up --depth 2)"
   rg="$(rg_worst_tokens "$BENCH_REPO" render)"
-  assert_savings_above "$rc" "$rg" 50
+  assert_savings_above "$rc" "$rg" 90
 }
 
 @test "full-coverage definition carries no advisory" {

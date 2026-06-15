@@ -15,11 +15,13 @@ here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
 clones="${BENCH_CLONES:-/tmp/repoctx-bench}"
 
-# Pinned targets (repo  sha  dir) — keep in sync with the design doc.
+# Pinned targets (repo  ref  dir) — ref is an immutable SHA or tag. Keep in
+# sync with the design doc.
 targets=(
   "helix-editor/helix       14eda106f0a3e6a5fc6fb5cbd96bda9774f64ae1 helix"
   "rust-lang/rust-analyzer  e79b8223f7e0f000d75e7bf9a8f5b590ff7eb7f8 rust-analyzer"
   "vuejs/core               478e3e83acd34dd213a860be4a2a2bf2090dc26b vuejs-core"
+  "torvalds/linux           v6.6                                     linux"
 )
 
 echo "==> building release binaries"
@@ -30,15 +32,17 @@ export TOKENS="$root/target/release/tokens"
 if [ "${1:-}" = "--clone" ]; then
   mkdir -p "$clones"
   for t in "${targets[@]}"; do
-    read -r repo sha dir <<<"$t"
+    read -r repo ref dir <<<"$t"
     dest="$clones/$dir"
+    # Shallow fetch of just the pinned ref — full history of e.g. the Linux
+    # kernel would be many GB; we only need one tree.
     if [ ! -d "$dest/.git" ]; then
-      echo "==> cloning $repo"
-      git clone --quiet "https://github.com/$repo" "$dest"
+      git init -q "$dest"
+      git -C "$dest" remote add origin "https://github.com/$repo"
     fi
-    echo "==> $dir → $sha"
-    ( cd "$dest" && git fetch --quiet --depth 1 origin "$sha" 2>/dev/null \
-        && git checkout --quiet "$sha" 2>/dev/null || git checkout --quiet "$sha" )
+    echo "==> $dir fetch $ref"
+    git -C "$dest" fetch -q --depth 1 origin "$ref"
+    git -C "$dest" checkout -q FETCH_HEAD
   done
 fi
 

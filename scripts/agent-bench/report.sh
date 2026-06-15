@@ -56,12 +56,21 @@ d()  { row "$REPO" definition definition "$1" "||" "$1"; }
 ctx(){ row "$REPO" context context "$1" --limit 1 --context 6 "||" "$2"; }
 sy() { row "$REPO" symbols symbols "$1" --limit 20 "||" "$1"; }
 ol() { row "$REPO" outline outline "$1" "||" "$2"; }
+# v0.8.0+ families. rg-worst for these = the grep-and-read workflow an agent
+# would otherwise run (open every file mentioning the name). For the call
+# graph that is the only way grep can even approximate "who calls X".
+se() { row "$REPO" search search "$1" "||" "$1"; }
+cr() { row "$REPO" callers callers "$1" "||" "$1"; }
+ce() { row "$REPO" callees callees "$1" "||" "$1"; }
+cg() { row "$REPO" callgraph callgraph "$1" --depth 2 --direction down "||" "$1"; }
 
 suite helix "helix-editor/helix @ 14eda10 (Rust ~150k LOC)"
 d Selection; d Editor; d Transaction; d Application
 ctx render 'fn render'
 sy Transaction
 ol helix-core/src/selection.rs 'pub fn'
+se Transaction; se Selection
+cr render; ce render; cg render
 echo
 
 suite vuejs-core "vuejs/core @ 478e3e8 (TypeScript)"
@@ -69,6 +78,8 @@ d defineComponent; d reactive; d computed; d effect
 ctx watch 'function watch'
 sy ref
 ol packages/compiler-sfc/src/parse.ts 'export function'
+se computed; se reactive
+cr computed; ce computed; cg computed
 echo
 
 suite rust-analyzer "rust-lang/rust-analyzer @ e79b822 (Rust ~500k LOC)"
@@ -76,4 +87,15 @@ d Semantics; d SourceFile; d Analysis; d AssistContext
 ctx completions 'fn completions'
 sy Completions
 ol crates/ide/src/lib.rs 'pub fn'
+se Completions; se Semantics
+cr completions; ce completions; cg completions
+echo
+
+suite linux "torvalds/linux @ v6.6 (C ~62k files, 1.08M symbols)"
+d kmalloc; d schedule; d mutex_lock; d task_struct
+ctx schedule 'void schedule'
+sy task_struct
+ol kernel/sched/core.c 'static'
+se kmalloc; se task_struct
+cr kmalloc; ce schedule; cg schedule
 echo

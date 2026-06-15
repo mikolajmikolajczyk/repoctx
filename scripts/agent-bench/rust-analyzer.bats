@@ -41,11 +41,29 @@ def_saves() { # <name>
   assert_savings_above "$rc" "$rg" 80
 }
 
+@test "search: Semantics" {
+  rc="$(repoctx_tokens "$BENCH_REPO" search Semantics --limit 30)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" Semantics)"
+  assert_savings_above "$rc" "$rg" 90
+}
+
 @test "callers: completions" {
-  # Call graph (ADR-0010); thresholds provisional, tune after a clone run.
+  # Call graph (ADR-0010). Measured 99% vs rg-worst (v0.9.0).
   rc="$(repoctx_tokens "$BENCH_REPO" callers completions --limit 50)"
   rg="$(rg_worst_tokens "$BENCH_REPO" completions)"
-  assert_savings_above "$rc" "$rg" 50
+  assert_savings_above "$rc" "$rg" 90
+}
+
+@test "callees: completions" {
+  rc="$(repoctx_tokens "$BENCH_REPO" callees completions --limit 50)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" completions)"
+  assert_savings_above "$rc" "$rg" 90
+}
+
+@test "callgraph: completions down depth 2" {
+  rc="$(repoctx_tokens "$BENCH_REPO" callgraph completions --direction down --depth 2)"
+  rg="$(rg_worst_tokens "$BENCH_REPO" completions)"
+  assert_savings_above "$rc" "$rg" 90
 }
 
 @test "full-coverage definition carries no advisory" {
