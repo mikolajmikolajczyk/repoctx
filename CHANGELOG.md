@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-06-15
+
 ### Changed
 
 - **`repoctx search` callees grouped by index-scope resolution** (issue `cd2680f`). Replaces the per-edge `resolved`/`unresolved`/`ambiguous` tags with `internal` (one indexed def — expanded with location), `ambiguous` (several indexed defs — collapsed to a per-name count), and `external_count` (calls whose definition isn't in the indexed scope — stdlib/third-party/builtin/uncovered-language — collapsed to a count). Default output is signal-dense: in-codebase callees expanded, stdlib noise summarized in one line. `--all-callees` expands the collapsed `external` names + ambiguous `candidates`. No stop-list — external-ness is index absence, defined by what we parsed (not the repo boundary), so it stays truthful for uncovered files and future workspace indexing. Same grouping applied to `callers`.
@@ -321,7 +323,8 @@ First tagged release. M0 functional surface complete on Linux, macOS, and Window
 - Release binary size: ~14 MB on x86_64-linux (9 statically-linked Tree-sitter grammars, accepted cost per ADR-0002).
 - TypeScript upstream `tags.scm` covers interface / abstract class / method signatures only; plain `class`/`function` are not tagged. Documented in [`wiki/user/commands.md`](wiki/user/commands.md).
 
-[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/mikolajmikolajczyk/repoctx/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/mikolajmikolajczyk/repoctx/releases/tag/v0.7.0
