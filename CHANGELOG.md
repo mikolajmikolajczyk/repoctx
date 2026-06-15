@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.3] — 2026-06-15
+
 ### Added
 
 - **`repoctx boundary --from <path> --to <module>`** (epic #4 boundary child, ADR-0011): list files whose path contains `--from` that import a specifier containing `--to` — "does layer A import layer B?" answered from the import graph instead of regex over import lines + eslint-boundary comments. `--forbid` turns it into a CI gate (exit 1 if any crossing). Validated by telemetry: boundary/import audits were the clearest recurring structural intent behind agents' `rg @(core|ports|adapters)/…` greps. Reuses the v5 `imports` table — no schema change.
