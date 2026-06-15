@@ -27,6 +27,7 @@ Adding a new key is non-breaking; older binaries log a warn and ignore.
 | `hook.use_rtk` | enum | `auto` \| `on` \| `off` | `auto` | Chain rtk underneath on passthrough. `auto` = on when a chainable tool is on PATH. |
 | `hook.chainable` | list | comma/newline | `rtk` | Allowlist of tools repoctx may chain underneath. Only rtk is meaningful in v0.6.x. |
 | `hook.script_path` | string | (read-only) | `(not installed)` | Where `repoctx init` wrote the project hook script. Computed; `config set` rejects it. |
+| `hook.telemetry` | bool | `true` \| `false` | `true` | Record per-command grep/rg/find passthrough telemetry for `repoctx discover`. Local-only, aggregate (no command bodies). `false` disables. |
 | `gain.no_record` | bool | `true` \| `false` | `false` | Persistent `--no-record`. |
 | `gain.record_query` | bool | `true` \| `false` | `false` | Persistent `--record-query`. |
 | `output.default` | enum | `auto` \| `human` \| `toon` \| `json` | `auto` | Persistent output-format choice. `auto` keeps today's behavior (Human on TTY, TOON on pipe). |

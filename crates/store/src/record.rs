@@ -82,6 +82,17 @@ pub struct ImportEdgeRow {
     pub resolution: String,
 }
 
+/// One aggregated row of hook passthrough telemetry (issue #7): for an
+/// `(idiom, outcome)` pair across one tool, how many times the hook saw it.
+/// Surfaced by `repoctx discover`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HookEventStat {
+    pub tool: String,
+    pub idiom: String,
+    pub outcome: String,
+    pub count: u64,
+}
+
 /// Native filesystem path -> DB path string (`/`-separated, lossy on non-UTF-8 components).
 pub fn to_db_path(p: &Path) -> String {
     let mut out = String::new();

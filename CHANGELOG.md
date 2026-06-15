@@ -6,11 +6,12 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ### Added
 
+- **Hook passthrough telemetry + `repoctx discover`** (issue #7). The PreToolUse hook now records every `grep`/`rg`/`find` command it sees, bucketed by **idiom** (`bare-ident` / `flagged-nav-ident` / `regex` / `call-shape` / `import-shape` / `multi-term` / `explicit-path` / `find` / `other`) and **outcome** (`rewritten` / `passthrough` / `chained`). Aggregate-only — **no command body, no pattern, no paths** (same privacy posture as `gain`). `repoctx discover` reports per-idiom rewritten-vs-passthrough counts ranked by volume, surfacing the biggest adoption gaps — the data that drives which grep idioms to teach the hook to rewrite next. Best-effort recording: never blocks/fails a command, only writes when an index DB already exists (won't create `.repoctx/` in non-repoctx repos). Opt out with `hook.telemetry = false` (config or `REPOCTX_HOOK_TELEMETRY=0`). Schema v6 `hook_events` table.
 - **Import / dependency graph** (epic #4, ADR-0011): new `repoctx deps <file>` (modules a file imports) and `repoctx rdeps <module>` (files that import a specifier — substring match, so `rdeps storage-idb` finds importers of `@adapters/storage-idb`). Import sites are extracted from Tree-sitter for the core 8 languages (Rust `use`/`extern crate`, Python `import`/`from`, JS/TS/TSX ESM `import`/`export … from`, Go imports, C/C++ `#include`, Java `import`). Schema v5 `imports` table; string-based (raw specifier stored, quotes/brackets stripped), edges cascade with the file and resolve at query time — precise specifier→file resolution is deferred to a future resolver writing `semantic` rows into the same table. Answers boundary/layering questions structurally instead of grepping import lines + eslint-boundary comments. JSON/TOON/human output, gain-recorded; empty results carry an advisory.
 
 ### Changed
 
-- **Schema bumped to v5** (adds the `imports` table). Older DBs migrate transparently on open.
+- **Schema bumped to v6** (v5 adds the `imports` table; v6 adds the `hook_events` table). Older DBs migrate transparently on open.
 
 ## [0.9.1] — 2026-06-15
 

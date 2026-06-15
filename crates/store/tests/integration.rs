@@ -185,6 +185,32 @@ fn call_edges_pruned_on_file_reindex() {
 }
 
 #[test]
+fn hook_events_record_and_aggregate() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.record_hook_event("rg", "bare-ident", "rewritten")
+        .unwrap();
+    s.record_hook_event("rg", "bare-ident", "rewritten")
+        .unwrap();
+    s.record_hook_event("grep", "flagged-nav-ident", "passthrough")
+        .unwrap();
+    s.record_hook_event("rg", "regex", "passthrough").unwrap();
+
+    let stats = s.hook_event_stats(None).unwrap();
+    // Three distinct (idiom, outcome, tool) groups.
+    let bare = stats
+        .iter()
+        .find(|r| r.idiom == "bare-ident" && r.outcome == "rewritten")
+        .unwrap();
+    assert_eq!(bare.count, 2);
+    assert_eq!(bare.tool, "rg");
+    assert!(stats
+        .iter()
+        .any(|r| r.idiom == "flagged-nav-ident" && r.outcome == "passthrough" && r.count == 1));
+    // Ordered by count desc -> the 2-count group leads.
+    assert_eq!(stats[0].count, 2);
+}
+
+#[test]
 fn open_creates_dot_repoctx() {
     let tmp = tempdir().unwrap();
     let _s = Store::open(tmp.path()).unwrap();

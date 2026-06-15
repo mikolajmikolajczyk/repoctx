@@ -12,6 +12,7 @@ mod config_cmd;
 mod context_cmd;
 mod definition_cmd;
 mod deps_cmd;
+mod discover_cmd;
 mod gain;
 mod gain_cmd;
 mod hook_cmd;
@@ -161,6 +162,9 @@ enum Cmd {
         /// Module specifier or substring, e.g. `@adapters/storage-idb`.
         module: String,
     },
+    /// Report hook passthrough telemetry: per grep/rg/find idiom, how often
+    /// it was rewritten to repoctx vs left as grep. Shows the adoption gap.
+    Discover,
     /// Print the per-language coverage matrix (how well repoctx
     /// indexes each language). Agents check this before deciding to
     /// fall back to ripgrep.
@@ -420,6 +424,7 @@ fn run() -> Result<()> {
         }
         Cmd::Deps { file } => deps_cmd::run_deps(&repo_root, file, render, gain_opts),
         Cmd::Rdeps { module } => deps_cmd::run_rdeps(&repo_root, module, render, gain_opts),
+        Cmd::Discover => discover_cmd::run(&repo_root, render),
         Cmd::Hook { sub } => match sub {
             HookSub::Claude {
                 rtk_chain,
@@ -428,7 +433,7 @@ fn run() -> Result<()> {
                 if supports_rtk_chain {
                     std::process::exit(0); // version-guard probe
                 }
-                let code = hook_rewrite::run(&cfg.hook, rtk_chain.map(|v| v != 0))?;
+                let code = hook_rewrite::run(&repo_root, &cfg.hook, rtk_chain.map(|v| v != 0))?;
                 std::process::exit(code);
             }
             HookSub::Doctor { global, fix } => init_cmd::run_doctor(&repo_root, global, fix),

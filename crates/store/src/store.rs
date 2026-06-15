@@ -9,7 +9,7 @@ use crate::error::{Result, StoreError};
 use crate::like;
 use crate::migrations;
 use crate::record::{
-    CallEdgeRow, CallRecord, FileRecord, ImportEdgeRow, ImportRecord, SymbolRecord,
+    CallEdgeRow, CallRecord, FileRecord, HookEventStat, ImportEdgeRow, ImportRecord, SymbolRecord,
 };
 
 const SQLITE_BUSY_TIMEOUT_MS: u32 = 5000;
@@ -212,6 +212,47 @@ impl Store {
                 site_line: row.get(2)?,
                 site_column: row.get(3)?,
                 resolution: row.get(4)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Record one hook passthrough telemetry event (issue #7). Aggregate
+    /// only — `tool`/`idiom`/`outcome` are fixed enum-like strings, never the
+    /// command body. Timestamp is stamped here.
+    pub fn record_hook_event(&mut self, tool: &str, idiom: &str, outcome: &str) -> Result<()> {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as i64)
+            .unwrap_or(0);
+        self.conn.execute(
+            "INSERT INTO hook_events(ts_unix_ns, tool, idiom, outcome) VALUES(?1, ?2, ?3, ?4)",
+            params![ts, tool, idiom, outcome],
+        )?;
+        Ok(())
+    }
+
+    /// Aggregated hook telemetry for `repoctx discover`: count per
+    /// `(idiom, outcome, tool)`, ordered so the biggest buckets surface
+    /// first. `since` filters to events at or after a unix-ns timestamp.
+    pub fn hook_event_stats(&self, since: Option<i64>) -> Result<Vec<HookEventStat>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT tool, idiom, outcome, COUNT(*) AS n
+             FROM hook_events
+             WHERE (?1 IS NULL OR ts_unix_ns >= ?1)
+             GROUP BY idiom, outcome, tool
+             ORDER BY n DESC, idiom ASC, outcome ASC, tool ASC",
+        )?;
+        let rows = stmt.query_map(params![since], |row| {
+            Ok(HookEventStat {
+                tool: row.get(0)?,
+                idiom: row.get(1)?,
+                outcome: row.get(2)?,
+                count: row.get::<_, i64>(3)? as u64,
             })
         })?;
         let mut out = Vec::new();

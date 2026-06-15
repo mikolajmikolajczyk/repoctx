@@ -198,6 +198,162 @@ fn segment_is_flagged_rg(segment: &str) -> bool {
     false
 }
 
+// ── Passthrough telemetry (issue #7) ───────────────────────────────────
+//
+// Classify a grep/rg/find command into a coarse idiom bucket so `repoctx
+// discover` can rank how often each shape is rewritten vs leaks to grep.
+// Heuristic and deliberately cheap; refined from the data it collects.
+// Returns None for non-grep-family commands so the hot hook path skips the
+// store entirely for everything else.
+
+/// `(tool, idiom)` for the first grep-family / find segment in `command`.
+pub(crate) fn classify_idiom(command: &str) -> Option<(&'static str, &'static str)> {
+    // Precise path for simple commands (handles quotes); rough segment scan
+    // for compounds (pipes, loops, redirects) that `tokenize` rejects.
+    if let Some(tokens) = tokenize(command) {
+        if let Some((tool, rest)) = split_tool(&tokens) {
+            return Some((tool, idiom_for(tool, rest)));
+        }
+        return None;
+    }
+    for seg in command.split(['|', '&', ';', '\n']) {
+        let words: Vec<&str> = seg.split_whitespace().collect();
+        if let Some((tool, rest)) = split_tool_str(&words) {
+            return Some((tool, idiom_for(tool, rest)));
+        }
+    }
+    None
+}
+
+fn tool_slug(w0: &str) -> Option<&'static str> {
+    match w0 {
+        "rg" => Some("rg"),
+        "grep" | "egrep" | "fgrep" => Some("grep"),
+        "find" => Some("find"),
+        "ag" | "ack" => Some("grep"),
+        _ => None,
+    }
+}
+
+fn split_tool(tokens: &[String]) -> Option<(&'static str, &[String])> {
+    let w0 = tokens.first()?;
+    let tool = tool_slug(w0)?;
+    Some((tool, &tokens[1..]))
+}
+
+fn split_tool_str<'a>(words: &'a [&'a str]) -> Option<(&'static str, &'a [&'a str])> {
+    let w0 = words.first()?;
+    let tool = tool_slug(w0)?;
+    Some((tool, &words[1..]))
+}
+
+/// Idiom bucket from a tool's argument list (everything after the program).
+/// Generic over `&str`-like args so it serves both the tokenized and rough
+/// paths.
+fn idiom_for<S: AsRef<str>>(tool: &str, args: &[S]) -> &'static str {
+    if tool == "find" {
+        return "find";
+    }
+    // Split flags from positionals (pattern + paths). `--` ends flags.
+    let mut nav_flag = false;
+    let mut positionals: Vec<&str> = Vec::new();
+    let mut flags_done = false;
+    for a in args {
+        let a = a.as_ref();
+        if !flags_done && a == "--" {
+            flags_done = true;
+            continue;
+        }
+        if !flags_done && a.starts_with('-') && a.len() > 1 {
+            if is_nav_flag(a) {
+                nav_flag = true;
+            }
+            continue;
+        }
+        positionals.push(a);
+    }
+    let Some(pattern) = positionals.first().copied() else {
+        return "other";
+    };
+    let has_explicit_path = positionals.iter().skip(1).any(|p| *p != ".");
+
+    if pattern.contains('|') {
+        return "multi-term";
+    }
+    let lower = pattern.to_ascii_lowercase();
+    if ["import", "require", "from ", "from(", "use "]
+        .iter()
+        .any(|kw| lower.contains(kw))
+    {
+        return "import-shape";
+    }
+    if pattern.contains('(') {
+        return "call-shape";
+    }
+    if pattern.contains(|c| {
+        matches!(
+            c,
+            '.' | '*' | '+' | '?' | '[' | ']' | '{' | '}' | '^' | '$' | '\\'
+        )
+    }) {
+        return "regex";
+    }
+    if has_explicit_path {
+        return "explicit-path";
+    }
+    if is_safe_identifier(pattern) {
+        return if nav_flag {
+            "flagged-nav-ident"
+        } else {
+            "bare-ident"
+        };
+    }
+    "other"
+}
+
+/// Navigation flags (format/scope, not result-set-changing). Mirrors the
+/// rewrite rules' notion so telemetry buckets line up with what we rewrite.
+fn is_nav_flag(flag: &str) -> bool {
+    matches!(
+        flag,
+        "-n" | "-l"
+            | "-i"
+            | "-w"
+            | "-F"
+            | "--type"
+            | "-A"
+            | "-B"
+            | "-C"
+            | "-r"
+            | "-R"
+            | "-rn"
+            | "-nr"
+            | "-Rn"
+            | "-nR"
+    ) || flag.starts_with("--type")
+}
+
+/// Best-effort telemetry write. No-op unless an index DB already exists (so
+/// we never create `.repoctx/` just to log) and `enabled`. Errors swallowed —
+/// telemetry must never affect the command.
+fn record_event(
+    repo_root: &std::path::Path,
+    enabled: bool,
+    idiom: &Option<(&'static str, &'static str)>,
+    outcome: &str,
+) {
+    if !enabled {
+        return;
+    }
+    let Some((tool, id)) = idiom else { return };
+    if !repo_root.join(".repoctx/index.db").exists() {
+        return;
+    }
+    if let Ok(mut store) = repoctx_store::Store::open(repo_root) {
+        let _ = store.record_hook_event(tool, id, outcome);
+    }
+}
+
 const RULES: &[Rule] = &[
     Rule {
         name: "rg <ident>",
@@ -527,7 +683,12 @@ fn exec_chain(cmd: &str, stdin_bytes: &[u8]) -> Result<Option<String>> {
 
 /// Top-level entry. Returns the JSON payload to print on rewrite, or
 /// `Ok(None)` for silent passthrough.
-fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Option<String>> {
+fn run_inner(
+    stdin_bytes: &[u8],
+    repo_root: &std::path::Path,
+    cfg: &HookConfig,
+    rtk_chain: bool,
+) -> Result<Option<String>> {
     let payload: PreToolUseInput =
         serde_json::from_slice(stdin_bytes).context("parse PreToolUse stdin")?;
     let command = payload.tool_input.command.trim();
@@ -535,11 +696,20 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Op
         return Ok(None);
     }
 
+    // Classify once for telemetry (issue #7). `None` for non-grep-family
+    // commands, which skip the store entirely.
+    let idiom = if cfg.telemetry {
+        classify_idiom(command)
+    } else {
+        None
+    };
+
     // Semantic rewrite (skipped when hook.rewrite = off).
     use crate::config::HookRewrite;
     if matches!(cfg.rewrite, HookRewrite::Auto | HookRewrite::Force) {
         if let Some((rewritten, rule_name)) = try_semantic_rewrite(command) {
             debug!(rule = rule_name, %command, %rewritten, "semantic rewrite");
+            record_event(repo_root, cfg.telemetry, &idiom, "rewritten");
             let reply = PreToolUseOutput {
                 hook_specific_output: HookSpecificOutput {
                     hook_event_name: "PreToolUse",
@@ -558,6 +728,7 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Op
     // is_chain_unsafe) bypass every chain so the agent's real tool runs.
     if is_chain_unsafe(command) {
         debug!(%command, "chain-unsafe command — bypassing chain so the real tool runs");
+        record_event(repo_root, cfg.telemetry, &idiom, "passthrough");
         return Ok(None);
     }
 
@@ -568,6 +739,7 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Op
         match exec_chain(chain, stdin_bytes) {
             Ok(Some(stdout)) => {
                 debug!(%chain, "chain handled the rewrite");
+                record_event(repo_root, cfg.telemetry, &idiom, "chained");
                 return Ok(Some(stdout));
             }
             Ok(None) => continue,
@@ -592,6 +764,7 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Op
             match exec_chain(&format!("{tool} hook claude"), stdin_bytes) {
                 Ok(Some(stdout)) => {
                     debug!(%tool, "chain handled the rewrite");
+                    record_event(repo_root, cfg.telemetry, &idiom, "chained");
                     return Ok(Some(stdout));
                 }
                 Ok(None) => {}
@@ -603,6 +776,7 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Op
         }
     }
 
+    record_event(repo_root, cfg.telemetry, &idiom, "passthrough");
     Ok(None)
 }
 
@@ -612,7 +786,11 @@ fn run_inner(stdin_bytes: &[u8], cfg: &HookConfig, rtk_chain: bool) -> Result<Op
 ///
 /// `rtk_chain_flag` is the resolved `--rtk-chain` value; `None` falls
 /// back to `hook.use_rtk` (`on`/`off`/`auto`, where `auto` = rtk on PATH).
-pub fn run(cfg: &HookConfig, rtk_chain_flag: Option<bool>) -> Result<i32> {
+pub fn run(
+    repo_root: &std::path::Path,
+    cfg: &HookConfig,
+    rtk_chain_flag: Option<bool>,
+) -> Result<i32> {
     let mut stdin_bytes = Vec::new();
     io::stdin()
         .read_to_end(&mut stdin_bytes)
@@ -622,7 +800,7 @@ pub fn run(cfg: &HookConfig, rtk_chain_flag: Option<bool>) -> Result<i32> {
         HookUseRtk::Off => false,
         HookUseRtk::Auto => cfg.chainable.iter().any(|t| which(t).is_some()),
     });
-    match run_inner(&stdin_bytes, cfg, rtk_chain) {
+    match run_inner(&stdin_bytes, repo_root, cfg, rtk_chain) {
         Ok(Some(json)) => {
             println!("{json}");
             Ok(0)
@@ -697,6 +875,34 @@ mod tests {
             tokenize(r#"rg "fn foo""#).unwrap(),
             vec!["rg".to_string(), "fn foo".to_string()]
         );
+    }
+
+    #[test]
+    fn classify_idiom_buckets() {
+        let c = |cmd| classify_idiom(cmd);
+        assert_eq!(c("rg foo"), Some(("rg", "bare-ident")));
+        assert_eq!(c("rg -n foo"), Some(("rg", "flagged-nav-ident")));
+        assert_eq!(c("grep -rn foo ."), Some(("grep", "flagged-nav-ident")));
+        assert_eq!(c("rg foo src/x.rs"), Some(("rg", "explicit-path")));
+        assert_eq!(c("rg foo.*bar"), Some(("rg", "regex")));
+        assert_eq!(c(r#"rg "foo\(""#), Some(("rg", "call-shape")));
+        assert_eq!(c("rg import"), Some(("rg", "import-shape")));
+        assert_eq!(c("find . -name x"), Some(("find", "find")));
+        // Not a grep-family command -> no telemetry.
+        assert_eq!(c("cargo build"), None);
+        assert_eq!(c("ls -la"), None);
+    }
+
+    #[test]
+    fn classify_idiom_compound_finds_grep_segment() {
+        // Pipes/compounds: tokenize rejects, rough scan still finds the grep.
+        assert_eq!(
+            classify_idiom("cat x | grep foo"),
+            Some(("grep", "bare-ident"))
+        );
+        // Alternation in an unquoted pattern splits on `|`; first rg segment
+        // is what we bucket.
+        assert!(classify_idiom("rg -nE aaa|bbb src/x.ts").is_some());
     }
 
     #[test]

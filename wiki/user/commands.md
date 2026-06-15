@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deps`, `rdeps`, `status`, `languages`, `config`, `init`, `hook`, `gain`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deps`, `rdeps`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -334,7 +334,7 @@ Output fields:
 
 | Field | Meaning |
 |---|---|
-| `schema_version` | DB schema version (currently `5`). |
+| `schema_version` | DB schema version (currently `6`). |
 | `files` | Total indexed files. |
 | `symbols` | Total symbols across all files. |
 | `db_size_bytes` | On-disk size of `.repoctx/index.db`. |
@@ -458,3 +458,26 @@ Surface the navigation cost the agent avoided. `gain` defaults to the **last 30 
 `gain` invocations are **not** themselves recorded. Empty usage in the window is a success: zeros, exit 0.
 
 Full philosophy + privacy stance: [`gain.md`](gain.md).
+
+## `repoctx discover`
+
+Report **hook passthrough telemetry**: for each `grep`/`rg`/`find` idiom the PreToolUse hook saw, how often it was rewritten to repoctx vs left as grep (`passthrough`) vs chained to rtk (`chained`). Ranked by volume so the biggest adoption gaps surface first.
+
+```sh
+repoctx discover
+```
+
+```text
+hook passthrough telemetry (142 events)
+idiom               rewritten  passthrough  chained   total  rewritten%
+bare-ident                 88            4        0      92         95%
+flagged-nav-ident          12           19        0      31         38%
+regex                       0           11        0      11          0%
+...
+```
+
+What it's for: deciding which grep idioms to teach the hook to rewrite next. A high-volume, low-`rewritten%` idiom is a candidate for a new rewrite rule.
+
+- **Recording** happens in the hook on every grep/rg/find command, **aggregate-only** — no command body, no pattern, no paths (same privacy stance as `gain`). Best-effort: never blocks or fails a command; only writes when an index DB already exists.
+- **Opt out** with `hook.telemetry = false` (or `REPOCTX_HOOK_TELEMETRY=0`).
+- Idiom buckets are heuristic (`bare-ident`, `flagged-nav-ident`, `regex`, `call-shape`, `import-shape`, `multi-term`, `explicit-path`, `find`, `other`); refined from the data they collect.

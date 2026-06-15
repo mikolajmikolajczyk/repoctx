@@ -46,7 +46,7 @@ fn fresh_index_has_zero_staleness_and_correct_counts() {
     let v = status_json(tmp.path(), &[]);
     assert_eq!(v["files"], 3);
     assert!(v["symbols"].as_u64().unwrap() >= 3);
-    assert_eq!(v["schema_version"], 5);
+    assert_eq!(v["schema_version"], 6);
     assert!(v["db_size_bytes"].as_u64().unwrap() > 0);
     let st = &v["staleness"];
     assert_eq!(st["changed"], 0);

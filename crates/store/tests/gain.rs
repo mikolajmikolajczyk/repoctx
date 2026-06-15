@@ -52,7 +52,7 @@ fn rec(
 fn schema_on_fresh_open() {
     let s = Store::open_in_memory().unwrap();
     assert_eq!(s.schema_version().unwrap(), SUPPORTED_VERSION);
-    assert_eq!(SUPPORTED_VERSION, 5);
+    assert_eq!(SUPPORTED_VERSION, 6);
 }
 
 #[test]

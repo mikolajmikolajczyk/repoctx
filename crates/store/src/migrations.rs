@@ -8,7 +8,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::error::{Result, StoreError};
 
 /// Highest schema version this binary supports.
-pub const SUPPORTED_VERSION: u32 = 5;
+pub const SUPPORTED_VERSION: u32 = 6;
 
 /// Migration scripts indexed by target version. Position N is the SQL to
 /// move the DB from version N-1 to version N.
@@ -121,6 +121,25 @@ const MIGRATIONS: &[&str] = &[
 
     CREATE INDEX imports_module_idx    ON imports(module);
     CREATE INDEX imports_file_path_idx ON imports(file_path);
+    "#,
+    // -> v6 (hook passthrough telemetry; issue #7)
+    //
+    // One row per grep/rg/find command the PreToolUse hook saw, bucketed by
+    // `idiom` (bare-ident / regex / call-shape / import-shape / …) and
+    // `outcome` (rewritten / passthrough / chained). Aggregate-only: NO
+    // command body, NO pattern, NO paths — same privacy posture as `usage`.
+    // Powers `repoctx discover`, which ranks idioms by adoption gap so hook
+    // rewrites can be widened from real data, not guesses.
+    r#"
+    CREATE TABLE hook_events (
+        id         INTEGER PRIMARY KEY,
+        ts_unix_ns INTEGER NOT NULL,
+        tool       TEXT NOT NULL,
+        idiom      TEXT NOT NULL,
+        outcome    TEXT NOT NULL
+    );
+
+    CREATE INDEX hook_events_idiom_idx ON hook_events(idiom);
     "#,
 ];
 
