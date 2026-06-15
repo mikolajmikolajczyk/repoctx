@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deps`, `rdeps`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deps`, `rdeps`, `boundary`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -322,6 +322,26 @@ String-based and approximate, mirroring the call graph:
 
 Empty results carry an `advisory` pointing at `rg` as the fallback.
 
+## `repoctx boundary --from <path> --to <module>`
+
+Layering / boundary check over the import graph: list every file whose path contains `--from` that imports a specifier containing `--to`. Answers "does layer A import layer B?" structurally — no regex over import lines, no eslint-boundary comments.
+
+| Flag | Effect |
+|---|---|
+| `--from <substr>` | Importer path substring — the layer doing the importing (e.g. `src/ui`). |
+| `--to <substr>` | Imported specifier substring — the target layer (e.g. `@adapters`). |
+| `--forbid` | CI gate: exit 1 if any crossing exists (else exit 0). |
+
+```sh
+# Does the UI layer import the storage adapter directly?
+repoctx boundary --from src/ui --to @adapters/storage-idb
+
+# Fail CI if @plugins reaches into @adapters:
+repoctx boundary --from src/plugins --to @adapters --forbid
+```
+
+Output is the crossing edges (`{file, module, line}`). No crossings = clean (exit 0; an advisory notes whether `--from`/`--to` matched anything, since the import graph covers the core 8 languages only). Same string-based caveats as `deps`/`rdeps` — substrings match the raw specifier, no specifier→file resolution.
+
 ## `repoctx status`
 
 Index health + per-language counts + optional staleness.
@@ -481,4 +501,4 @@ What it's for: deciding which grep idioms to teach the hook to rewrite next. A h
 - **Recording** happens in the hook on every grep/rg/find command, **aggregate-only** — no command body, no pattern, no paths (same privacy stance as `gain`). Best-effort: never blocks or fails a command; only writes when an index DB already exists.
 - **Opt out** with `hook.telemetry = false` (or `REPOCTX_HOOK_TELEMETRY=0`).
 - **See the actual commands**: aggregate buckets tell you *where* the gap is, not *what* the commands are. Enable `hook.telemetry_samples = true` (default off, local-only) to also capture command bodies, then `repoctx discover --samples [--idiom <bucket>]` lists them (capped 20/idiom). Use it to design rewrite rules from real commands — e.g. inspect what's hiding in `other`.
-- Idiom buckets are heuristic (`bare-ident`, `flagged-nav-ident`, `literal-string`, `regex`, `call-shape`, `import-shape`, `multi-term`, `explicit-path`, `find`, `other`); refined from the data they collect. `literal-string` = single-token literal patterns (kebab-case, `@scope/pkg`) that `repoctx search` can serve.
+- Idiom buckets are heuristic (`bare-ident`, `flagged-nav-ident`, `literal-string`, `regex`, `call-shape`, `import-shape`, `multi-term`, `explicit-path`, `pipe-filter`, `find`, `other`); refined from the data they collect. `literal-string` = single-token literal patterns (kebab-case, `@scope/pkg`) that `repoctx search` can serve. `pipe-filter` = a grep fed by a real pipe (`… | grep …`) — it filters command output, not the codebase, so it's not a rewrite target. Splitting is quote-aware (a `|` inside a quoted pattern is part of the pattern, not a pipe).

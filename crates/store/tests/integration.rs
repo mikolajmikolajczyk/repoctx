@@ -136,6 +136,39 @@ fn import_edges_deps_and_rdeps() {
 }
 
 #[test]
+fn boundary_crossings_match_from_and_to() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(&fr("src/ui/Panel.tsx", 1, 10, "tsx"), &[])
+        .unwrap();
+    s.upsert_imports(
+        "src/ui/Panel.tsx",
+        &[
+            ir("src/ui/Panel.tsx", "@adapters/storage-idb", 0),
+            ir("src/ui/Panel.tsx", "./local", 1),
+        ],
+    )
+    .unwrap();
+    s.upsert_file(&fr("src/core/x.ts", 1, 10, "typescript"), &[])
+        .unwrap();
+    s.upsert_imports("src/core/x.ts", &[ir("src/core/x.ts", "@adapters/db", 0)])
+        .unwrap();
+
+    // ui -> adapters: only the ui file.
+    let v = s.boundary_crossings("src/ui", "@adapters").unwrap();
+    assert_eq!(v.len(), 1);
+    assert_eq!(v[0].file_path, "src/ui/Panel.tsx");
+
+    // core -> adapters: only the core file.
+    assert_eq!(
+        s.boundary_crossings("src/core", "@adapters").unwrap().len(),
+        1
+    );
+
+    // ui -> nonexistent: clean.
+    assert!(s.boundary_crossings("src/ui", "@nope").unwrap().is_empty());
+}
+
+#[test]
 fn import_edges_pruned_on_file_reindex() {
     let mut s = Store::open_in_memory().unwrap();
     s.upsert_file(&fr("a.ts", 1, 10, "typescript"), &[])

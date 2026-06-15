@@ -83,6 +83,52 @@ fn rdeps_empty_has_advisory() {
 }
 
 #[test]
+fn boundary_reports_and_gates() {
+    let tmp = fixture();
+    let root = tmp.path();
+    // fixture: src/ui.ts imports @adapters/storage-idb + ./util; src/svc.ts
+    // imports @adapters/storage-idb.
+    let v = json(root, &["boundary", "--from", "src/ui", "--to", "@adapters"]);
+    assert_eq!(v["count"].as_u64().unwrap(), 1, "{v}");
+    assert_eq!(v["items"][0]["file"], "src/ui.ts");
+
+    // --forbid gates: crossing -> exit 1.
+    Command::cargo_bin("repoctx")
+        .unwrap()
+        .args([
+            "--repo",
+            root.to_str().unwrap(),
+            "boundary",
+            "--from",
+            "src/ui",
+            "--to",
+            "@adapters",
+            "--forbid",
+        ])
+        .assert()
+        .failure();
+
+    // Clean boundary -> exit 0 + advisory.
+    let clean = json(root, &["boundary", "--from", "src/ui", "--to", "@nope"]);
+    assert_eq!(clean["count"].as_u64().unwrap(), 0);
+    assert!(clean["advisory"].is_string());
+    Command::cargo_bin("repoctx")
+        .unwrap()
+        .args([
+            "--repo",
+            root.to_str().unwrap(),
+            "boundary",
+            "--from",
+            "src/ui",
+            "--to",
+            "@nope",
+            "--forbid",
+        ])
+        .assert()
+        .success();
+}
+
+#[test]
 fn deps_outside_repo_errors() {
     let tmp = fixture();
     index(tmp.path());

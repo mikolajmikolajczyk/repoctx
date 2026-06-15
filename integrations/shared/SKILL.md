@@ -133,6 +133,12 @@ file imports; `rdeps <module>` lists the files whose import specifier
 importer of `@adapters/storage-idb`). Core 8 languages (Rust/Python/JS/TS/
 TSX/Go/C/C++/Java). Each edge: `{file, module, line, resolution}`.
 
+For an explicit **layering check**, `{REPOCTX_BIN} boundary --from <path>
+--to <module>` lists files whose path contains `--from` importing a
+specifier containing `--to` (e.g. `boundary --from src/ui --to @adapters`
+= "does the UI import the storage adapter?"); `--forbid` exits non-zero on
+any crossing (CI gate).
+
 Use these for **architecture / boundary questions** instead of grepping
 import lines: "what depends on this module", "does the UI layer import the
 storage adapter directly". String-based — the raw specifier is stored as

@@ -162,6 +162,19 @@ enum Cmd {
         /// Module specifier or substring, e.g. `@adapters/storage-idb`.
         module: String,
     },
+    /// Check an import boundary: list files matching `--from` that import a
+    /// specifier matching `--to`. Answers "does layer A import layer B?".
+    Boundary {
+        /// Importer path substring (the layer doing the importing), e.g. `src/ui`.
+        #[arg(long)]
+        from: String,
+        /// Imported specifier substring (the forbidden target), e.g. `@adapters`.
+        #[arg(long)]
+        to: String,
+        /// CI gate: exit 1 if any crossing exists.
+        #[arg(long)]
+        forbid: bool,
+    },
     /// Report hook passthrough telemetry: per grep/rg/find idiom, how often
     /// it was rewritten to repoctx vs left as grep. Shows the adoption gap.
     Discover {
@@ -432,6 +445,9 @@ fn run() -> Result<()> {
         }
         Cmd::Deps { file } => deps_cmd::run_deps(&repo_root, file, render, gain_opts),
         Cmd::Rdeps { module } => deps_cmd::run_rdeps(&repo_root, module, render, gain_opts),
+        Cmd::Boundary { from, to, forbid } => {
+            deps_cmd::run_boundary(&repo_root, from, to, forbid, render, gain_opts)
+        }
         Cmd::Discover { samples, idiom } => {
             if samples {
                 discover_cmd::run_samples(&repo_root, idiom, render)

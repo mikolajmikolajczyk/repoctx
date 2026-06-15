@@ -125,6 +125,60 @@ pub fn run_rdeps(
     )
 }
 
+/// `repoctx boundary --from <F> --to <T> [--forbid]` — import edges where an
+/// importer path containing `F` imports a specifier containing `T`. Answers
+/// "does layer F import T?" structurally (ADR-0011). With `--forbid` it's a
+/// CI gate: exit 1 if any crossing exists.
+pub fn run_boundary(
+    repo_root: &Path,
+    from: String,
+    to: String,
+    forbid: bool,
+    render: Render,
+    gain_opts: GainOpts,
+) -> Result<()> {
+    read_cmd::ensure_fresh(repo_root)?;
+    let store = Store::open(repo_root).context("open store")?;
+
+    let rows = store.boundary_crossings(&from, &to)?;
+    let crossed = !rows.is_empty();
+    let advisory = if rows.is_empty() {
+        Some(format!(
+            "no crossings: nothing matching `{from}` imports `{to}` (clean — or \
+             `{from}`/`{to}` matched no indexed files; core-8 import coverage only)"
+        ))
+    } else if forbid {
+        Some(format!(
+            "FORBIDDEN: {} import(s) from `{from}` into `{to}`",
+            rows.len()
+        ))
+    } else {
+        None
+    };
+    let mut candidate_paths: Vec<String> = rows.iter().map(|r| r.file_path.clone()).collect();
+    candidate_paths.sort();
+    candidate_paths.dedup();
+    let items: Vec<DepEdge> = rows.into_iter().map(DepEdge::from).collect();
+    let list = List::new(items).with_advisory(advisory);
+
+    let mut store = store;
+    crate::gain::emit_and_record(
+        &list,
+        render,
+        &mut store,
+        gain_opts,
+        "boundary",
+        Some(&format!("{from} -> {to}")),
+        &candidate_paths,
+    )?;
+
+    // CI gate: a forbidden boundary that is crossed fails the command.
+    if forbid && crossed {
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
 /// Advisory for `deps`: an empty result on a file in an import-uncovered
 /// language reads as "no imports" when it really means "not parsed".
 fn deps_advisory(rows: &[ImportEdgeRow], file: &str, store: &Store) -> Result<Option<String>> {

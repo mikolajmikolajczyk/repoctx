@@ -4,6 +4,14 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **`repoctx boundary --from <path> --to <module>`** (epic #4 boundary child, ADR-0011): list files whose path contains `--from` that import a specifier containing `--to` — "does layer A import layer B?" answered from the import graph instead of regex over import lines + eslint-boundary comments. `--forbid` turns it into a CI gate (exit 1 if any crossing). Validated by telemetry: boundary/import audits were the clearest recurring structural intent behind agents' `rg @(core|ports|adapters)/…` greps. Reuses the v5 `imports` table — no schema change.
+
+### Changed
+
+- **`discover` classifier v2: quote-aware splitting + `pipe-filter` bucket + value-flag parsing** (issue #7 follow-up). Real captured commands exposed two bugs: (1) compound/quoted commands were split on `|`/`;` *inside quoted patterns*, so a multi-alternation regex audit like `grep -nE "a|b|c" file` mis-bucketed as `explicit-path`; segmentation is now quote-aware. (2) Greps that filter command *output* (`npx vitest | grep -iE "PASS|FAIL"`) were counted as code searches; a grep fed by a real pipe now buckets as `pipe-filter` and is excluded as a rewrite target (repoctx can't replace output filtering). `||`/`&&` are treated as control ops, not pipes. (3) Value-taking flags in separate-arg form (`-g GLOB`, `-A 3`, `-m N`, `--include X`, `-e/-f PATTERN`) had their value mistaken for the search pattern; they now consume it (`-e/-f` value IS the pattern), so `rg -g 'src/**' 'a|b'` correctly buckets `multi-term`.
+
 ## [0.11.2] — 2026-06-15
 
 ### Added

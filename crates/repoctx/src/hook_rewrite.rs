@@ -207,20 +207,19 @@ fn segment_is_flagged_rg(segment: &str) -> bool {
 // store entirely for everything else.
 
 /// `(tool, idiom)` for the first grep-family / find segment in `command`.
+///
+/// Splits the command into segments quote-aware (so `|`/`;` inside a quoted
+/// pattern don't shred it) and finds the first grep/rg/find segment. A grep
+/// fed by a real pipe (`… | grep …`) is filtering command OUTPUT, not the
+/// codebase, so it buckets as `pipe-filter` — not a rewrite target.
 pub(crate) fn classify_idiom(command: &str) -> Option<(&'static str, &'static str)> {
-    // Precise path for simple commands (handles quotes); rough segment scan
-    // for compounds (pipes, loops, redirects) that `tokenize` rejects.
-    if let Some(tokens) = tokenize(command) {
-        if let Some((tool, rest)) = split_tool(&tokens) {
-            return Some((tool, idiom_for(tool, rest)));
+    for (pipe_fed, words) in segments(command) {
+        let Some(w0) = words.first() else { continue };
+        let Some(tool) = tool_slug(w0) else { continue };
+        if pipe_fed && tool != "find" {
+            return Some((tool, "pipe-filter"));
         }
-        return None;
-    }
-    for seg in command.split(['|', '&', ';', '\n']) {
-        let words: Vec<&str> = seg.split_whitespace().collect();
-        if let Some((tool, rest)) = split_tool_str(&words) {
-            return Some((tool, idiom_for(tool, rest)));
-        }
+        return Some((tool, idiom_for(tool, &words[1..])));
     }
     None
 }
@@ -235,47 +234,135 @@ fn tool_slug(w0: &str) -> Option<&'static str> {
     }
 }
 
-fn split_tool(tokens: &[String]) -> Option<(&'static str, &[String])> {
-    let w0 = tokens.first()?;
-    let tool = tool_slug(w0)?;
-    Some((tool, &tokens[1..]))
+/// Quote-aware split of a compound command into `(pipe_fed, words)` segments.
+/// Splits on unquoted `; & | \n`; `||`/`&&` are control ops (not pipes).
+/// `pipe_fed` = the segment was preceded by a single `|` (so a grep here
+/// reads piped stdin). Each segment is word-split quote-aware, quotes stripped
+/// (regex metachars preserved).
+fn segments(command: &str) -> Vec<(bool, Vec<String>)> {
+    let chars: Vec<char> = command.chars().collect();
+    let mut out: Vec<(bool, Vec<String>)> = Vec::new();
+    let mut cur = String::new(); // raw segment text incl. quotes; words_of strips
+    let mut pipe_fed = false;
+    let (mut in_s, mut in_d) = (false, false);
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if c == '\'' && !in_d {
+            in_s = !in_s;
+            cur.push(c);
+        } else if c == '"' && !in_s {
+            in_d = !in_d;
+            cur.push(c);
+        } else if !in_s && !in_d && matches!(c, '|' | '&' | ';' | '\n') {
+            let doubled = matches!(c, '|' | '&') && chars.get(i + 1) == Some(&c);
+            out.push((pipe_fed, words_of(&cur)));
+            cur.clear();
+            // single `|` = pipe (feeds next segment); `||`/`&&`/`&`/`;` = control.
+            pipe_fed = c == '|' && !doubled;
+            if doubled {
+                i += 1;
+            }
+        } else {
+            cur.push(c);
+        }
+        i += 1;
+    }
+    out.push((pipe_fed, words_of(&cur)));
+    out.retain(|(_, w)| !w.is_empty());
+    out
 }
 
-fn split_tool_str<'a>(words: &'a [&'a str]) -> Option<(&'static str, &'a [&'a str])> {
-    let w0 = words.first()?;
-    let tool = tool_slug(w0)?;
-    Some((tool, &words[1..]))
+/// Whitespace word-split honoring quotes; quotes stripped, other chars kept.
+fn words_of(seg: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut started = false;
+    let (mut in_s, mut in_d) = (false, false);
+    for c in seg.chars() {
+        match c {
+            '\'' if !in_d => {
+                in_s = !in_s;
+                started = true;
+            }
+            '"' if !in_s => {
+                in_d = !in_d;
+                started = true;
+            }
+            c if c.is_whitespace() && !in_s && !in_d => {
+                if started || !cur.is_empty() {
+                    out.push(std::mem::take(&mut cur));
+                    started = false;
+                }
+            }
+            c => {
+                cur.push(c);
+                started = true;
+            }
+        }
+    }
+    if started || !cur.is_empty() {
+        out.push(cur);
+    }
+    out
 }
 
 /// Idiom bucket from a tool's argument list (everything after the program).
-/// Generic over `&str`-like args so it serves both the tokenized and rough
-/// paths.
+/// Generic over `&str`-like args.
 fn idiom_for<S: AsRef<str>>(tool: &str, args: &[S]) -> &'static str {
     if tool == "find" {
         return "find";
     }
     // Split flags from positionals (pattern + paths). `--` ends flags.
+    // Separate-arg value flags (`-g GLOB`, `-A 3`, …) consume their next
+    // token so it isn't mistaken for the pattern; `-e/-f` value IS the
+    // pattern.
     let mut nav_flag = false;
     let mut positionals: Vec<&str> = Vec::new();
+    let mut pattern_override: Option<&str> = None;
     let mut flags_done = false;
-    for a in args {
-        let a = a.as_ref();
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_ref();
         if !flags_done && a == "--" {
             flags_done = true;
+            i += 1;
             continue;
         }
         if !flags_done && a.starts_with('-') && a.len() > 1 {
             if is_nav_flag(a) {
                 nav_flag = true;
             }
+            if flag_takes_value(a) {
+                if let Some(next) = args.get(i + 1) {
+                    if is_pattern_flag(a) {
+                        pattern_override = Some(next.as_ref());
+                    }
+                    i += 2;
+                    continue;
+                }
+            }
+            i += 1;
             continue;
         }
         positionals.push(a);
+        i += 1;
     }
-    let Some(pattern) = positionals.first().copied() else {
-        return "other";
+    // When `-e/-f` supplied the pattern, every positional is a path; else the
+    // first positional is the pattern and the rest are paths.
+    let pattern = match pattern_override {
+        Some(p) => p,
+        None => match positionals.first().copied() {
+            Some(p) => p,
+            None => return "other",
+        },
     };
-    let has_explicit_path = positionals.iter().skip(1).any(|p| *p != ".");
+    let paths: &[&str] = if pattern_override.is_some() {
+        &positionals
+    } else {
+        positionals.get(1..).unwrap_or(&[])
+    };
+    let has_explicit_path = paths.iter().any(|p| *p != ".");
 
     if pattern.contains('|') {
         return "multi-term";
@@ -338,6 +425,41 @@ fn is_nav_flag(flag: &str) -> bool {
             | "-Rn"
             | "-nR"
     ) || flag.starts_with("--type")
+}
+
+/// Flags that consume the FOLLOWING token as a value (separate-arg form), so
+/// that token isn't mistaken for the search pattern. `=`-joined forms
+/// (`--glob=x`) carry their value in the same token and don't need this.
+fn flag_takes_value(flag: &str) -> bool {
+    matches!(
+        flag,
+        "-e" | "--regexp"
+            | "-f"
+            | "--file"
+            | "-g"
+            | "--glob"
+            | "-m"
+            | "--max-count"
+            | "-A"
+            | "--after-context"
+            | "-B"
+            | "--before-context"
+            | "-C"
+            | "--context"
+            | "-t"
+            | "--type"
+            | "--type-not"
+            | "--include"
+            | "--exclude"
+            | "--exclude-dir"
+            | "--max-depth"
+    )
+}
+
+/// Value flags whose consumed value IS the search pattern (so we read the
+/// pattern from there, not from a positional).
+fn is_pattern_flag(flag: &str) -> bool {
+    matches!(flag, "-e" | "--regexp" | "-f" | "--file")
 }
 
 /// Per-idiom cap on captured command samples (opt-in).
@@ -956,15 +1078,57 @@ mod tests {
     }
 
     #[test]
-    fn classify_idiom_compound_finds_grep_segment() {
-        // Pipes/compounds: tokenize rejects, rough scan still finds the grep.
+    fn classify_idiom_compound_and_quotes() {
+        // Grep fed by a real pipe = filtering command output, not code nav.
+        assert_eq!(
+            classify_idiom("npx vitest | grep -iE \"PASS|FAIL\""),
+            Some(("grep", "pipe-filter"))
+        );
         assert_eq!(
             classify_idiom("cat x | grep foo"),
-            Some(("grep", "bare-ident"))
+            Some(("grep", "pipe-filter"))
         );
-        // Alternation in an unquoted pattern splits on `|`; first rg segment
-        // is what we bucket.
-        assert!(classify_idiom("rg -nE aaa|bbb src/x.ts").is_some());
+        // Quoted alternation must NOT be split on the inner `|` — it's a
+        // multi-term regex over a file, not explicit-path.
+        assert_eq!(
+            classify_idiom(r#"grep -nE "aaa|bbb|ccc" src/App.tsx"#),
+            Some(("grep", "multi-term"))
+        );
+        // `cd X; grep ... | head`: grep is the producer (not pipe-fed), so it
+        // classifies by its pattern; the `| head` doesn't make it pipe-filter.
+        assert_eq!(
+            classify_idiom(r#"cd /x; grep -nE "a|b" src/App.tsx | head"#),
+            Some(("grep", "multi-term"))
+        );
+        // Leading `cd` segment is skipped; the bare-ident grep is found.
+        assert_eq!(
+            classify_idiom("cd /x && grep -rn fooBar src/"),
+            Some(("grep", "explicit-path"))
+        );
+    }
+
+    #[test]
+    fn classify_idiom_value_flags_dont_become_pattern() {
+        // `-g GLOB` consumes its value; the real alternation pattern wins.
+        assert_eq!(
+            classify_idiom(r#"rg -n -g 'src/**' '\b(TODO|FIXME)\b|hack'"#),
+            Some(("rg", "multi-term"))
+        );
+        // `-g` (separate) doesn't leak the glob as a regex pattern.
+        assert_eq!(
+            classify_idiom("rg -g src/**/*.ts plainident"),
+            Some(("rg", "bare-ident"))
+        );
+        // `-e PATTERN` form: the value IS the pattern.
+        assert_eq!(
+            classify_idiom("grep -rn -e fooBar src/"),
+            Some(("grep", "explicit-path"))
+        );
+        // `-C 3` context value isn't treated as the pattern.
+        assert_eq!(
+            classify_idiom("rg -C 3 myFunc"),
+            Some(("rg", "flagged-nav-ident"))
+        );
     }
 
     #[test]

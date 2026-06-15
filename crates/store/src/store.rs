@@ -197,6 +197,33 @@ impl Store {
         )
     }
 
+    /// Boundary crossings: import edges whose importing file contains `from`
+    /// AND whose module specifier contains `to` (both substring). Answers
+    /// "does layer `from` import `to`?" from the import graph (ADR-0011).
+    pub fn boundary_crossings(&self, from: &str, to: &str) -> Result<Vec<ImportEdgeRow>> {
+        let from_pat = format!("%{}%", crate::like::escape(from));
+        let to_pat = format!("%{}%", crate::like::escape(to));
+        let sql = "SELECT i.file_path, i.module, i.site_line, i.site_column, i.resolution
+                   FROM imports i
+                   WHERE i.file_path LIKE ?1 ESCAPE '\\' AND i.module LIKE ?2 ESCAPE '\\'
+                   ORDER BY i.file_path ASC, i.site_line ASC, i.site_column ASC";
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = stmt.query_map(params![from_pat, to_pat], |row| {
+            Ok(ImportEdgeRow {
+                file_path: row.get(0)?,
+                module: row.get(1)?,
+                site_line: row.get(2)?,
+                site_column: row.get(3)?,
+                resolution: row.get(4)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
     /// Shared query for `deps_of`/`importers_of`. `tail` is the WHERE body
     /// plus ORDER BY; `bind` is the single positional parameter.
     fn import_edges(&self, tail: &str, bind: &str) -> Result<Vec<ImportEdgeRow>> {
