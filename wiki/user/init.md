@@ -81,11 +81,14 @@ tells you how to fix it:
 |---|---|---|---|
 | `init` (project) | a **foreign** hook (not repoctx/rtk) anywhere | refuses | remove/disable it, or `--force` |
 | `init` (project) | a **global rtk** hook | refuses | `repoctx init -g` (recommended), or uninstall global rtk, or `--force` |
-| `init` (project) | a **global repoctx** hook | refuses (double-fire) | `repoctx hook doctor -g`, or `--force` |
+| `init` (project) | a **global repoctx** hook | **installs guidance only** (skill + CLAUDE.md), skips the redundant project hook | nothing — the global hook already fires here; `--force` to add a project hook anyway |
 | `init -g` | a **project repoctx** hook | refuses (double-fire) | remove the project install first, or `--force` |
 | `init` again, same scope | repoctx already installed | re-installs idempotently | — |
 
-`--force` accepts the race and installs anyway.
+A global repoctx hook already runs for every project, so a project-local
+hook would only double-fire. `init` installs the guidance files (which
+never race) and leaves the hook to the global install. `--force` accepts
+the double-fire and installs a project hook anyway.
 
 ## Uninstall
 

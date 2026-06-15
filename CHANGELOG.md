@@ -4,6 +4,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **`repoctx init` (project) no longer refuses when a user-global repoctx hook exists** — it installs guidance only. A global hook already fires for every project, so a project-local hook would just double-fire; previously `init` aborted entirely, leaving the repo without the skill + `CLAUDE.md` guidance. Now it writes the guidance files (which never race) and skips the redundant project hook, printing a `guidance-only` note. `--force` still installs a full project hook (accepting the double-fire). The global-rtk and foreign-hook race cases are unchanged.
+
 ## [0.9.0] — 2026-06-15
 
 ### Changed

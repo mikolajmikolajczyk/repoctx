@@ -45,7 +45,28 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         crate::hook_scan::Scope::Project
     };
     let scan = crate::hook_scan::scan(repo_root);
-    crate::hook_scan::pre_install_check(target_scope, &scan, opts.force)?;
+
+    // A user-global repoctx hook already fires for this project, so a
+    // project-local hook would double-fire. Rather than refuse the whole
+    // command, drop into guidance-only mode: install the skill + CLAUDE.md
+    // (which never race) and skip the redundant project hook. --force still
+    // forces a full project install (accepting the double-fire). Global
+    // installs and the foreign/rtk race cases keep the strict check.
+    let global_repoctx_active = !opts.global
+        && scan.iter().any(|h| {
+            h.scope == crate::hook_scan::Scope::UserGlobal
+                && h.kind == crate::hook_scan::HookKind::Repoctx
+        });
+    let guidance_only = global_repoctx_active && !opts.force;
+    if !guidance_only {
+        crate::hook_scan::pre_install_check(target_scope, &scan, opts.force)?;
+    } else {
+        eprintln!(
+            "note: a user-global repoctx hook is already active for this project.\n      \
+             Installing guidance only (skill + CLAUDE.md) — skipping a project-local\n      \
+             hook that would double-fire. Re-run with --force to install one anyway."
+        );
+    }
 
     let rtk_present = crate::hook_rewrite::which("rtk").is_some();
     let mut rtk_chain = match opts.rtk {
@@ -89,20 +110,30 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
 
     // Interactive confirmation only on a TTY without --yes.
     if !opts.yes && io::stdin().is_terminal() {
-        if rtk_present {
-            rtk_chain = prompt_yes_no(
-                "rtk detected — chain it underneath repoctx (no degradation)?",
-                rtk_chain,
-            )?;
-        }
-        let scope = if opts.global {
-            "user-global"
+        if guidance_only {
+            if !prompt_yes_no(
+                "Install repoctx guidance for this project (global hook already active)?",
+                true,
+            )? {
+                eprintln!("aborted.");
+                return Ok(());
+            }
         } else {
-            "this project"
-        };
-        if !prompt_yes_no(&format!("Install repoctx hook for {scope}?"), true)? {
-            eprintln!("aborted.");
-            return Ok(());
+            if rtk_present {
+                rtk_chain = prompt_yes_no(
+                    "rtk detected — chain it underneath repoctx (no degradation)?",
+                    rtk_chain,
+                )?;
+            }
+            let scope = if opts.global {
+                "user-global"
+            } else {
+                "this project"
+            };
+            if !prompt_yes_no(&format!("Install repoctx hook for {scope}?"), true)? {
+                eprintln!("aborted.");
+                return Ok(());
+            }
         }
     }
 
@@ -117,6 +148,11 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
             "repoctx init (dry-run){}",
             if opts.global { " -g" } else { "" }
         );
+        if guidance_only {
+            eprintln!("  mode        : guidance-only (user-global repoctx hook already active)");
+            eprintln!("  would install: claude SKILL.md + CLAUDE.md guidance");
+            return Ok(());
+        }
         eprintln!("  rtk chaining: {}", if rtk_chain { "on" } else { "off" });
         eprintln!("  would write : {}", script_path.display());
         eprintln!(
@@ -135,34 +171,37 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
 
     // Back up an existing global settings.json before taking it over, so
     // a displaced rtk (or other) entry can be restored by hand.
-    let backup = if opts.global && settings_path.exists() {
+    let backup = if !guidance_only && opts.global && settings_path.exists() {
         Some(backup_file(&settings_path)?)
     } else {
         None
     };
 
-    write_script(&script_path, &script)?;
-    if !opts.global {
-        ensure_gitattributes(repo_root)?;
-    }
-    crate::hook_takeover::set_sole_bash_hook(&settings_path, &entry_command, false)?;
+    // Guidance-only skips every hook write — the global hook already fires.
+    if !guidance_only {
+        write_script(&script_path, &script)?;
+        if !opts.global {
+            ensure_gitattributes(repo_root)?;
+        }
+        crate::hook_takeover::set_sole_bash_hook(&settings_path, &entry_command, false)?;
 
-    // Finish the v0.5.x migration: drop the now-superseded chain_commands
-    // row (chaining lives in the script's RTK_CHAIN now).
-    if let Some(m) = &migration {
-        if let Ok(mut store) = Store::open(repo_root) {
-            let _ = store.delete_setting("hook.chain_commands");
-        }
-        eprintln!("  migrated    : v0.5.x hook.chain_commands → script-based");
-        if m.has_rtk {
-            eprintln!("                (rtk chain ported into RTK_CHAIN=1)");
-        }
-        if !m.others.is_empty() {
-            eprintln!(
-                "  warning     : these chain commands could not be auto-ported \
-                 (re-add by hand if needed): {}",
-                m.others.join(", ")
-            );
+        // Finish the v0.5.x migration: drop the now-superseded chain_commands
+        // row (chaining lives in the script's RTK_CHAIN now).
+        if let Some(m) = &migration {
+            if let Ok(mut store) = Store::open(repo_root) {
+                let _ = store.delete_setting("hook.chain_commands");
+            }
+            eprintln!("  migrated    : v0.5.x hook.chain_commands → script-based");
+            if m.has_rtk {
+                eprintln!("                (rtk chain ported into RTK_CHAIN=1)");
+            }
+            if !m.others.is_empty() {
+                eprintln!(
+                    "  warning     : these chain commands could not be auto-ported \
+                     (re-add by hand if needed): {}",
+                    m.others.join(", ")
+                );
+            }
         }
     }
 
@@ -189,6 +228,18 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         .context("install claude guidance files")?;
 
     eprintln!("repoctx init: done.");
+    if guidance_only {
+        eprintln!("  mode        : guidance-only (user-global repoctx hook already active)");
+        eprintln!(
+            "  skill       : {}",
+            guidance_dir
+                .join(".claude/skills/repoctx/SKILL.md")
+                .display()
+        );
+        eprintln!("  hook        : using the user-global hook (~/.claude/repoctx-hook.sh)");
+        eprintln!("                run `repoctx init --force` to add a project-local hook instead.");
+        return Ok(());
+    }
     eprintln!("  hook script : {}", script_path.display());
     eprintln!(
         "  settings    : {} → {entry_command}",

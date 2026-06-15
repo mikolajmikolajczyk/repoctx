@@ -283,6 +283,52 @@ fn project_install_writes_skill_and_claude_md() {
 }
 
 #[test]
+fn project_init_with_global_hook_installs_guidance_only() {
+    let repo = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    // Establish a user-global repoctx hook first.
+    run(repo.path(), home.path(), &["-g", "--yes", "--rtk", "off"]).success();
+    assert!(home.path().join(".claude/repoctx-hook.sh").exists());
+
+    // A project init now must NOT refuse — it installs guidance only and
+    // skips a project-local hook that would double-fire.
+    let out = run(repo.path(), home.path(), &["--yes", "--rtk", "off"])
+        .success()
+        .get_output()
+        .stderr
+        .clone();
+    assert!(String::from_utf8_lossy(&out).contains("guidance-only"));
+
+    // Guidance landed in the repo…
+    assert!(repo.path().join(".claude/skills/repoctx/SKILL.md").exists());
+    assert!(repo.path().join("CLAUDE.md").exists());
+    // …but no project hook script or settings entry was written.
+    assert!(!repo.path().join(".repoctx/hook.sh").exists());
+    assert!(!repo.path().join(".claude/settings.json").exists());
+    assert!(!repo.path().join(".gitattributes").exists());
+}
+
+#[test]
+fn project_init_force_installs_hook_despite_global() {
+    let repo = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    run(repo.path(), home.path(), &["-g", "--yes", "--rtk", "off"]).success();
+
+    // --force overrides guidance-only: a full project hook is written.
+    run(
+        repo.path(),
+        home.path(),
+        &["--yes", "--rtk", "off", "--force"],
+    )
+    .success();
+    assert!(repo.path().join(".repoctx/hook.sh").exists());
+    assert_eq!(
+        bash_command(&repo.path().join(".claude/settings.json")),
+        ".repoctx/hook.sh"
+    );
+}
+
+#[test]
 fn global_install_writes_skill_into_home_not_agents_md() {
     let repo = TempDir::new().unwrap();
     let home = TempDir::new().unwrap();
