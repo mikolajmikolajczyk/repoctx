@@ -1,8 +1,8 @@
 # Status
 
-Snapshot of what works, what's in flight, what's broken. **Not the roadmap** — roadmap lives in Radicle issues (`rad issue list --all`).
+Snapshot of what works, what's in flight, what's broken. **Not the roadmap** — roadmap lives in GitHub issues (`gh issue list`).
 
-Update this when a feature lands, breaks, or gets pulled. Stale status is worse than no status — if you can't keep it fresh, link straight to Radicle issue filters instead.
+Update this when a feature lands, breaks, or gets pulled. Stale status is worse than no status — if you can't keep it fresh, link straight to GitHub issue filters instead.
 
 ## Works (as of v0.8.0, 2026-06-15)
 
@@ -52,13 +52,13 @@ CLI surface complete on Linux, macOS, and Windows. 20 languages indexed (16 full
 - warm `symbols` query: 3 ms (budget 100 ms)
 - `status --fast`: 5 ms (budget 50 ms)
 
-All under their issue-948b131 budgets.
+All under their release-issue budgets.
 
 ## In flight
 
-`rad issue list --label state:in-progress` is the source of truth.
+`gh issue list --label state:in-progress` is the source of truth.
 
-- **Call graph — remaining languages** (`3412476`): the call graph ships for the core 8; call-site queries for the other indexed langs (Ruby/C#/PHP/Lua/Kotlin/Swift/Bash) are the open follow-up.
+- **Call graph — remaining languages** (`#1`): the call graph ships for the core 8; call-site queries for the other indexed langs (Ruby/C#/PHP/Lua/Kotlin/Swift/Bash) are the open follow-up.
 
 ## Broken / regressions
 
@@ -66,8 +66,8 @@ None known.
 
 ## Not started
 
-- Long-lived daemon + LSP backend — placeholder epic `58b45d5`. **Do not pre-empt.**
+- Long-lived daemon + LSP backend — placeholder epic. **Do not pre-empt.**
 - Linux aarch64 / linux-musl release artifacts (current release workflow ships x86_64-gnu only on Linux).
 - crates.io publish (deferred until API stabilizes; track CHANGELOG).
 
-See `rad issue list` filtered by milestone.
+See `gh issue list` filtered by the `milestone:*` label.

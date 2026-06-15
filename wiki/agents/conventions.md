@@ -27,8 +27,8 @@ Generic conventions that apply regardless of stack. Stack-specific rules (langua
 
 ## Phase / scope discipline
 
-- Don't pre-empt later milestones. If something carries a future `milestone:*` Radicle label, don't half-implement it while working on the current one.
-- If a refactor would be cleaner alongside a bug fix but isn't required, defer it — open a Radicle issue instead.
+- Don't pre-empt later milestones. If something carries a future `milestone:*` label, don't half-implement it while working on the current one.
+- If a refactor would be cleaner alongside a bug fix but isn't required, defer it — open a GitHub issue instead.
 - Don't add error handling, fallbacks, or validation for scenarios that can't happen at the call site. Trust internal code; validate only at system boundaries (user input, external APIs).
 
 ## UI / output text (if applicable)
@@ -38,7 +38,7 @@ Generic conventions that apply regardless of stack. Stack-specific rules (langua
 ## When in doubt
 
 - Read the relevant ADR in [`../adr/`](../adr/).
-- Check Radicle issues for active work: `rad issue list --all`.
+- Check GitHub issues for active work: `gh issue list --all`.
 - Ask the user. Solo project — they're the only deciding authority.
 
 ---

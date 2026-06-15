@@ -28,7 +28,7 @@ If a decision spans more than the immediate work but isn't an architectural prom
 - Is **DX convenience** with no behavioral effect (editor config, direnv, shell aliases).
 - Is a **library swap** in a single layer with no contract change.
 - Belongs in a **PR description, commit message, or code comment** because it only affects that change.
-- Is **a status update or roadmap item** — those live in Radicle issues, not ADRs.
+- Is **a status update or roadmap item** — those live in GitHub issues, not ADRs.
 
 ## Concrete examples
 
@@ -56,13 +56,13 @@ If a decision spans more than the immediate work but isn't an architectural prom
 | Editor recommendations | dev-setup page |
 | Small-role library swap (no contract change) | PR description + code comment |
 | Bumping a pinned dependency | Commit message |
-| Adding a new entry to a built-in pack | Commit message + radicle issue |
+| Adding a new entry to a built-in pack | Commit message + GitHub issue |
 
 ### Edge cases — write an ADR if the answer is "yes"
 
 - **Tool choice with lock-in:** "Build *requires* Nix" → ADR. "Nix is primary, npm works as fallback" → no ADR.
 - **Library swap that changes a public interface:** if downstream code notices the change → ADR. If purely internal → no ADR.
-- **Process / workflow decision** (e.g. "Code review happens on GitHub PRs, Radicle holds internal issues") → ADR if it's a durable contract with collaborators; skip if it's a personal preference.
+- **Process / workflow decision** (e.g. "Code review and issue tracking both happen on GitHub") → ADR if it's a durable contract with collaborators; skip if it's a personal preference.
 
 ## Format
 

@@ -4,7 +4,7 @@ Repo shape, data flow, key modules. Keep this **descriptive of the current state
 
 ## Status
 
-v0.8.0 shipped 2026-06-15: static **call graph** (`callers`/`callees`/`callgraph`, core-8 langs, ADR-0010, schema v4 `calls` table) + **`repoctx search`** (textually-complete: symbol defs + every ripgrep match; the hook rewrites `rg <ident>` here). CLI surface complete: indexing, search, navigation, call graph, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall, `-g` installs a global skill), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
+v0.8.0 shipped 2026-06-15: static **call graph** (`callers`/`callees`/`callgraph`, core-8 langs, ADR-0010, schema v4 `calls` table) + **`repoctx search`** (textually-complete: symbol defs + every ripgrep match; the hook rewrites `rg <ident>` here). CLI surface complete: indexing, search, navigation, call graph, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall, `-g` installs a global skill), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic in GitHub issues.
 
 ## Current layout
 
@@ -32,7 +32,7 @@ crates/
 
 ## Commands
 
-Tracked across the foundation epic `e408787`, navigation epic `8ce08ce`, integrations epic `b497f7f`, daemon placeholder `58b45d5`.
+Tracked across the foundation epic, navigation epic, integrations epic, and daemon placeholder epic (GitHub issues).
 
 | Command | Backend / module | Notes |
 |---------|------------------|-------|
@@ -102,7 +102,7 @@ Future:
 
 ## Language set
 
-Initial (ADR-0002): Go, Rust, TypeScript, TSX, JavaScript, Python, JSON, YAML, TOML, Markdown. v0.7.0 batch (epic `9cf4c18`): Ruby, C, C++, Java, C#, PHP, Lua, Kotlin, Swift, Bash. 20 languages total. Grammars statically linked into the `repoctx` binary; no plugin system (see `wiki/decisions/2026-06-13-grammar-loading-strategy.md`). ~32 MB stripped Linux binary. JSON/YAML/TOML are top-level-key by default with opt-in all-depth extraction (`index.nested_keys`).
+Initial (ADR-0002): Go, Rust, TypeScript, TSX, JavaScript, Python, JSON, YAML, TOML, Markdown. v0.7.0 batch (language-coverage epic): Ruby, C, C++, Java, C#, PHP, Lua, Kotlin, Swift, Bash. 20 languages total. Grammars statically linked into the `repoctx` binary; no plugin system (see `wiki/decisions/2026-06-13-grammar-loading-strategy.md`). ~32 MB stripped Linux binary. JSON/YAML/TOML are top-level-key by default with opt-in all-depth extraction (`index.nested_keys`).
 
 ## Layering rules
 

@@ -4,6 +4,7 @@
 # Default target: --project (installs into <project>/.agents/skills/)
 #
 # Run `scripts/skills-bootstrap.sh` to install/refresh.
-
-radicle   https://github.com/mikolajmikolajczyk/llm_skills.git
-radboard  https://github.com/mikolajmikolajczyk/llm_skills.git
+#
+# The radicle/radboard skills are legacy: this project moved fully to GitHub
+# (code + PRs + issues), so they're no longer synced. Their skill directories
+# are left in place under .agents/skills/ but are not active.

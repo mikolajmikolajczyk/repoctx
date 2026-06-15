@@ -236,8 +236,8 @@ Agent docs (architecture, conventions, project status) under
 ## Contributing
 
 Code lives on **GitHub** — <https://github.com/mikolajmikolajczyk/repoctx>.
-Open a pull request there for any change. Issue tracking and roadmap are
-kept internally on **Radicle**; the Radicle repo is mirrored from GitHub.
+GitHub is the canonical forge: code, pull requests, **and** issues. Open a
+pull request for any change; track work and roadmap in GitHub issues.
 
 ```sh
 git clone https://github.com/mikolajmikolajczyk/repoctx
@@ -247,8 +247,7 @@ nix develop                            # pinned toolchain + tooling
 gh pr create
 ```
 
-Prefer Radicle? Clone `rad:z3ZAf4PfKZnuurn2YNz3t7cTLLUgB` and browse
-issues with `rad issue list --all`; code review still happens on GitHub.
+Browse the roadmap and open work with `gh issue list --all`.
 
 ## License
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Performance benchmarks for repoctx (Radicle issue 948b131).
+# Performance benchmarks for repoctx.
 #
 # Synthesizes a 5,000-file mixed-language corpus in a tempdir, then runs
 # hyperfine against four scenarios with hard budgets. Exits non-zero on

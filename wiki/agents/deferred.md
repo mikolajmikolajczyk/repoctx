@@ -9,7 +9,7 @@ Things **deliberately not implemented**. If something seems missing and is liste
 
 - **Why deferred:** <one paragraph>
 - **Revisit when:** <trigger condition>
-- **Tracked in:** <radicle issue hex7, if any>
+- **Tracked in:** <GitHub issue #N, if any>
 ```
 
 ## Entries
@@ -18,8 +18,8 @@ Things **deliberately not implemented**. If something seems missing and is liste
 
 - **Why deferred:** type-aware semantic queries need warm long-lived LSP servers; ADR-0005 puts that in a separate daemon. The current Tree-sitter backend is the by-design first cut.
 - **Revisit when:** Tree-sitter surface (index / symbols / outline / definition / context) is shipped and validated by real agent use.
-- **Tracked in:** `58b45d5` (LSP-daemon placeholder epic).
-- **Note:** `callers`/`callees`/`callgraph` **shipped in v0.8.0** as a static, name-based call graph (accuracy class of `definition`, not LSP-grade) — epic `af42572`, [ADR-0010](../adr/0010-static-call-graph.md). Only `refs`/`hover` remain deferred to the LSP path; the LSP backend will later add *semantic* call edges to the same `calls` table.
+- **Tracked in:** the LSP-daemon placeholder epic (GitHub issues).
+- **Note:** `callers`/`callees`/`callgraph` **shipped in v0.8.0** as a static, name-based call graph (accuracy class of `definition`, not LSP-grade) — call-graph epic, [ADR-0010](../adr/0010-static-call-graph.md). Only `refs`/`hover` remain deferred to the LSP path; the LSP backend will later add *semantic* call edges to the same `calls` table.
 
 ### Fuzzy symbol matching
 
@@ -55,4 +55,4 @@ Things **deliberately not implemented**. If something seems missing and is liste
 
 - **Why deferred:** requires a daemon (`notify` crate + lifecycle); CLI-first per ADR-0001. Incremental `index` runs are cheap enough to call per-session.
 - **Revisit when:** `repoctxd` exists — natural host for a watcher.
-- **Tracked in:** `58b45d5`.
+- **Tracked in:** the LSP-daemon placeholder epic (GitHub issues).

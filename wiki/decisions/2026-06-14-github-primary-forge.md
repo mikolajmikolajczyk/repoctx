@@ -1,6 +1,7 @@
 # Forge split — GitHub for code, Radicle for issues
 
 **Date**: 2026-06-14.
+**Status**: superseded by [`2026-06-15-github-only-forge.md`](2026-06-15-github-only-forge.md) (full switch to GitHub; Radicle retired entirely).
 
 ## What
 

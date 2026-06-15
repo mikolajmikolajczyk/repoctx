@@ -1,22 +1,22 @@
 # Working on issues
 
-Project-specific addendum to the [radboard skill](../../.agents/skills/radboard/SKILL.md). Radboard covers the universal lifecycle (open → in-progress → review → solved + hex7 patch linking). This page covers what **this project** specifically does on top.
+Project-specific issue workflow on top of GitHub. Issues, pull requests, and the roadmap all live on GitHub; drive everything with `gh` (the GitHub CLI). This page covers what **this project** specifically does — the label conventions and lifecycle on top of plain GitHub issues.
 
 ## Columns we use
 
-The radboard skill says "pick whatever workflow you want". This project uses **two** state labels by default. No `state:triage` (the built-in Open column does that job), no `state:review` (solo project, no review step). Adjust if your team is bigger.
+This project uses **two** state labels by default. No `state:triage` (open-but-unlabeled issues do that job), no `state:review` (solo project, no review step). Adjust if your team is bigger.
 
 | Label | Meaning |
 |-------|---------|
 | `state:in-progress` | Actively being worked. Apply **before** you start writing code. |
 | `state:blocked` | Waiting on something external (decision, upstream, hardware). Pair with a `blocked:*` label that names the blocker. |
-| (no state label) | Filed, scoped, not started — sits in the built-in **Open** column. Default for every new issue. |
+| (no state label) | Filed, scoped, not started — an open, unlabeled issue. Default for every new issue. |
 
 Conventions:
 
-- **Exactly one `state:*` label at a time.** When picking up an issue: `-a state:in-progress`. When blocking: `-d state:in-progress -a state:blocked`. When finishing: `rad issue state --solved <ID>` (no need to strip `state:*` — solved issues ignore it).
-- **Don't introduce `state:review`** unless a second contributor joins. Solo work doesn't need it; pretending it does just makes the board lie.
-- **`state:blocked` requires a paired `blocked:*` label** (hex7 or free-text). A naked `state:blocked` is invisible — nobody knows what's blocking.
+- **Exactly one `state:*` label at a time.** When picking up an issue: `gh issue edit <N> --add-label state:in-progress`. When blocking: `gh issue edit <N> --remove-label state:in-progress --add-label state:blocked`. When finishing: `gh issue close <N>` (no need to strip `state:*` — closed issues ignore it).
+- **Don't introduce `state:review`** unless a second contributor joins. Solo work doesn't need it; pretending it does just lies about the state of work.
+- **`state:blocked` requires a paired `blocked:*` label** (`blocked:#N` or free-text). A naked `state:blocked` is invisible — nobody knows what's blocking.
 
 ## Branch naming — Conventional Branch
 
@@ -28,11 +28,11 @@ We use [conventionalbranch.org](https://conventionalbranch.org/) for any branch 
 
 Types: `feat`, `bugfix`, `hotfix`, `chore`, `docs`, `test`, `release`.
 
-Optional issue prefix: append the 7-char hex if it helps you find the branch later.
+Optional issue prefix: append the issue number if it helps you find the branch later.
 
 ```
 feat/multi-format-loader
-feat/3b73e5d-multi-format-loader     # with issue hint
+feat/42-multi-format-loader          # with issue hint
 chore/eslint-boundaries
 docs/adr-0002-layering
 ```
@@ -55,7 +55,7 @@ Not a hard requirement, but matches what the project expects. Put this in the PR
 ```markdown
 ## Why
 
-<one paragraph: motivation, link to issue with hex7>
+<one paragraph: motivation, link to issue with #N>
 
 ## What
 
@@ -74,44 +74,44 @@ Not a hard requirement, but matches what the project expects. Put this in the PR
 
 Checked boxes in the PR body let future-you see at a glance what landed vs what slipped.
 
-## Issue → PR → solved flow
+## Issue → PR → closed flow
 
-Issues stay on Radicle; code review is a GitHub PR. The two are linked by the hex7 in the commit/PR subject.
+Issues, code review, and the merge all live on GitHub. Link a PR to its issue with `#N` in the commit/PR subject (or `Closes #N` in the PR body to auto-close on merge).
 
 ```sh
-# 1. Start (Radicle issue)
-rad issue label <hex7> -a state:in-progress
+# 1. Start (GitHub issue)
+gh issue edit <N> --add-label state:in-progress
 
 # 2. Branch
-git checkout -b feat/<hex7>-<slug>
+git checkout -b feat/<N>-<slug>
 
 # 3. Work + commit (Conventional Commits, GPG-signed)
-git commit -m "feat: <subject> (<hex7>)"
+git commit -m "feat: <subject> (#<N>)"
 
-# 4. Push + open PR on GitHub (hex7 in the PR title; multi-issue: hex7 per commit subject)
-git push -u origin feat/<hex7>-<slug>
+# 4. Push + open PR on GitHub (#N in the PR title; multi-issue: #N per commit subject)
+git push -u origin feat/<N>-<slug>
 gh pr create
 
-# 5. After the PR merges into the default branch, sync the Radicle mirror
-git checkout main && git pull origin main && git push rad main
+# 5. After the PR merges into the default branch, sync your local main
+git checkout main && git pull origin main
 
-# 6. Mark the Radicle issue solved
-rad issue state --solved <hex7>
+# 6. Close the GitHub issue (or let "Closes #N" in the PR body do it on merge)
+gh issue close <N>
 ```
 
-If a PR covers multiple issues, **don't `--solved` them until the default branch actually contains the merge**. Solving early misleads the board.
+If a PR covers multiple issues, **don't close them until the default branch actually contains the merge**. Closing early misleads the tracker.
 
 ## Release flow
 
 Tagged releases are rare — once per minor-version's worth of solved issues. Steps:
 
-1. Confirm the release-engineering issue (e.g. `bc9da7c` for v0.1.0) is solved and the bench harness is green (`scripts/bench.sh`).
+1. Confirm the release-engineering issue (e.g. `#1` for v0.1.0) is closed and the bench harness is green (`scripts/bench.sh`).
 2. Pre-flight: `cargo build --release && cargo test && cargo clippy --all-targets -- -D warnings`. CI must be green on `main` for ubuntu/macos/windows.
 3. Bump `workspace.package.version` in the root `Cargo.toml` and the `version` literal in `flake.nix`'s `buildRustPackage` call. Move the `[Unreleased]` block in `CHANGELOG.md` into `[X.Y.Z] — YYYY-MM-DD` and add a new empty `[Unreleased]`.
 4. Commit as `release: vX.Y.Z` (Conventional Commits). One commit per release.
 5. Annotated, GPG-signed tag: `git tag -s vX.Y.Z -m "vX.Y.Z"`.
-6. Push to GitHub (primary) then mirror to Radicle: `git push origin main --tags`, then `git push rad main && git push rad vX.Y.Z`.
-7. Draft a GitHub release pointing at the tag — GitHub is the canonical code home, so the release lives there.
+6. Push to GitHub: `git push origin main --tags` (the tag push triggers the release workflow).
+7. Draft a GitHub release pointing at the tag — GitHub is the canonical home, so the release lives there.
 
 **Never tag without explicit user request.** The CHANGELOG bump + flake version bump can land first as a normal patch; the tag is a separate, deliberate action.
 
@@ -120,7 +120,7 @@ Tagged releases are rare — once per minor-version's worth of solved issues. St
 For decisions tied to one issue, **comment on the issue**, don't open an ADR.
 
 ```sh
-rad issue comment <hex7> -m "Decided: <choice> over <alternative> — <one-sentence reason>. Revisit if <condition>."
+gh issue comment <N> -m "Decided: <choice> over <alternative> — <one-sentence reason>. Revisit if <condition>."
 ```
 
 For cross-cutting decisions that don't belong to a single issue, write to `wiki/decisions/`. For app-shape decisions (architecture, contracts, constraints), write an ADR. See [`../adr/README.md`](../adr/README.md) for the three-way split.
@@ -130,9 +130,9 @@ For cross-cutting decisions that don't belong to a single issue, write to `wiki/
 When ending a coding session mid-issue, leave a comment on the active issue:
 
 ```sh
-rad issue comment <hex7> -m "Session pause $(date -I). Done: <X>. Next: <Y>. Blocker: <Z|none>."
+gh issue comment <N> -m "Session pause $(date -I). Done: <X>. Next: <Y>. Blocker: <Z|none>."
 ```
 
-The next session (you or an agent) reads recent comments via `rad issue show <hex7>` and picks up without rediscovering state from the diff.
+The next session (you or an agent) reads recent comments via `gh issue view <N> --comments` and picks up without rediscovering state from the diff.
 
 For Claude Code specifically, the same handoff also persists in auto-memory (path: `~/.claude/projects/<encoded-cwd>/memory/`). Use whichever fits — issue comments are the canonical, agent-agnostic, forge-visible surface.

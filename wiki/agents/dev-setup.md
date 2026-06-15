@@ -59,4 +59,4 @@ Non-Nix fallback (not actively supported): install a recent stable Rust via `rus
 
 ## Forge + CI
 
-Code forge is **GitHub** — <https://github.com/mikolajmikolajczyk/repoctx>. Pull requests there are the canonical review path. **Radicle** (`rad:z3ZAf4PfKZnuurn2YNz3t7cTLLUgB`) hosts internal issue tracking + roadmap; its repo is kept in sync by dual-pushing code. After a merge to `main`, push both remotes: `git push origin main` then `git push rad main`. CI lives in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml): plain `cargo` (no nix) across `ubuntu-latest`, `macos-latest`, `windows-latest`, running `fmt --check`, `build`, `test`, `clippy -D warnings`.
+Code forge is **GitHub** — <https://github.com/mikolajmikolajczyk/repoctx>. GitHub is canonical for everything: code, pull requests, and issues + roadmap (`gh issue list`). Pull requests there are the canonical review path. After a merge to `main`, push with `git push origin main`. CI lives in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml): plain `cargo` (no nix) across `ubuntu-latest`, `macos-latest`, `windows-latest`, running `fmt --check`, `build`, `test`, `clippy -D warnings`.
