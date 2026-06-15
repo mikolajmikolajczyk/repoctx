@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-06-15
+
 ### Changed
 
 - **`repoctx discover` classifier: new `literal-string` idiom** (issue #7 follow-up). Literal, single-token, non-regex patterns that aren't bare identifiers — kebab-case, scoped packages (`@scope/pkg`), `a:b` — previously fell into the uninformative `other` bucket. They're now `literal-string`, a rewrite candidate (`rg foo-bar` → `repoctx search foo-bar`). Common in TS/CSS codebases; surfaces a real rewrite opportunity instead of hiding it. `other` now holds only multi-word / empty patterns.
