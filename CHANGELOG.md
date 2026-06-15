@@ -4,6 +4,11 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **`repoctx search` callees grouped by index-scope resolution** (issue `cd2680f`). Replaces the per-edge `resolved`/`unresolved`/`ambiguous` tags with `internal` (one indexed def — expanded with location), `ambiguous` (several indexed defs — collapsed to a per-name count), and `external_count` (calls whose definition isn't in the indexed scope — stdlib/third-party/builtin/uncovered-language — collapsed to a count). Default output is signal-dense: in-codebase callees expanded, stdlib noise summarized in one line. `--all-callees` expands the collapsed `external` names + ambiguous `candidates`. No stop-list — external-ness is index absence, defined by what we parsed (not the repo boundary), so it stays truthful for uncovered files and future workspace indexing. Same grouping applied to `callers`.
+- **`repoctx search` now tags every result with provenance and surfaces call edges** (issue `52a1e2c`). Output is one flat `results` stream where each item carries a `source`: `structural` (tree-sitter-confirmed symbol — name/kind/range known), `reference` (a call site of the queried name), or `textual` (unconfirmed substring — comment/string/other). Each structural symbol carries its own `callers` and `callees` (queried by that symbol's name), so the agent learns who-calls-what in one query — the thing grep can't do. Replaces the previous `{symbols, matches}` shape; lines are 0-based in machine output. (Breaking change to `search`'s JSON, which shipped in v0.8.0.)
+
 ## [0.8.0] — 2026-06-15
 
 ### Added

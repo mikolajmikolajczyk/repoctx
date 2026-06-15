@@ -122,6 +122,10 @@ enum Cmd {
         lang: Option<String>,
         #[arg(long, default_value_t = 50)]
         limit: usize,
+        /// Expand the collapsed callee categories (external names + ambiguous
+        /// candidate locations) instead of showing only counts.
+        #[arg(long)]
+        all_callees: bool,
     },
     /// Find direct callers of a symbol (who calls it). Static, name-based.
     Callers {
@@ -368,7 +372,16 @@ fn run() -> Result<()> {
             pattern,
             lang,
             limit,
-        } => search_cmd::run(&repo_root, pattern, lang, limit, render, gain_opts),
+            all_callees,
+        } => search_cmd::run(
+            &repo_root,
+            pattern,
+            lang,
+            limit,
+            all_callees,
+            render,
+            gain_opts,
+        ),
         Cmd::Callers { name, limit } => callgraph_cmd::run(
             &repo_root,
             name,

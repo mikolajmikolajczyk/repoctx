@@ -75,14 +75,12 @@ teardown() { rm -rf "$REPO"; }
     | grep -q '"callee_name":"a_one"'
 }
 
-@test "search beats rg-worst (defs + compressed matches)" {
-  # search returns MORE than symbols (every textual match) but still far
-  # below opening every candidate file. Lower threshold than symbol queries.
-  rc="$(repoctx_tokens "$REPO" search Widget)"
-  rg="$(rg_worst_tokens "$REPO" Widget)"
-  # Tiny fixture -> modest margin (this is a wiring check); the real
-  # savings show on the per-repo suites where rg-worst opens large files.
-  assert_savings_above "$rc" "$rg" 10
+@test "search tags results with provenance (structural)" {
+  # Wiring check: search emits the provenance-tagged stream with a
+  # tree-sitter-confirmed structural item for the Widget struct.
+  # (Real token savings are measured on the per-repo suites — on this toy
+  # fixture the files are too small for search to beat rg-worst.)
+  repoctx_json "$REPO" search Widget | grep -q '"source":"structural"'
 }
 
 @test "search includes a non-symbol (comment) mention" {

@@ -57,3 +57,5 @@ What would make us re-open this decision.
 - [2026-06-14 — Forge split: GitHub for code review, Radicle for issues](2026-06-14-github-primary-forge.md)
 - [2026-06-14 — Flag-aware hook rewrite (navigation flags → repoctx)](2026-06-14-flag-aware-rewrite.md)
 - [2026-06-14 — Textually-complete search (`repoctx search`)](2026-06-14-textually-complete-search.md)
+- [2026-06-15 — search provenance + call-edge surfacing](2026-06-15-search-provenance.md)
+- [2026-06-15 — callee resolution by index scope (internal/external)](2026-06-15-callee-index-scope-resolution.md)

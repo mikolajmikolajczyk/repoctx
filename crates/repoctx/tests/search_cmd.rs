@@ -21,7 +21,7 @@ fn fixture() -> TempDir {
     // (the textual-only occurrence a symbol index would miss).
     fs::write(
         root.join("lib.rs"),
-        "// remember to call foo before bar\nfn foo() {}\nfn bar() {\n    foo();\n}\n",
+        "// remember to call foo before bar\nfn foo() {}\nfn bar() {\n    foo();\n    ext_thing();\n}\nfn foobar() {\n    foo();\n}\n",
     )
     .unwrap();
     tmp
@@ -43,52 +43,157 @@ fn json(root: &Path, args: &[&str]) -> Value {
     serde_json::from_slice(&out).unwrap()
 }
 
+fn items(v: &Value) -> Vec<Value> {
+    v["results"].as_array().unwrap().clone()
+}
+
 #[test]
-fn search_leads_with_symbol_definition() {
+fn structural_item_is_the_symbol_definition() {
     let tmp = fixture();
     index(tmp.path());
     let v = json(tmp.path(), &["search", "foo"]);
-    let syms = v["symbols"].as_array().unwrap();
+    let structural: Vec<Value> = items(&v)
+        .into_iter()
+        .filter(|r| r["source"] == "structural")
+        .collect();
     assert!(
-        syms.iter()
+        structural
+            .iter()
             .any(|s| s["name"] == "foo" && s["kind"] == "function"),
-        "symbol def present: {v}"
+        "structural def present: {v}"
     );
 }
 
 #[test]
-fn search_includes_comment_mention_no_textual_loss() {
+fn comment_mention_is_tagged_textual_no_loss() {
     if !rg_available() {
-        eprintln!("rg not on PATH — skipping textual-match assertion");
+        eprintln!("rg not on PATH — skipping textual assertion");
         return;
     }
     let tmp = fixture();
     index(tmp.path());
     let v = json(tmp.path(), &["search", "foo"]);
-    // The comment line mentions foo but is not a symbol — it must still show.
-    let texts: Vec<String> = v["matches"]["files"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .flat_map(|f| f["lines"].as_array().unwrap().clone())
-        .map(|l| l["text"].as_str().unwrap_or("").to_string())
-        .collect();
+    // The comment line mentions foo but is not a symbol — present + tagged textual.
     assert!(
-        texts.iter().any(|t| t.contains("remember to call foo")),
-        "comment mention must appear in textual matches: {texts:?}"
+        items(&v).iter().any(|r| {
+            r["source"] == "textual"
+                && r["text"]
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("remember to call foo")
+        }),
+        "comment mention must appear, tagged textual: {v}"
     );
-    assert!(v["matches"]["count"].as_u64().unwrap() >= 2);
 }
 
 #[test]
-fn search_rg_absent_still_returns_symbols() {
-    // Force rg "absent" by running with an empty PATH override is awkward in
-    // assert_cmd; instead assert the symbols section is independent of rg by
-    // checking it's present regardless (rg-absent path is unit-covered by the
-    // empty-matches fallback in search_cmd).
+fn call_site_is_tagged_reference() {
+    if !rg_available() {
+        eprintln!("rg not on PATH — skipping reference assertion");
+        return;
+    }
     let tmp = fixture();
     index(tmp.path());
     let v = json(tmp.path(), &["search", "foo"]);
-    assert!(v["symbols"].is_array());
-    assert!(v["matches"]["files"].is_array());
+    // `foo()` inside bar is a call site → reference, not plain textual.
+    assert!(
+        items(&v).iter().any(|r| {
+            r["source"] == "reference" && r["text"].as_str().unwrap_or("").contains("foo()")
+        }),
+        "call site must be tagged reference: {v}"
+    );
+}
+
+#[test]
+fn structural_item_surfaces_callers() {
+    let tmp = fixture();
+    index(tmp.path());
+    let v = json(tmp.path(), &["search", "foo"]);
+    // foo is called by bar — under callers.internal (caller is an indexed sym).
+    let foo = items(&v)
+        .into_iter()
+        .find(|r| r["source"] == "structural" && r["name"] == "foo")
+        .expect("structural foo");
+    let internal = foo["callers"]["internal"]
+        .as_array()
+        .expect("callers.internal");
+    assert!(
+        internal.iter().any(|c| c["name"] == "bar"),
+        "foo's internal callers must include bar: {foo}"
+    );
+}
+
+#[test]
+fn internal_callee_shown_external_collapsed_by_default() {
+    let tmp = fixture();
+    index(tmp.path());
+    // bar calls foo (internal) AND ext_thing (external — not in the index).
+    let v = json(tmp.path(), &["search", "bar"]);
+    let bar = items(&v)
+        .into_iter()
+        .find(|r| r["source"] == "structural" && r["name"] == "bar")
+        .expect("structural bar");
+    let callees = &bar["callees"];
+    assert!(
+        callees["internal"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["name"] == "foo"),
+        "internal callee foo expanded: {bar}"
+    );
+    // external collapses to a count, names not expanded by default.
+    assert!(callees["external_count"].as_u64().unwrap() >= 1, "{bar}");
+    assert!(
+        callees.get("external").is_none() || callees["external"].as_array().unwrap().is_empty(),
+        "external names collapsed by default: {bar}"
+    );
+}
+
+#[test]
+fn all_callees_expands_external_names() {
+    let tmp = fixture();
+    index(tmp.path());
+    let v = json(tmp.path(), &["search", "bar", "--all-callees"]);
+    let bar = items(&v)
+        .into_iter()
+        .find(|r| r["source"] == "structural" && r["name"] == "bar")
+        .expect("structural bar");
+    let external = bar["callees"]["external"]
+        .as_array()
+        .expect("external names");
+    assert!(
+        external.iter().any(|n| n == "ext_thing"),
+        "--all-callees expands external names: {bar}"
+    );
+}
+
+#[test]
+fn non_exact_structural_also_carries_call_edges() {
+    let tmp = fixture();
+    index(tmp.path());
+    // Query `foo`; `foobar` is a substring (non-exact) structural match. It
+    // must carry its OWN call edges — not only the exact-name `foo` does.
+    let v = json(tmp.path(), &["search", "foo"]);
+    let foobar = items(&v)
+        .into_iter()
+        .find(|r| r["source"] == "structural" && r["name"] == "foobar")
+        .expect("structural foobar");
+    assert!(
+        foobar["callees"]["internal"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["name"] == "foo"),
+        "foobar's own callees must include foo: {foobar}"
+    );
+}
+
+#[test]
+fn structural_present_without_rg() {
+    let tmp = fixture();
+    index(tmp.path());
+    let v = json(tmp.path(), &["search", "foo"]);
+    assert!(v["results"].is_array());
+    assert!(items(&v).iter().any(|r| r["source"] == "structural"));
 }

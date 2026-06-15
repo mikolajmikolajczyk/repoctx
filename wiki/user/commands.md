@@ -190,24 +190,54 @@ repoctx context resolve_window --context 2 --limit 1
 
 ## `repoctx search <pattern>`
 
-Textually-complete search: the symbol definitions named `<pattern>` **plus**
-every textual occurrence ripgrep finds (comments, strings, anything),
-compressed to `file:line`. This is the no-loss complement to `symbols` —
-repoctx runs real ripgrep under the hood and owns the compression.
+Textually-complete search with **provenance**: one flat `results` stream
+where every item is tagged with how much to trust it —
+
+- `structural` — tree-sitter confirmed a symbol definition here (name, kind,
+  range known). Highest confidence. Each structural symbol carries its own
+  `callers`/`callees` (see below).
+- `reference` — a call site of the queried name (from the call graph). Medium.
+- `textual` — substring matched, AST didn't confirm it (comments, strings,
+  a call to a *different* symbol). Grep-level.
+
+So the agent can tell confirmed symbols from noise at a glance, and — the
+thing grep can't do — see who calls the symbol and what it calls, in one query.
+
+**Callers/callees are grouped by how the name resolves *within the indexed
+scope*** (not by repo boundary), to keep the signal dense:
+
+- `internal` — resolves to exactly one indexed symbol. The valuable case
+  ("calls your function X, here"). Always expanded with location.
+- `ambiguous` — resolves to several indexed symbols. Collapsed to a per-name
+  count (`{name, count}`), e.g. `new: 4 internal candidates`.
+- `external_count` — calls whose definition isn't in the indexed scope
+  (stdlib / third-party / builtin / uncovered-language file). Collapsed to a
+  count, so a dozen `format`/`Some`/`Ok` calls don't bury the internal ones.
+
+`--all-callees` expands the collapsed categories (`external` name list +
+ambiguous `candidates`). No stop-list — external-ness is just index absence.
 
 | Flag | Effect |
 |---|---|
 | `--lang <slug>` | Restrict textual matches to a language (maps to rg `--type`). |
 | `--limit <N>` | Cap files returned. Default `50` (also capped at 40 internally). |
+| `--all-callees` | Expand `external` names + ambiguous `candidates` (default: counts only). |
 
-Caps keep token cost low: ≤40 files, ≤8 matches/file, lines truncated at 200
-chars. Truncation is flagged (`truncated` + `advisory`). If ripgrep isn't on
-PATH, you get the symbol definitions only + an advisory.
+Caps keep token cost low: ≤40 files, ≤8 matches/file, ≤50 call edges, lines
+truncated at 200 chars. Truncation is flagged (`truncated` + `advisory`). If
+ripgrep isn't on PATH, you get the structural results only + an advisory.
+Lines are 0-based in machine output (human mode prints 1-based).
 
 ```json
 {"pattern":"parse_config",
- "symbols":[{"name":"parse_config","kind":"function","location":{...}}],
- "matches":{"count":12,"files":[{"path":"src/main.rs","lines":[{"line":5,"text":"    parse_config();"}],"truncated":false}],"truncated":false}}
+ "results":[
+   {"source":"structural","path":"src/config.rs","line":41,"name":"parse_config","kind":"function","end_line":58,
+    "callers":{"internal":[{"name":"main","path":"src/main.rs","line":4,"kind":"function"}]},
+    "callees":{"internal":[{"name":"validate","path":"src/config.rs","line":70,"kind":"function"}],
+               "ambiguous":[{"name":"new","count":4}], "external_count":7}},
+   {"source":"reference","path":"src/main.rs","line":5,"text":"    parse_config();"},
+   {"source":"textual","path":"README.md","line":11,"text":"run parse_config first"}
+ ]}
 ```
 
 Use `search` when you might care about non-symbol mentions (a value in a

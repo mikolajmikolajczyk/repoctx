@@ -46,16 +46,29 @@ Use this for **exploration** when you don't know the exact identifier.
 
 ### `{REPOCTX_BIN} search <pattern>`
 
-Textually-complete search: the symbol definitions named `<pattern>` **plus**
-every textual occurrence ripgrep finds — comments, strings, config values,
-anything `symbols` would miss — compressed to `file:line` (≤40 files, ≤8
-matches/file). `--lang <slug>` restricts by language. This is what `rg
-<ident>` rewrites to, so you usually get it automatically.
+Textually-complete search with **provenance**. One flat `results` stream;
+every item carries a `source` tag telling you how much to trust it:
 
-Use `search` when a mention in a comment/string/config might matter; use
-`symbols`/`definition` when you only want the structural answer. Output:
-`{pattern, symbols:[…], matches:{count, files:[{path, lines:[{line,text}]}]}}`.
-An `advisory` fires on truncation or if ripgrep isn't installed.
+- `structural` — tree-sitter confirmed a symbol here (name/kind/range known).
+  **Trust this.** Each structural item carries its own `callers` + `callees`.
+- `reference` — a call site of the queried name (from the call graph).
+- `textual` — substring matched but unconfirmed (comment, string, or a call
+  to a *different* symbol). Treat like grep.
+
+So you can separate confirmed symbols from noise, and see **who calls the
+symbol and what it calls** without a second query — the thing `rg` can't do.
+`callers`/`callees` are grouped by resolution within the indexed scope:
+`internal` (one indexed def — expanded with location, the signal),
+`ambiguous` (several indexed defs — per-name `{name,count}`), and
+`external_count` (calls to stdlib/third-party/uncovered code — a count, so
+`format`/`Some`/`Ok` noise doesn't bury the internal calls). `--all-callees`
+expands the collapsed `external` names + ambiguous `candidates`.
+
+`--lang` restricts by language. This is what `rg <ident>` rewrites to, so you
+usually get it automatically. Output:
+`{pattern, results:[{source, path, line, name?, kind?, end_line?, text?, callers?, callees?}]}`
+where `callers`/`callees` = `{internal:[{name,path,line,kind}], ambiguous:[{name,count}], external_count}`
+(lines 0-based). An `advisory` fires on truncation or if ripgrep isn't installed.
 
 ### `{REPOCTX_BIN} definition <name>`
 
