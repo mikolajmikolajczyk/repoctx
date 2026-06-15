@@ -10,6 +10,9 @@ Quick cues:
 - "Where is X defined?" → `{REPOCTX_BIN} definition X`
 - "Show me X and its surrounding code" → `{REPOCTX_BIN} context X`
 - "Explore symbols matching ..." → `{REPOCTX_BIN} symbols <substring>`
+- "Find X everywhere (defs + textual, incl. comments)" → `{REPOCTX_BIN} search X`
+- "Who calls X / what does X call?" → `{REPOCTX_BIN} callers X` / `{REPOCTX_BIN} callees X`
+- "Trace the call chain from X" → `{REPOCTX_BIN} callgraph X --depth N --direction up|down|both`
 - "Structure of one file" → `{REPOCTX_BIN} outline <file>`
 - "Index health" → `{REPOCTX_BIN} status`
 

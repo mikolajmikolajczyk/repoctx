@@ -56,7 +56,7 @@ Case-insensitive substring search across every indexed symbol.
 | Flag | Effect |
 |---|---|
 | `--kind <kind>` | Restrict to one kind (see the table below). |
-| `--lang <slug>` | Restrict to one language slug (`rust`, `go`, `typescript`, `tsx`, `javascript`, `python`, `json`, `yaml`, `toml`, `markdown`). |
+| `--lang <slug>` | Restrict to one language slug (`rust`, `go`, `python`, `typescript`, `tsx`, `javascript`, `c`, `cpp`, `java`, `csharp`, `ruby`, `php`, `lua`, `kotlin`, `swift`, `bash`, `markdown`, `json`, `yaml`, `toml`). |
 | `--limit <N>` | Cap results at `N` (default `50`; `0` = unlimited). |
 
 Result ordering is deterministic: `name COLLATE NOCASE ASC`, then `file_path ASC`, then `start_line ASC`.
@@ -280,7 +280,7 @@ Output fields:
 
 | Field | Meaning |
 |---|---|
-| `schema_version` | DB schema version (currently `2`). |
+| `schema_version` | DB schema version (currently `4`). |
 | `files` | Total indexed files. |
 | `symbols` | Total symbols across all files. |
 | `db_size_bytes` | On-disk size of `.repoctx/index.db`. |

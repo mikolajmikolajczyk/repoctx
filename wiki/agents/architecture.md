@@ -4,7 +4,7 @@ Repo shape, data flow, key modules. Keep this **descriptive of the current state
 
 ## Status
 
-v0.7.1 shipped 2026-06-14 (flagged-`rg` hook-chain fix + agent benchmark harness; v0.7.0 the prior day added the language-coverage expansion). CLI surface complete: indexing, search, navigation, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
+v0.8.0 shipped 2026-06-15: static **call graph** (`callers`/`callees`/`callgraph`, core-8 langs, ADR-0010, schema v4 `calls` table) + **`repoctx search`** (textually-complete: symbol defs + every ripgrep match; the hook rewrites `rg <ident>` here). CLI surface complete: indexing, search, navigation, call graph, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall, `-g` installs a global skill), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic `58b45d5` in Radicle.
 
 ## Current layout
 
@@ -39,6 +39,9 @@ Tracked across the foundation epic `e408787`, navigation epic `8ce08ce`, integra
 | `repoctx index`             | walks tree, parses, writes `store` | full or incremental (ADR-0006, ADR-0007) |
 | `repoctx status`            | reads `store` | counts, freshness, index health |
 | `repoctx symbols <query>`   | `workspace_symbols` | case-insensitive substring across all files |
+| `repoctx search <pattern>`  | `search_cmd` | symbol defs + real-ripgrep textual matches, compressed; `--lang`, `--limit` |
+| `repoctx callers <name>` / `callees <name>` | `callgraph_cmd` + `backend::callers/callees` | direct static call-graph edges (name-based, ADR-0010) |
+| `repoctx callgraph <name>`  | `callgraph_cmd` | transitive traversal; `--depth`, `--direction up\|down\|both`; cycle-safe |
 | `repoctx gain` / `gain top` | `store::gain` | navigation cost avoided, aggregates only |
 | `repoctx outline <file>`    | `document_symbols` | indented tree (human) / flat (machine) |
 | `repoctx definition <name>` | `workspace_symbols` + exact-name + kind whitelist | name-based; position-based `definition` waits for LSP |
@@ -55,7 +58,8 @@ Future (ADR-0005, via `repoctxd`):
 
 - `repoctx refs <symbol>`
 - `repoctx hover <file:line:col>`
-- `repoctx callers <file:line:col>`
+- *semantic* call edges (`resolution = 'semantic'`) written into the same
+  `calls` table the static graph already uses — no schema fork (ADR-0010).
 
 ## Data flow
 
@@ -78,10 +82,10 @@ Future (ADR-0005, via `repoctxd`):
 ## Key modules
 
 - **`repoctx` (bin)** — CLI entry. `clap` parsing, dispatch, output formatting (human + TOON + JSON, per ADR-0008). Each command has its own `*_cmd.rs` module under `crates/repoctx/src/`.
-- **`index`** — Tree-sitter parser registry + symbol extraction via upstream `tags.scm` / `locals.scm` (plus a small custom query for Markdown/JSON/YAML/TOML where no upstream tags ship). Pure file → records.
-- **`store`** — SQLite schema, migrations, query helpers. The only module that touches the DB. Schema v3 (files, symbols, meta, usage, settings). `BEGIN IMMEDIATE` on migration so parallel indexers serialize cleanly.
+- **`index`** — Tree-sitter parser registry + symbol extraction via upstream `tags.scm` / `locals.scm` (plus a small custom query for Markdown/JSON/YAML/TOML where no upstream tags ship). Also `parse_calls_with`: per-language call-site queries (core-8) → `CallRecord`s, caller resolved by walking up the syntax tree to the enclosing function/method. Pure file → records.
+- **`store`** — SQLite schema, migrations, query helpers. The only module that touches the DB. Schema v4 (files, symbols, meta, usage, settings, **calls**). The `calls` table holds name-based call edges (caller name + start line, callee name, site, `resolution`); `callers_of`/`callees_of` resolve callees to symbols by name at query time (ADR-0010). `BEGIN IMMEDIATE` on migration so parallel indexers serialize cleanly.
 - **hook subsystem (in `repoctx` bin)** — `init_cmd` (`init` / `doctor` / `--uninstall`), `hook_script` (embedded `hook.sh` template + render), `hook_scan` (cross-scope classify + race ruleset), `hook_marker` (fingerprint reader), `hook_rewrite` (PreToolUse handler + rtk chain), `hook_takeover` (settings.json writers).
-- **`backend`** — `CodeIntelBackend` trait + query/result types (`SymbolQuery`, `PositionQuery`, `Symbol`, `Location`, `HoverInfo`). One impl: `TreeSitterBackend`, reading from `store`.
+- **`backend`** — `CodeIntelBackend` trait + query/result types (`SymbolQuery`, `PositionQuery`, `Symbol`, `Location`, `HoverInfo`, `CallEdge`). `callers`/`callees` are name-based (served by Tree-sitter today). One impl: `TreeSitterBackend`, reading from `store`.
 - **`integrations`** — `repoctx hook` support. Manifest schema (TOML), embedded content (`content` module, `include_str!`), installer (three modes + template substitution). Public `AGENTS` constant lists supported agents. No network/HTTP deps.
 
 Future:

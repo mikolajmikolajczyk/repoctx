@@ -56,7 +56,7 @@ items[4]:
 
 ## Token cost — why TOON
 
-JSON pays for every comma, brace, and quoted key. TOON drops the structural noise and uses an indentation/colon shape that LLM tokenizers compress well. The savings dominate at scale — long lists of homogeneous records, the exact shape `repoctx symbols`/`outline`/`definition`/`context` returns. For one-off small payloads (1–2 records, nested shapes) the two are roughly even; the policy still defaults to TOON for non-TTY callers because (a) bulk queries are common and (b) format flag toggling complicates agent prompts.
+JSON pays for every comma, brace, and quoted key. TOON drops the structural noise and uses an indentation/colon shape that LLM tokenizers compress well. The savings dominate at scale — long lists of homogeneous records, the exact shape `repoctx symbols`/`search`/`outline`/`definition`/`context`/`callers`/`callees`/`callgraph` returns. For one-off small payloads (1–2 records, nested shapes) the two are roughly even; the policy still defaults to TOON for non-TTY callers because (a) bulk queries are common and (b) format flag toggling complicates agent prompts.
 
 If your call site is parsing the result with `jq` or `serde_json`, pass `--json` — TOON's a different grammar.
 
@@ -85,6 +85,12 @@ about this repo.
 - `repoctx context <symbol>` — exact-name match + source window
   around each hit. Prefer over `definition` + a follow-up Read when
   you'd open the file anyway.
+- `repoctx search <pattern>` — symbol defs + every textual match
+  (comments/strings included), compressed. Use when non-symbol
+  mentions matter; it's also what `rg <ident>` rewrites to.
+- `repoctx callers <name>` / `callees <name>` / `callgraph <name>` —
+  static call-graph edges; `callgraph` traverses (`--depth`,
+  `--direction`).
 - `repoctx status` — counts + staleness; cheap, run before deep work.
 - `repoctx gain` — show the navigation tokens repoctx has saved.
 

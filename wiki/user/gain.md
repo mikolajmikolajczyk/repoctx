@@ -60,7 +60,7 @@ symbols:
   91.6% reduction · 11.8K tokens saved · 4 call(s)
 ```
 
-With `outline` / `definition` / `context` recording alongside `symbols`, this view tells you which command is doing the most work for you. Example after a mixed session:
+With `outline` / `definition` / `context` / `search` / `callers` / `callees` / `callgraph` recording alongside `symbols`, this view tells you which command is doing the most work for you. Example after a mixed session:
 
 ```text
 context:

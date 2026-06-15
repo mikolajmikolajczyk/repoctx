@@ -22,7 +22,7 @@ exact path. The script is a **dumb pipe** — no `jq`, no JSON parsing:
 # repoctx-hook-version: 1
 set -euo pipefail
 RTK_CHAIN=1                      # 0 | 1 — chain rtk underneath on passthrough
-MIN_VERSION="0.7.1"              # = the binary version that generated the script
+MIN_VERSION="0.8.0"              # = the binary version that generated the script
 REPOCTX="repoctx"
 
 # repoctx missing → print install link; chain rtk if configured; never block Bash
@@ -67,12 +67,20 @@ the flag explicitly.
 
 | Agent pattern | Rewritten to |
 |---|---|
-| `rg <ident>` | `repoctx symbols <ident> --json` |
+| `rg <ident>` | `repoctx search <ident> --json` |
+| `rg -n/-l/-i/-w/-F <ident>` (navigation flags) | `repoctx search <ident> --json` |
+| `rg --type <lang> <ident>` (or `-t`) | `repoctx search <ident> --json --lang <lang>` |
+| `rg -A/-B/-C <n> <ident>` (context flags) | `repoctx context <ident> --context <n> --json` |
 | `rg "fn <ident>"` / `"class …"` / `"struct …"` / `"function …"` | `repoctx definition <ident> --json` |
-| `grep -r <ident> .` (also `-R`) | `repoctx symbols <ident> --json` |
+| `grep -r <ident> .` (also `-R`) | `repoctx search <ident> --json` |
 | `grep -rn "fn <ident>" .` (and `-nr`/`-nR`/`-Rn`; class/struct/function) | `repoctx definition <ident> --json` |
 
+`rg <ident>` routes to `repoctx search` (textually complete: symbol defs +
+every ripgrep match) rather than `repoctx symbols`, so a transparent rewrite
+never drops textual matches.
+
 **Hard passthrough**: regex (`.*`, `^`, `$`, `|`), shell metacharacters,
+result-changing flags (`-c`, `-v`, `-o`, `--json`, unknown `--type`),
 multiple identifiers, paths other than `.`, quoted literals
 (`rg "TODO"`), and anything the conservative parser doesn't recognize.
 The full decision corpus is locked behind a test suite. Disable rewrites

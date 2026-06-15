@@ -47,18 +47,26 @@ code in milliseconds:
 - "Show me `X` with the surrounding 5 lines."
 - "What's the symbol structure of this file?"
 - "Which functions / classes / types match this pattern?"
+- "Who calls `X`? What does `X` call? Trace the call chain."
+- "Every occurrence of `X` — definitions *and* textual mentions."
 
-It's **not** a search tool — `rg` already does that better. It's a
-**structural** tool. Each answer comes with the exact file, line,
-column, and symbol kind. The agent receives a tiny structured
-response instead of a wall of source code to grep through.
+It's **structural-first**: each answer comes with the exact file, line,
+column, and symbol kind, so the agent receives a tiny structured response
+instead of a wall of source to grep through. `repoctx search` adds a
+textually-complete mode — symbol definitions **plus** every ripgrep match
+(comments, strings, anything), compressed — so you never lose textual data
+either. The hook transparently routes your `rg`/`grep` here.
 
 ### Example queries
 
 ```sh
 repoctx symbols UserService            # find symbols matching a substring
+repoctx search parse_config            # symbol defs + every textual match
 repoctx definition parse_config        # exact-name lookup ("where is X")
 repoctx context resolve_window         # "show me X with code around it"
+repoctx callers parse_config           # who calls it
+repoctx callees parse_config           # what it calls
+repoctx callgraph parse_config --depth 2 --direction up   # trace the chain
 repoctx outline src/main.rs            # structure of one file
 repoctx status                         # how big is the index, is it stale
 repoctx gain                           # how many tokens have I saved so far
@@ -93,10 +101,14 @@ of 4,000.
 - Default output is [TOON](https://github.com/toon-format/toon), a
   format LLM tokenizers compress about 5× better than JSON. Pass
   `--json` if you're piping into `jq`.
-- 9 languages supported with full coverage: Go, Rust, TypeScript,
-  TSX, JavaScript, Python, Markdown. Partial coverage (top-level
-  keys only): JSON, YAML, TOML — the tool tells you to fall back
-  to `rg` for those.
+- 20 languages indexed. Full coverage: Rust, Go, Python, TypeScript,
+  TSX, JavaScript, C, C++, Java, C#, Ruby, PHP, Lua, Kotlin, Swift,
+  Markdown. Partial: JSON, YAML, TOML (top-level keys), Bash
+  (functions) — the tool tells you to fall back to `rg` for those.
+- A static **call graph** (`callers`/`callees`/`callgraph`) for the
+  core 8 languages (Rust, Python, JS, TS, Go, C, C++, Java), built
+  from Tree-sitter syntax — name-based, the same accuracy class as
+  `definition` (ADR-0010).
 
 ## Install
 
@@ -115,9 +127,9 @@ Releases ship four targets per tag at
 Verify the sha256 sidecar, unpack, drop the binary on `PATH`:
 
 ```sh
-shasum -a 256 -c repoctx-0.7.1-x86_64-unknown-linux-gnu.tar.gz.sha256
-tar xzf repoctx-0.7.1-x86_64-unknown-linux-gnu.tar.gz
-sudo mv repoctx-0.7.1-x86_64-unknown-linux-gnu/repoctx /usr/local/bin/
+shasum -a 256 -c repoctx-0.8.0-x86_64-unknown-linux-gnu.tar.gz.sha256
+tar xzf repoctx-0.8.0-x86_64-unknown-linux-gnu.tar.gz
+sudo mv repoctx-0.8.0-x86_64-unknown-linux-gnu/repoctx /usr/local/bin/
 ```
 
 Full PowerShell and `curl` recipes per platform: [`wiki/user/installation.md`](wiki/user/installation.md).
@@ -125,7 +137,7 @@ Full PowerShell and `curl` recipes per platform: [`wiki/user/installation.md`](w
 ### Cargo
 
 ```sh
-cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.7.1
+cargo install --git https://github.com/mikolajmikolajczyk/repoctx --tag v0.8.0
 ```
 
 ### Nix
@@ -170,11 +182,16 @@ skill teaches the agent how to use `repoctx` and when to prefer it over
 - `index` — incremental indexer (changes only reparse changed files).
 - `symbols` — case-insensitive substring search; `--kind`, `--lang`,
   `--limit` filters.
+- `search` — textually-complete search: symbol defs + every ripgrep
+  match, compressed. What the hook rewrites `rg <ident>` to.
 - `outline` — symbol tree for one file (indented containment in human
   mode, flat in machine).
 - `definition` — exact-name lookup, definition-kind whitelist (no
   struct-field noise).
 - `context` — exact-name match + source window around each hit.
+- `callers` / `callees` — direct static call-graph edges.
+- `callgraph` — transitive call paths (`--depth`, `--direction`;
+  cycle-safe).
 - `status` — counts, per-language breakdown, staleness.
 - `languages` — coverage matrix; agents check this to decide when to
   fall back to `rg`.
@@ -184,6 +201,8 @@ skill teaches the agent how to use `repoctx` and when to prefer it over
 - `init` — wire repoctx into Claude Code as the meta-hook (committed
   script + rtk chaining + `doctor`/`--uninstall`).
 - `hook` — the PreToolUse handler + per-agent guidance install.
+- `rewrite` — debug helper: shows whether/how the hook would rewrite a
+  command.
 - Three output formats over one set of typed records: human (TTY),
   TOON (pipes), JSON (`--json`).
 - CI green on Linux + macOS + Windows.

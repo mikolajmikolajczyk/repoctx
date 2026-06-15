@@ -6,8 +6,9 @@ description: Use repoctx for fast, indexed code navigation in this repo. Beats g
 # repoctx
 
 `repoctx` is an AI-oriented repository intelligence CLI. The index is
-built incrementally over Tree-sitter parses (Go, Rust, TypeScript, TSX,
-JavaScript, Python, JSON, YAML, TOML, Markdown). All read commands
+built incrementally over Tree-sitter parses of 20 languages (Rust, Go,
+Python, TypeScript, TSX, JavaScript, C, C++, Java, C#, Ruby, PHP, Lua,
+Kotlin, Swift, Bash, Markdown, JSON, YAML, TOML). All read commands
 auto-index on first run.
 
 ## When to use
@@ -203,11 +204,14 @@ To get the full coverage matrix in one call:
 Returns `{slug, coverage: "full"|"partial", notes}` per language.
 Cache this once per session.
 
-Today (v0.3.x): Rust, Go, Python, TypeScript, TSX, JavaScript, and
-Markdown are `full`. JSON, YAML, and TOML are `partial` — only
-top-level keys (or section headers, for TOML) are tagged. A query
-like "where is `containerPort` configured" against a k8s YAML
-will return zero hits even though `rg` would find it. The advisory
+Today (v0.8.0): 16 languages are `full` — Rust, Go, Python, TypeScript,
+TSX, JavaScript, C, C++, Java, C#, Ruby, PHP, Lua, Kotlin, Swift,
+Markdown. JSON, YAML, TOML are `partial` (top-level keys / TOML section
+headers; opt-in all-depth via `index.nested_keys`), and Bash is
+`partial` (functions only). A query like "where is `containerPort`
+configured" against a k8s YAML will return zero hits even though `rg`
+would find it — but `repoctx search containerPort` will, since it runs
+ripgrep too. The advisory
 will tell you so.
 
 ## Gotchas

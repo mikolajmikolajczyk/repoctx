@@ -45,6 +45,8 @@ Measured on three SHA-pinned real codebases. Typical savings:
 |---|---|---|
 | `definition` | one location record | ~99% |
 | `symbols` / `outline` | a structured list | ~99% |
+| `callers` / `callees` / `callgraph` | call-graph edges (pointers, not source) | ~99% |
+| `search` | symbol defs + compressed match lines | high (lines, not whole files) |
 | `context` | the actual source window | 65–99% |
 
 `context` is lower on purpose: it *returns the code* the agent asked to

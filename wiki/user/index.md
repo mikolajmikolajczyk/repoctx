@@ -19,7 +19,7 @@ Coding-agent docs (architecture, conventions, status) live under [`../agents/`](
 
 ## Project status
 
-Pre-1.0 — see [`../agents/status.md`](../agents/status.md). The CLI surface (`index`, `symbols`, `outline`, `definition`, `context`, `status`, `hook`, `gain`) is end-to-end on Linux/macOS/Windows. An LSP-backed daemon is on the roadmap.
+Pre-1.0 — see [`../agents/status.md`](../agents/status.md). The CLI surface (`index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `status`, `languages`, `config`, `init`, `hook`, `gain`) is end-to-end on Linux/macOS/Windows, including a static call graph (ADR-0010). An LSP-backed daemon is on the roadmap.
 
 ## License
 

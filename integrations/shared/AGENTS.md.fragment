@@ -3,7 +3,10 @@
 This repository has `repoctx` available. It is an indexed,
 language-aware code-navigation CLI that gives structural answers
 about the codebase (where symbols are defined, what's in a file,
-exact-name lookups) far cheaper in tokens than `grep`/`find`/`cat`.
+exact-name lookups, who-calls-what via the call graph) far cheaper
+in tokens than `grep`/`find`/`cat`. `repoctx search` also gives a
+textually-complete search (symbol defs + every ripgrep match) when
+you need non-symbol mentions too.
 
 ## Rules
 
@@ -40,6 +43,9 @@ involves navigating or understanding code in this repo.
 | Find where `X` is defined | `{REPOCTX_BIN} definition X` |
 | Show `X` with surrounding code | `{REPOCTX_BIN} context X` |
 | Explore symbols matching `pattern` | `{REPOCTX_BIN} symbols pattern` |
+| Find `X` everywhere (defs + textual, incl. comments) | `{REPOCTX_BIN} search X` |
+| Who calls `X` / what `X` calls | `{REPOCTX_BIN} callers X` / `{REPOCTX_BIN} callees X` |
+| Trace the call chain | `{REPOCTX_BIN} callgraph X --depth 2 --direction up` |
 | See the structure of one file | `{REPOCTX_BIN} outline path/to/file.rs` |
 | Check index health / staleness | `{REPOCTX_BIN} status` |
 | See how many tokens you've saved | `{REPOCTX_BIN} gain` |
@@ -47,15 +53,16 @@ involves navigating or understanding code in this repo.
 
 ## When to fall back to `rg`
 
-Only when one of these is true:
+Reach for `repoctx search` first — it runs ripgrep under the hood, so it
+covers literal strings, comments, config values, and nested keys while
+still leading with symbol definitions. Drop to raw `rg` only when:
 
-- The `advisory` field in the response says to.
-- You're searching for a literal string (TODO comments, error
-  messages, configuration values) rather than an identifier.
-- You're querying a file in JSON / YAML / TOML and need a nested
-  key (those languages are top-level-only in the index).
+- The `advisory` field in the response says to (e.g. results truncated,
+  or ripgrep wasn't installed).
+- You need ripgrep features `search` doesn't expose (multiline, replace,
+  complex `--glob` filtering, counts).
 - The file's language isn't in the supported set (`repoctx
-  languages` to check).
+  languages` to check) and you want raw text scanning.
 
 ## Worked examples
 
