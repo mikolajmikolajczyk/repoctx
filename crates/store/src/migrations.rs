@@ -8,7 +8,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::error::{Result, StoreError};
 
 /// Highest schema version this binary supports.
-pub const SUPPORTED_VERSION: u32 = 4;
+pub const SUPPORTED_VERSION: u32 = 5;
 
 /// Migration scripts indexed by target version. Position N is the SQL to
 /// move the DB from version N-1 to version N.
@@ -99,6 +99,28 @@ const MIGRATIONS: &[&str] = &[
     CREATE INDEX calls_callee_idx    ON calls(callee_name);
     CREATE INDEX calls_caller_idx    ON calls(caller_name);
     CREATE INDEX calls_file_path_idx ON calls(file_path);
+    "#,
+    // -> v5 (import / dependency graph; epic #4, ADR-0011)
+    //
+    // One row per import SITE: the importing file plus the raw module
+    // specifier as written in source (`@adapters/storage-idb`, `./foo`,
+    // `std::collections::HashMap`, `os`, `<stdio.h>` already de-bracketed).
+    // Like `calls`, edges are name/string-based and resolved at query time —
+    // precise specifier→file resolution (tsconfig paths, node_modules, crate
+    // layout) is deferred to a future resolver writing 'semantic' rows here
+    // (ADR-0011 mirrors ADR-0010). Cascades with the file via file_path FK.
+    r#"
+    CREATE TABLE imports (
+        id          INTEGER PRIMARY KEY,
+        file_path   TEXT NOT NULL REFERENCES files(path) ON DELETE CASCADE,
+        module      TEXT NOT NULL,
+        site_line   INTEGER NOT NULL,
+        site_column INTEGER NOT NULL,
+        resolution  TEXT NOT NULL DEFAULT 'syntactic'
+    );
+
+    CREATE INDEX imports_module_idx    ON imports(module);
+    CREATE INDEX imports_file_path_idx ON imports(file_path);
     "#,
 ];
 

@@ -230,6 +230,24 @@ impl Language {
         }
     }
 
+    /// Import-site query for the import / dependency graph (epic #4 /
+    /// ADR-0011). `Some` for the core-8 languages; `None` for the rest.
+    /// Captures the module specifier node as `@module`.
+    pub fn imports_query(self) -> Option<&'static str> {
+        match self {
+            Self::Rust => Some(include_str!("../queries/rust-imports.scm")),
+            Self::Python => Some(include_str!("../queries/python-imports.scm")),
+            Self::JavaScript | Self::TypeScript | Self::Tsx => {
+                Some(include_str!("../queries/javascript-imports.scm"))
+            }
+            Self::Go => Some(include_str!("../queries/go-imports.scm")),
+            Self::C => Some(include_str!("../queries/c-imports.scm")),
+            Self::Cpp => Some(include_str!("../queries/cpp-imports.scm")),
+            Self::Java => Some(include_str!("../queries/java-imports.scm")),
+            _ => None,
+        }
+    }
+
     /// Deep tags query variant for partial-coverage data languages,
     /// capturing keys at any nesting depth. `None` for languages where the
     /// normal query already captures everything (the opt-in `nested_keys`

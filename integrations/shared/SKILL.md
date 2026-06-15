@@ -20,6 +20,8 @@ Use this skill when the user's question is **structural**:
 - "What public symbols does this file expose?"
 - "Who calls function Z?" / "What does Z call?"
 - "Trace the call chain from Z."
+- "What does this file import?" / "What imports module M?"
+- "Does layer A import layer B?" (boundary / layering checks)
 - "Are there any TODO-tagged sections?"
 - "Show me every type that mentions Foo."
 
@@ -122,6 +124,21 @@ approximate, the same accuracy class as `definition`:
 When edges are ambiguous or unresolved the command emits an `advisory`;
 treat the graph as a strong hint and cross-check with `rg` when it
 matters.
+
+### `{REPOCTX_BIN} deps <file>` / `rdeps <module>`
+
+The import / dependency graph. `deps <file>` lists the module specifiers a
+file imports; `rdeps <module>` lists the files whose import specifier
+**contains** the argument as a substring (so `rdeps storage-idb` finds every
+importer of `@adapters/storage-idb`). Core 8 languages (Rust/Python/JS/TS/
+TSX/Go/C/C++/Java). Each edge: `{file, module, line, resolution}`.
+
+Use these for **architecture / boundary questions** instead of grepping
+import lines: "what depends on this module", "does the UI layer import the
+storage adapter directly". String-based — the raw specifier is stored as
+written (aliases like `@adapters/x` match exactly; relative `./x` are
+verbatim). Precise specifier→file resolution is not done yet; an empty
+result carries an `advisory`.
 
 ### `{REPOCTX_BIN} outline <file>`
 

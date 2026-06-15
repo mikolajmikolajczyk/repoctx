@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use repoctx_store::{
-    from_db_path, to_db_path, CallRecord, FileRecord, Store, SymbolFilter, SymbolRecord,
-    SUPPORTED_VERSION,
+    from_db_path, to_db_path, CallRecord, FileRecord, ImportRecord, Store, SymbolFilter,
+    SymbolRecord, SUPPORTED_VERSION,
 };
 use tempfile::tempdir;
 
@@ -89,6 +89,75 @@ fn call_edges_resolve_ambiguous_and_unresolved() {
     assert_eq!(unresolved[0].callee_name, "external_fn");
     let helper_rows = callees.iter().filter(|e| e.callee_name == "helper").count();
     assert_eq!(helper_rows, 2, "helper resolves to two candidate defs");
+}
+
+fn ir(file: &str, module: &str, line: u32) -> ImportRecord {
+    ImportRecord {
+        file_path: file.into(),
+        module: module.into(),
+        site_line: line,
+        site_column: 0,
+        resolution: "syntactic".into(),
+    }
+}
+
+#[test]
+fn import_edges_deps_and_rdeps() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(&fr("ui.ts", 1, 10, "typescript"), &[])
+        .unwrap();
+    s.upsert_imports(
+        "ui.ts",
+        &[
+            ir("ui.ts", "@adapters/storage-idb", 0),
+            ir("ui.ts", "./util", 1),
+        ],
+    )
+    .unwrap();
+    s.upsert_file(&fr("svc.ts", 1, 10, "typescript"), &[])
+        .unwrap();
+    s.upsert_imports("svc.ts", &[ir("svc.ts", "@adapters/storage-idb", 0)])
+        .unwrap();
+
+    // deps: modules ui.ts imports, ordered by site.
+    let deps = s.deps_of("ui.ts").unwrap();
+    assert_eq!(deps.len(), 2);
+    assert_eq!(deps[0].module, "@adapters/storage-idb");
+    assert_eq!(deps[1].module, "./util");
+
+    // rdeps: substring match across all importers.
+    let importers = s.importers_of("storage-idb").unwrap();
+    assert_eq!(importers.len(), 2, "both files import a matching specifier");
+    let files: Vec<&str> = importers.iter().map(|e| e.file_path.as_str()).collect();
+    assert_eq!(files, ["svc.ts", "ui.ts"], "ordered by file path");
+
+    // No false matches.
+    assert!(s.importers_of("nonexistent").unwrap().is_empty());
+}
+
+#[test]
+fn import_edges_pruned_on_file_reindex() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(&fr("a.ts", 1, 10, "typescript"), &[])
+        .unwrap();
+    s.upsert_imports("a.ts", &[ir("a.ts", "gone-mod", 0)])
+        .unwrap();
+    assert_eq!(s.importers_of("gone-mod").unwrap().len(), 1);
+    // Re-index with no imports -> cascade clears the old edge.
+    s.upsert_file(&fr("a.ts", 2, 11, "typescript"), &[])
+        .unwrap();
+    assert_eq!(s.importers_of("gone-mod").unwrap().len(), 0);
+}
+
+#[test]
+fn rdeps_substring_does_not_match_wildcards_literally() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(&fr("a.ts", 1, 10, "typescript"), &[])
+        .unwrap();
+    s.upsert_imports("a.ts", &[ir("a.ts", "@scope/pkg", 0)])
+        .unwrap();
+    // `%` is escaped, so it is matched literally (no rows), not as a wildcard.
+    assert!(s.importers_of("%").unwrap().is_empty());
 }
 
 #[test]

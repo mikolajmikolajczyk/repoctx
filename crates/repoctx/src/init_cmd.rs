@@ -237,7 +237,9 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
                 .display()
         );
         eprintln!("  hook        : using the user-global hook (~/.claude/repoctx-hook.sh)");
-        eprintln!("                run `repoctx init --force` to add a project-local hook instead.");
+        eprintln!(
+            "                run `repoctx init --force` to add a project-local hook instead."
+        );
         return Ok(());
     }
     eprintln!("  hook script : {}", script_path.display());

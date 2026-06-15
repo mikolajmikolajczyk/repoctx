@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `status`, `languages`, `config`, `init`, `hook`, `gain`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deps`, `rdeps`, `status`, `languages`, `config`, `init`, `hook`, `gain`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -298,6 +298,30 @@ The call graph is **name-based and approximate — the same accuracy class as `d
 
 When edges are ambiguous or unresolved, the command emits an `advisory` pointing at `rg` as the fallback. Treat the output as a strong hint, not a proof.
 
+## `repoctx deps <file>` / `repoctx rdeps <module>`
+
+The import / dependency graph (ADR-0011). `deps` lists the module specifiers a file imports; `rdeps` lists the files that import a module.
+
+- `deps <file>` — `<file>` is repo-relative or absolute. Items are `{file, module, line, resolution}`, one per import site, ordered by source position.
+- `rdeps <module>` — matches any import specifier **containing** `<module>` as a substring, so `rdeps storage-idb` finds every importer of `@adapters/storage-idb`. Items share the same shape; `file` is the importer.
+
+```sh
+repoctx deps src/ui/AssetPanel.tsx
+repoctx rdeps @adapters/storage-idb      # who imports the storage adapter?
+repoctx rdeps storage-idb                # same, by substring
+```
+
+### Accuracy caveats
+
+String-based and approximate, mirroring the call graph:
+
+- **The raw specifier is stored as written** (quotes/angle-brackets stripped). Aliased/package specifiers (`@adapters/x`, `react`) match exactly; relative specifiers (`./x`, `../y`) are verbatim, so `rdeps` by bare name is most useful for aliases/packages. `deps` by file is exact regardless.
+- **No specifier→file resolution.** tsconfig paths, `node_modules`, and crate layout are not resolved yet (deferred to a future resolver writing `semantic` edges into the same table).
+- **`rdeps` substring matching can over-match** (`util` matches `./my-util`). The exact `module` field in `--json` lets you disambiguate.
+- **Languages:** the core 8 (Rust `use`/`extern crate`, Python `import`/`from`, JS/TS/TSX ESM `import`/`export … from`, Go imports, C/C++ `#include`, Java `import`). Other indexed languages return no edges yet.
+
+Empty results carry an `advisory` pointing at `rg` as the fallback.
+
 ## `repoctx status`
 
 Index health + per-language counts + optional staleness.
@@ -310,7 +334,7 @@ Output fields:
 
 | Field | Meaning |
 |---|---|
-| `schema_version` | DB schema version (currently `4`). |
+| `schema_version` | DB schema version (currently `5`). |
 | `files` | Total indexed files. |
 | `symbols` | Total symbols across all files. |
 | `db_size_bytes` | On-disk size of `.repoctx/index.db`. |

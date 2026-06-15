@@ -3,8 +3,9 @@
 This repository has `repoctx` available. It is an indexed,
 language-aware code-navigation CLI that gives structural answers
 about the codebase (where symbols are defined, what's in a file,
-exact-name lookups, who-calls-what via the call graph) far cheaper
-in tokens than `grep`/`find`/`cat`. `repoctx search` also gives a
+exact-name lookups, who-calls-what via the call graph, and what
+imports what via the dependency graph) far cheaper in tokens than
+`grep`/`find`/`cat`. `repoctx search` also gives a
 textually-complete search (symbol defs + every ripgrep match) when
 you need non-symbol mentions too.
 
@@ -46,6 +47,7 @@ involves navigating or understanding code in this repo.
 | Find `X` everywhere (defs + textual, incl. comments) | `{REPOCTX_BIN} search X` |
 | Who calls `X` / what `X` calls | `{REPOCTX_BIN} callers X` / `{REPOCTX_BIN} callees X` |
 | Trace the call chain | `{REPOCTX_BIN} callgraph X --depth 2 --direction up` |
+| What a file imports / what imports a module | `{REPOCTX_BIN} deps path/to/file.ts` / `{REPOCTX_BIN} rdeps @scope/mod` |
 | See the structure of one file | `{REPOCTX_BIN} outline path/to/file.rs` |
 | Check index health / staleness | `{REPOCTX_BIN} status` |
 | See how many tokens you've saved | `{REPOCTX_BIN} gain` |

@@ -8,7 +8,9 @@ use tracing::debug;
 use crate::error::{Result, StoreError};
 use crate::like;
 use crate::migrations;
-use crate::record::{CallEdgeRow, CallRecord, FileRecord, SymbolRecord};
+use crate::record::{
+    CallEdgeRow, CallRecord, FileRecord, ImportEdgeRow, ImportRecord, SymbolRecord,
+};
 
 const SQLITE_BUSY_TIMEOUT_MS: u32 = 5000;
 
@@ -142,6 +144,81 @@ impl Store {
         }
         tx.commit()?;
         Ok(())
+    }
+
+    /// Replace the import edges for one file. Old edges were already removed
+    /// by [`upsert_file`]'s cascading delete; this inserts the freshly
+    /// extracted ones. Call it right after `upsert_file` for the same file.
+    pub fn upsert_imports(&mut self, file_path: &str, imports: &[ImportRecord]) -> Result<()> {
+        if imports.is_empty() {
+            return Ok(());
+        }
+        let tx = self.conn.transaction()?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO imports(file_path, module, site_line, site_column, resolution)
+                 VALUES(?1, ?2, ?3, ?4, ?5)",
+            )?;
+            for im in imports {
+                debug_assert_eq!(im.file_path, file_path);
+                stmt.execute(params![
+                    im.file_path,
+                    im.module,
+                    im.site_line,
+                    im.site_column,
+                    im.resolution,
+                ])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Direct dependencies of `file`: every module specifier it imports,
+    /// deterministically ordered. `file` is a DB-relative path.
+    pub fn deps_of(&self, file: &str) -> Result<Vec<ImportEdgeRow>> {
+        self.import_edges(
+            "i.file_path = ?1
+             ORDER BY i.site_line ASC, i.site_column ASC, i.module ASC",
+            file,
+        )
+    }
+
+    /// Reverse dependencies: every file whose import specifier *contains*
+    /// `module` as a substring (so `storage-idb` matches
+    /// `@adapters/storage-idb`). Deterministically ordered.
+    pub fn importers_of(&self, module: &str) -> Result<Vec<ImportEdgeRow>> {
+        let pattern = format!("%{}%", crate::like::escape(module));
+        self.import_edges(
+            "i.module LIKE ?1 ESCAPE '\\'
+             ORDER BY i.file_path ASC, i.site_line ASC, i.site_column ASC",
+            &pattern,
+        )
+    }
+
+    /// Shared query for `deps_of`/`importers_of`. `tail` is the WHERE body
+    /// plus ORDER BY; `bind` is the single positional parameter.
+    fn import_edges(&self, tail: &str, bind: &str) -> Result<Vec<ImportEdgeRow>> {
+        let sql = format!(
+            "SELECT i.file_path, i.module, i.site_line, i.site_column, i.resolution
+             FROM imports i
+             WHERE {tail}"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([bind], |row| {
+            Ok(ImportEdgeRow {
+                file_path: row.get(0)?,
+                module: row.get(1)?,
+                site_line: row.get(2)?,
+                site_column: row.get(3)?,
+                resolution: row.get(4)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
     }
 
     /// Map of `path -> (mtime_ns, size)` for every indexed file.

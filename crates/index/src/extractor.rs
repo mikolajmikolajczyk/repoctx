@@ -2,7 +2,7 @@
 
 use std::sync::OnceLock;
 
-use repoctx_store::{CallRecord, SymbolRecord};
+use repoctx_store::{CallRecord, ImportRecord, SymbolRecord};
 use thiserror::Error;
 use tracing::debug;
 use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
@@ -341,6 +341,118 @@ pub fn parse_calls_with(
     Ok(out)
 }
 
+// ── Import-site extraction (import / dependency graph, epic #4 / ADR-0011) ──
+
+/// Compiled import query: the query plus the capture indices named
+/// `@module` (the import specifier node).
+struct CompiledImports {
+    query: Query,
+    module_idxs: Vec<u32>,
+}
+
+fn compile_imports(language: Language) -> Option<Result<CompiledImports>> {
+    let src = language.imports_query()?;
+    let build = || {
+        let ts_lang = language.ts_language();
+        let query = Query::new(&ts_lang, src)
+            .map_err(|source| ExtractError::QueryCompile { language, source })?;
+        let module_idxs = query
+            .capture_names()
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| **c == "module")
+            .map(|(i, _)| i as u32)
+            .collect();
+        Ok(CompiledImports { query, module_idxs })
+    };
+    Some(build())
+}
+
+/// Lazily compiled import query per language. `None` for languages without
+/// an import query yet.
+fn compiled_imports_for(language: Language) -> Option<&'static Result<CompiledImports>> {
+    macro_rules! slot {
+        ($lang:expr) => {{
+            static CELL: OnceLock<Option<Result<CompiledImports>>> = OnceLock::new();
+            CELL.get_or_init(|| compile_imports($lang)).as_ref()
+        }};
+    }
+    match language {
+        Language::Rust => slot!(Language::Rust),
+        Language::Python => slot!(Language::Python),
+        Language::JavaScript => slot!(Language::JavaScript),
+        Language::TypeScript => slot!(Language::TypeScript),
+        Language::Tsx => slot!(Language::Tsx),
+        Language::Go => slot!(Language::Go),
+        Language::C => slot!(Language::C),
+        Language::Cpp => slot!(Language::Cpp),
+        Language::Java => slot!(Language::Java),
+        _ => None,
+    }
+}
+
+/// Extract import edges from `source`. Each `@module` capture becomes one
+/// [`ImportRecord`] for `file_path`, with the specifier quotes/brackets
+/// stripped. Returns `Ok(empty)` for languages without an import query.
+///
+/// String-based (no specifier→file resolution); that resolution is deferred
+/// to a future resolver writing 'semantic' edges into the same table.
+pub fn parse_imports(
+    file_path: &str,
+    language: Language,
+    source: &str,
+) -> Result<Vec<ImportRecord>> {
+    let compiled = match compiled_imports_for(language) {
+        Some(Ok(c)) => c,
+        Some(Err(_)) => {
+            debug!(?language, "imports query failed to compile; skipping");
+            return Ok(Vec::new());
+        }
+        None => return Ok(Vec::new()),
+    };
+
+    let mut parser = Parser::new();
+    parser
+        .set_language(&language.ts_language())
+        .map_err(|_| ExtractError::SetLanguage(language))?;
+    let tree = parser.parse(source, None).ok_or(ExtractError::Parse)?;
+
+    let bytes = source.as_bytes();
+    let mut cursor = QueryCursor::new();
+    let mut matches = cursor.matches(&compiled.query, tree.root_node(), bytes);
+
+    let mut out = Vec::new();
+    while let Some(m) = matches.next() {
+        for cap in m.captures {
+            if !compiled.module_idxs.contains(&cap.index) {
+                continue;
+            }
+            let module = strip_module(node_text(cap.node, bytes));
+            if module.is_empty() {
+                continue;
+            }
+            let site = cap.node.start_position();
+            out.push(ImportRecord {
+                file_path: file_path.to_string(),
+                module,
+                site_line: site.row as u32,
+                site_column: site.column as u32,
+                resolution: "syntactic".to_string(),
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// Strip surrounding quotes / angle-brackets and whitespace from a captured
+/// import-specifier node (`"foo"`, `'foo'`, `<stdio.h>` → `foo` / `stdio.h`).
+fn strip_module(raw: &str) -> String {
+    raw.trim()
+        .trim_matches(|c| matches!(c, '"' | '\'' | '<' | '>'))
+        .trim()
+        .to_string()
+}
+
 /// Node kinds that introduce a callable across the core-8 grammars. Used to
 /// find a call site's enclosing function/method by walking up the tree —
 /// more robust than symbol line ranges, since some tags queries (C/C++)
@@ -455,4 +567,57 @@ fn trim_markdown_heading(raw: &str) -> String {
     let stripped = first_line.trim_start_matches('#').trim();
     let stripped = stripped.trim_end_matches('#').trim();
     stripped.to_string()
+}
+
+#[cfg(test)]
+mod import_tests {
+    use super::*;
+
+    fn modules(language: Language, src: &str) -> Vec<String> {
+        parse_imports("f", language, src)
+            .unwrap()
+            .into_iter()
+            .map(|r| r.module)
+            .collect()
+    }
+
+    #[test]
+    fn typescript_esm_imports() {
+        let src = r#"
+import { saveFile } from "@adapters/storage-idb";
+import type { Manifest } from "@adapters/storage-idb";
+export { foo } from "./util";
+"#;
+        assert_eq!(
+            modules(Language::TypeScript, src),
+            ["@adapters/storage-idb", "@adapters/storage-idb", "./util"]
+        );
+    }
+
+    #[test]
+    fn python_imports_dotted_and_relative() {
+        let src = "import os\nimport a.b.c\nfrom x.y import z\n";
+        assert_eq!(modules(Language::Python, src), ["os", "a.b.c", "x.y"]);
+    }
+
+    #[test]
+    fn rust_use_and_extern_crate() {
+        let src = "use std::collections::HashMap;\nuse crate::foo::Bar;\nextern crate serde;\n";
+        assert_eq!(
+            modules(Language::Rust, src),
+            ["std::collections::HashMap", "crate::foo::Bar", "serde"]
+        );
+    }
+
+    #[test]
+    fn c_include_strips_quotes_and_brackets() {
+        let src = "#include <stdio.h>\n#include \"local.h\"\n";
+        assert_eq!(modules(Language::C, src), ["stdio.h", "local.h"]);
+    }
+
+    #[test]
+    fn uncovered_language_yields_nothing() {
+        // Ruby has no import query yet — no-op, not an error.
+        assert!(modules(Language::Ruby, "require 'foo'\n").is_empty());
+    }
 }

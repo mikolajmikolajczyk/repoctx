@@ -78,7 +78,7 @@ repoctx status
 ```
 
 ```text
-schema_version: 4
+schema_version: 5
 files:          81
 symbols:        528
 db_size_bytes:  131072

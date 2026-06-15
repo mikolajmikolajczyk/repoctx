@@ -11,6 +11,7 @@ mod config;
 mod config_cmd;
 mod context_cmd;
 mod definition_cmd;
+mod deps_cmd;
 mod gain;
 mod gain_cmd;
 mod hook_cmd;
@@ -148,6 +149,17 @@ enum Cmd {
         /// Direction to walk: `up` (callers), `down` (callees), or `both`.
         #[arg(long, default_value = "down")]
         direction: String,
+    },
+    /// List the modules a file imports (the import / dependency graph).
+    Deps {
+        /// File to inspect (repo-relative or absolute).
+        file: PathBuf,
+    },
+    /// Find files that import a module (reverse dependencies). Matches any
+    /// import specifier containing the argument as a substring.
+    Rdeps {
+        /// Module specifier or substring, e.g. `@adapters/storage-idb`.
+        module: String,
     },
     /// Print the per-language coverage matrix (how well repoctx
     /// indexes each language). Agents check this before deciding to
@@ -406,6 +418,8 @@ fn run() -> Result<()> {
             let dir = callgraph_cmd::Direction::parse(&direction)?;
             callgraph_cmd::run_graph(&repo_root, name, depth, dir, render, gain_opts)
         }
+        Cmd::Deps { file } => deps_cmd::run_deps(&repo_root, file, render, gain_opts),
+        Cmd::Rdeps { module } => deps_cmd::run_rdeps(&repo_root, module, render, gain_opts),
         Cmd::Hook { sub } => match sub {
             HookSub::Claude {
                 rtk_chain,

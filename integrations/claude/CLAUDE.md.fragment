@@ -13,6 +13,7 @@ Quick cues:
 - "Find X everywhere (defs + textual, incl. comments)" → `{REPOCTX_BIN} search X`
 - "Who calls X / what does X call?" → `{REPOCTX_BIN} callers X` / `{REPOCTX_BIN} callees X`
 - "Trace the call chain from X" → `{REPOCTX_BIN} callgraph X --depth N --direction up|down|both`
+- "What does this file import / what imports module M?" → `{REPOCTX_BIN} deps <file>` / `{REPOCTX_BIN} rdeps <module>`
 - "Structure of one file" → `{REPOCTX_BIN} outline <file>`
 - "Index health" → `{REPOCTX_BIN} status`
 

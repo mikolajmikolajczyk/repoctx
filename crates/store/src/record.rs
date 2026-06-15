@@ -56,6 +56,32 @@ pub struct CallEdgeRow {
     pub resolution: String,
 }
 
+/// One import SITE for insertion (import graph, epic #4 / ADR-0011).
+///
+/// `module` is the raw specifier as written in source (quotes/brackets
+/// already stripped). String-based, resolved at query time; `resolution` is
+/// 'syntactic' for Tree-sitter edges, 'semantic' for a future resolver.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportRecord {
+    pub file_path: String,
+    pub module: String,
+    pub site_line: u32,
+    pub site_column: u32,
+    pub resolution: String,
+}
+
+/// An import edge returned by a `deps`/`rdeps` query: the importing file, the
+/// raw module specifier, and where the import sits. Both directions share
+/// this shape (no symbol resolution, unlike call edges).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportEdgeRow {
+    pub file_path: String,
+    pub module: String,
+    pub site_line: u32,
+    pub site_column: u32,
+    pub resolution: String,
+}
+
 /// Native filesystem path -> DB path string (`/`-separated, lossy on non-UTF-8 components).
 pub fn to_db_path(p: &Path) -> String {
     let mut out = String::new();
