@@ -25,6 +25,7 @@ fn call(file: &str, caller: &str, caller_line: u32, callee: &str, site: u32) -> 
         site_line: site,
         site_column: 4,
         resolution: "syntactic".into(),
+        is_method: false,
     }
 }
 

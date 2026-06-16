@@ -471,7 +471,7 @@ Output fields:
 
 | Field | Meaning |
 |---|---|
-| `schema_version` | DB schema version (currently `8`). |
+| `schema_version` | DB schema version (currently `9`). |
 | `files` | Total indexed files. |
 | `symbols` | Total symbols across all files. |
 | `db_size_bytes` | On-disk size of `.repoctx/index.db`. |

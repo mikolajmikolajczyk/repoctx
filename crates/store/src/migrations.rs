@@ -8,7 +8,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::error::{Result, StoreError};
 
 /// Highest schema version this binary supports.
-pub const SUPPORTED_VERSION: u32 = 8;
+pub const SUPPORTED_VERSION: u32 = 9;
 
 /// Migration scripts indexed by target version. Position N is the SQL to
 /// move the DB from version N-1 to version N.
@@ -168,6 +168,16 @@ const MIGRATIONS: &[&str] = &[
     // `repoctx index --force` repopulates them.
     r#"
     ALTER TABLE symbols ADD COLUMN visibility TEXT NOT NULL DEFAULT 'unknown';
+    "#,
+    // -> v9 (receiver-aware call edges; issue #9)
+    //
+    // Whether a call carries a receiver value (`obj.foo()`) vs a free/path call
+    // (`foo()`, `Type::foo()`). Lets callee resolution refuse to bind a method
+    // call to a free `function` of the same name (`map.set()` is not `fn set`),
+    // replacing the HOST_METHOD_NAMES stop-list with a precise rule. Existing
+    // rows default to 0 (free call) until a `repoctx index --force` repopulates.
+    r#"
+    ALTER TABLE calls ADD COLUMN is_method INTEGER NOT NULL DEFAULT 0;
     "#,
 ];
 

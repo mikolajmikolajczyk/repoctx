@@ -15,20 +15,38 @@ use crate::record::{
 
 const SQLITE_BUSY_TIMEOUT_MS: u32 = 5000;
 
-/// Receiver-blind method/builtin names that collide by name with a lone
-/// same-named repo definition: under name-based resolution (ADR-0010) every
-/// `x.set()` / `arr.push()` binds to the one `set`/`push` symbol, fabricating a
-/// false super-hub. Excluded from centrality everywhere (hotspots, god nodes,
-/// communities, report, export degree). Heuristic — receiver-awareness (#9) is
-/// the real fix. Kept as one SQL `IN`-list literal so every query stays in sync.
-const HOST_METHOD_NAMES: &str = "'get','set','has','delete','push','pop','shift','unshift',\
+/// Builtin/host method names (`Array.push`, `Map.get`, …). Even with
+/// receiver-awareness a method call to one of these binds to a repo `method` of
+/// the same name when one happens to exist (e.g. a `Stack.push`) — a
+/// method→method collision we can't resolve without receiver *types*. So a
+/// method call (`x.push()`) to any of these resolves to nothing. Free calls
+/// (`push()`) and method calls to other names are unaffected — strictly looser
+/// than the old blanket name stop-list, which dropped these names everywhere.
+const BUILTIN_METHOD_NAMES: &str = "'get','set','has','delete','push','pop','shift','unshift',\
     'map','filter','forEach','reduce','find','findIndex','some',\
     'every','join','split','slice','splice','concat','flat',\
     'keys','values','entries','on','off','once','emit','then',\
     'catch','finally','add','remove','clear','toString','valueOf',\
     'call','apply','bind','test','exec','match','replace',\
-    'includes','indexOf','startsWith','endsWith','next','length',\
-    'log','warn','error','info','debug','assign','create'";
+    'includes','indexOf','startsWith','endsWith','next',\
+    'log','warn','error','info','debug'";
+
+/// SQL predicate deciding whether symbol `{s}` may resolve call `{c}` as its
+/// callee, given the call's receiver-awareness (#9). A receiver-value method
+/// call (`obj.foo()`) resolves **only** to a `method` — never to a free
+/// `function` of the same name, so `map.set()` no longer binds to `fn set`; and
+/// a method call to a builtin name (`BUILTIN_METHOD_NAMES`) resolves to nothing
+/// (the method→method collision needs receiver types). A free/path call
+/// (`foo()`, `Type::foo()`) resolves to `function`/`method`/`macro`. Data/doc
+/// symbols (`key`/`section`) and types never resolve. `{c}` must expose an
+/// `is_method` column; `{s}` a `kind` column.
+fn callee_match(c: &str, s: &str) -> String {
+    format!(
+        "(({c}.is_method = 1 AND {s}.kind = 'method' \
+              AND {c}.callee_name NOT IN ({BUILTIN_METHOD_NAMES})) \
+          OR ({c}.is_method = 0 AND {s}.kind IN ('function','method','macro')))"
+    )
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct Counts {
@@ -143,8 +161,8 @@ impl Store {
         let tx = self.conn.transaction()?;
         {
             let mut stmt = tx.prepare(
-                "INSERT INTO calls(file_path, caller_name, caller_start_line, callee_name, site_line, site_column, resolution)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO calls(file_path, caller_name, caller_start_line, callee_name, site_line, site_column, resolution, is_method)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             )?;
             for c in calls {
                 debug_assert_eq!(c.file_path, file_path);
@@ -156,6 +174,7 @@ impl Store {
                     c.site_line,
                     c.site_column,
                     c.resolution,
+                    c.is_method as i64,
                 ])?;
             }
         }
@@ -308,6 +327,11 @@ impl Store {
     /// `.on()` call never binds to a YAML `key` named `on` (#9-C).
     pub fn hotspots(&self, limit: usize) -> Result<Vec<(String, u64, String, u32)>> {
         let lim = if limit == 0 { -1 } else { limit as i64 };
+        // Count an incoming edge only when the callee resolves, receiver-aware,
+        // to exactly ONE callable symbol (centrality, not name popularity): a
+        // `.get()`/`.push()` with no repo method of that name resolves to zero
+        // and drops out — replacing the old host-method stop-list (#9).
+        let m = callee_match("c", "s");
         let sql = format!(
             "SELECT c.callee_name, COUNT(*) AS n,
                     (SELECT s.file_path FROM symbols s
@@ -317,15 +341,8 @@ impl Store {
                      WHERE s.name = c.callee_name AND s.kind IN ('function','method')
                      ORDER BY s.file_path, s.start_line LIMIT 1)
              FROM calls c
-             WHERE c.callee_name IN (
-                     SELECT name FROM symbols
-                     WHERE kind IN ('function','method')
-                     GROUP BY name HAVING COUNT(*) = 1
-                   )
-               -- Host/builtin method names collide by name with a lone repo
-               -- def (`.get()`/`.push()` -> Map/Array, not the repo symbol);
-               -- a name-based graph can't tell them apart (see HOST_METHOD_NAMES).
-               AND c.callee_name NOT IN ({HOST_METHOD_NAMES})
+             WHERE (SELECT COUNT(*) FROM symbols s
+                      WHERE s.name = c.callee_name AND {m}) = 1
              GROUP BY c.callee_name
              ORDER BY n DESC, c.callee_name ASC
              LIMIT ?1"
@@ -783,20 +800,21 @@ impl Store {
     /// resolve to indexed symbols (so cycle detection only walks in-repo
     /// edges). Deduplicated. For `repoctx cycles` (issue #3).
     pub fn resolved_edge_pairs(&self) -> Result<Vec<(String, String)>> {
-        // Only edges whose callee resolves to exactly ONE callable definition:
-        // unambiguous (single def) + a code symbol (never a data `key`/doc
-        // `section`). Ambiguous fan-out + data-key callees poison cycle
-        // detection and community structure (issues #9, #14).
-        let sql = "SELECT DISTINCT c.caller_name, c.callee_name
+        // Only edges whose callee resolves, receiver-aware, to exactly ONE
+        // callable definition: unambiguous (single def) and the right kind for
+        // the call (`obj.foo()` -> a `method`, never a free `function`).
+        // Ambiguous fan-out + miscategorized callees poison cycle detection and
+        // community structure (issues #9, #14).
+        let m = callee_match("c", "s");
+        let sql = format!(
+            "SELECT DISTINCT c.caller_name, c.callee_name
                    FROM calls c
                    WHERE c.caller_name <> c.callee_name
-                     AND c.callee_name IN (
-                           SELECT name FROM symbols
-                           WHERE kind NOT IN ('key', 'section')
-                           GROUP BY name HAVING COUNT(*) = 1
-                         )
-                   ORDER BY c.caller_name ASC, c.callee_name ASC";
-        let mut stmt = self.conn.prepare(sql)?;
+                     AND (SELECT COUNT(*) FROM symbols s
+                            WHERE s.name = c.callee_name AND {m}) = 1
+                   ORDER BY c.caller_name ASC, c.callee_name ASC"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
         let mut out = Vec::new();
         for r in rows {
@@ -817,27 +835,25 @@ impl Store {
     pub fn located_edges(&self) -> Result<Vec<LocatedEdge>> {
         // The callee location subqueries are read only when callee_defs == 1
         // (where the single def is unambiguous); LIMIT 1 keeps them scalar for
-        // the ambiguous case we discard anyway. Host/builtin method names are
-        // excluded on BOTH endpoints (a `.set()` caller or callee binds to the
-        // lone `set` def, faking a super-hub — see HOST_METHOD_NAMES).
+        // the ambiguous case we discard anyway. Callees resolve receiver-aware
+        // (#9): a `.set()` with no repo method `set` resolves to 0 defs and is
+        // dropped, so the false `set` super-hub never forms. `is_method` is in
+        // the GROUP BY so a free and a method call to the same name from one
+        // caller stay distinct edges (they resolve to different kinds).
+        let m = callee_match("c", "s");
         let sql = format!(
             "SELECT c.caller_name, c.file_path, c.caller_start_line, c.callee_name,
                           (SELECT COUNT(*) FROM symbols s
-                             WHERE s.name = c.callee_name
-                               AND s.kind NOT IN ('key', 'section')) AS defs,
+                             WHERE s.name = c.callee_name AND {m}) AS defs,
                           (SELECT s.file_path FROM symbols s
-                             WHERE s.name = c.callee_name
-                               AND s.kind NOT IN ('key', 'section')
+                             WHERE s.name = c.callee_name AND {m}
                              ORDER BY s.file_path, s.start_line LIMIT 1) AS cfile,
                           (SELECT s.start_line FROM symbols s
-                             WHERE s.name = c.callee_name
-                               AND s.kind NOT IN ('key', 'section')
+                             WHERE s.name = c.callee_name AND {m}
                              ORDER BY s.file_path, s.start_line LIMIT 1) AS cline
                    FROM calls c
                    WHERE c.caller_name <> c.callee_name
-                     AND c.caller_name NOT IN ({HOST_METHOD_NAMES})
-                     AND c.callee_name NOT IN ({HOST_METHOD_NAMES})
-                   GROUP BY c.caller_name, c.file_path, c.caller_start_line, c.callee_name
+                   GROUP BY c.caller_name, c.file_path, c.caller_start_line, c.callee_name, c.is_method
                    HAVING defs >= 1
                    ORDER BY c.caller_name, c.file_path, c.caller_start_line, c.callee_name"
         );
@@ -886,6 +902,7 @@ impl Store {
     /// Shared join for `callers_of`/`callees_of`. `where_clause` selects on
     /// `c.callee_name`/`c.caller_name`; `bind` is the symbol name.
     fn call_edges(&self, where_clause: &str, bind: &str) -> Result<Vec<CallEdgeRow>> {
+        let callee_match = callee_match("c", "callee_s");
         let sql = format!(
             "SELECT caller_s.file_path, caller_s.name, caller_s.kind,
                     caller_s.start_line, caller_s.start_column, caller_s.end_line, caller_s.end_column,
@@ -901,11 +918,11 @@ impl Store {
               AND caller_s.start_line = c.caller_start_line
              LEFT JOIN symbols callee_s
                ON callee_s.name = c.callee_name
-              -- A callee must be a CODE symbol, never a data/doc symbol: a
-              -- JSON/YAML/TOML `key` or a markdown `section` named the same as
-              -- a function must not resolve as the call target (issue #9). An
-              -- all-data name then resolves to NULL = external, as it should.
-              AND callee_s.kind NOT IN ('key', 'section')
+              -- Receiver-aware resolution (#9): a method call (`obj.foo()`)
+              -- binds only to a `method`; a free/path call to a
+              -- function/method/macro; never to a data/doc `key`/`section`. A
+              -- `.set()` with no repo method `set` resolves to NULL = external.
+              AND {callee_match}
              WHERE {where_clause}
              ORDER BY caller_s.file_path ASC, caller_s.start_line ASC,
                       c.site_line ASC, c.site_column ASC,

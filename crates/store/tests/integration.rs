@@ -15,6 +15,15 @@ fn cr(file: &str, caller: &str, caller_line: u32, callee: &str, site_line: u32) 
         site_line,
         site_column: 4,
         resolution: "syntactic".into(),
+        is_method: false,
+    }
+}
+
+/// Method (receiver-value) call: `obj.callee()`. Resolves only to a `method`.
+fn crm(file: &str, caller: &str, caller_line: u32, callee: &str, site_line: u32) -> CallRecord {
+    CallRecord {
+        is_method: true,
+        ..cr(file, caller, caller_line, callee, site_line)
     }
 }
 
@@ -183,13 +192,15 @@ fn overview_aggregates_modules_entrypoints_hotspots() {
 }
 
 #[test]
-fn hotspots_filters_host_names_and_ambiguous() {
+fn hotspots_excludes_host_method_calls_and_ambiguous() {
+    // Receiver-awareness (#9): a `.get()` method call binds to a repo method
+    // named `get` — and there is none (it's Map.get, a builtin), so it
+    // resolves to zero and drops out. No name stop-list needed.
     let mut s = Store::open_in_memory().unwrap();
     s.upsert_file(
         &fr("a.ts", 1, 10, "typescript"),
         &[
             sr("a.ts", "realHotspot", "function", 0),
-            sr("a.ts", "get", "method", 1),   // host-method name
             sr("a.ts", "dup", "function", 2), // ambiguous (2nd def below)
         ],
     )
@@ -202,11 +213,11 @@ fn hotspots_filters_host_names_and_ambiguous() {
     s.upsert_calls(
         "a.ts",
         &[
-            cr("a.ts", "realHotspot", 0, "realHotspot", 0), // 3 calls
+            cr("a.ts", "realHotspot", 0, "realHotspot", 0), // 3 free calls
             cr("a.ts", "realHotspot", 0, "realHotspot", 0),
             cr("a.ts", "realHotspot", 0, "realHotspot", 0),
-            cr("a.ts", "realHotspot", 0, "get", 0), // host name — excluded
-            cr("a.ts", "realHotspot", 0, "get", 0),
+            crm("a.ts", "realHotspot", 0, "get", 0), // host method — no repo method `get`
+            crm("a.ts", "realHotspot", 0, "get", 0),
             cr("a.ts", "realHotspot", 0, "dup", 0), // ambiguous (2 defs) — excluded
             cr("a.ts", "realHotspot", 0, "dup", 0),
         ],
@@ -215,6 +226,41 @@ fn hotspots_filters_host_names_and_ambiguous() {
 
     let names: Vec<String> = s.hotspots(10).unwrap().into_iter().map(|h| h.0).collect();
     assert_eq!(names, vec!["realHotspot".to_string()]);
+}
+
+#[test]
+fn method_call_does_not_bind_to_free_function() {
+    // `obj.set()` must NOT resolve to a free `function set` (the bug). With a
+    // repo method `set`, the same call resolves.
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(
+        &fr("a.ts", 1, 10, "typescript"),
+        &[
+            sr("a.ts", "caller", "function", 0),
+            sr("a.ts", "set", "function", 1), // a FREE function named set
+            sr("a.ts", "realMethod", "method", 2),
+        ],
+    )
+    .unwrap();
+    s.upsert_calls(
+        "a.ts",
+        &[
+            crm("a.ts", "caller", 0, "set", 0), // method call -> NOT the free fn
+            crm("a.ts", "caller", 0, "realMethod", 0), // method call -> the method
+        ],
+    )
+    .unwrap();
+
+    // `set` (free fn) gets no resolved incoming method edge; `realMethod` does.
+    let pairs = s.resolved_edge_pairs().unwrap();
+    assert!(
+        pairs.iter().all(|(_, callee)| callee != "set"),
+        "method call must not bind to the free function `set`"
+    );
+    assert!(
+        pairs.iter().any(|(_, callee)| callee == "realMethod"),
+        "method call binds to the repo method"
+    );
 }
 
 #[test]

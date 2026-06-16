@@ -43,6 +43,9 @@ pub struct CallRecord {
     pub site_line: u32,
     pub site_column: u32,
     pub resolution: String,
+    /// Receiver-value method call (`obj.foo()`) vs free/path call (#9). A
+    /// method call must not resolve to a free `function` of the same name.
+    pub is_method: bool,
 }
 
 /// A resolved call edge returned by a callers/callees query. The caller is

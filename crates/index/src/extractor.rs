@@ -337,10 +337,38 @@ pub fn parse_calls_with(
                 site_line: site.row as u32,
                 site_column: site.column as u32,
                 resolution: "syntactic".to_string(),
+                is_method: is_method_call(cap.node),
             });
         }
     }
     Ok(out)
+}
+
+/// Whether a captured callee node is a **receiver-value** method call
+/// (`obj.foo()`) as opposed to a free/path call (`foo()`, `Type::foo()`,
+/// `ns::foo()`). Receiver-awareness (#9): a method call must not resolve to a
+/// free `function` of the same name (`map.set()` is not `fn set()`), so the
+/// resolver needs to know which calls carry a receiver value.
+///
+/// Detected purely from the captured node's parent kind — the per-language call
+/// queries already place the callee identifier under a member/field/attribute/
+/// selector node for receiver calls, and under a plain/scoped/qualified node for
+/// free/path calls. Java has one node (`method_invocation`); a receiver call is
+/// one with an `object` field.
+fn is_method_call(callee: Node) -> bool {
+    let Some(parent) = callee.parent() else {
+        return false;
+    };
+    match parent.kind() {
+        // Rust/C/C++ `obj.field()` / `ptr->field()`, JS/TS `obj.prop()`,
+        // Python `obj.attr()`, Go `obj.Field()` / `pkg.Field()`.
+        "field_expression" | "member_expression" | "attribute" | "selector_expression" => true,
+        // Java: `obj.method()` has an `object` field; bare `method()` does not.
+        "method_invocation" => parent.child_by_field_name("object").is_some(),
+        // Plain `foo()`, Rust `Type::foo()` (scoped_identifier), C++ `ns::foo()`
+        // (qualified_identifier): free/path call, no receiver value.
+        _ => false,
+    }
 }
 
 // ── Import-site extraction (import / dependency graph, epic #4 / ADR-0011) ──
@@ -723,5 +751,54 @@ function outer() { function inner() {} }
         // nested fn inside a non-exported outer is NOT exported.
         assert_eq!(vis("inner"), Some("private"));
         assert_eq!(vis("outer"), Some("private"));
+    }
+
+    /// Map callee name -> is_method for a parsed snippet (receiver-awareness #9).
+    fn call_methods(file: &str, language: Language, src: &str) -> Vec<(String, bool)> {
+        let syms = parse_file(file, language, src).unwrap();
+        parse_calls_with(file, language, src, &syms)
+            .unwrap()
+            .into_iter()
+            .map(|c| (c.callee_name, c.is_method))
+            .collect()
+    }
+
+    #[test]
+    fn is_method_js_member_vs_plain() {
+        let src = "function f() { plain(); obj.member(); a.b.deep(); }\n";
+        let calls = call_methods("a.js", Language::JavaScript, src);
+        let m = |n: &str| calls.iter().find(|(c, _)| c == n).map(|(_, b)| *b);
+        assert_eq!(m("plain"), Some(false), "free call");
+        assert_eq!(m("member"), Some(true), "obj.member()");
+        assert_eq!(m("deep"), Some(true), "a.b.deep()");
+    }
+
+    #[test]
+    fn is_method_python_attribute_vs_plain() {
+        let src = "def f():\n    plain()\n    obj.method()\n";
+        let calls = call_methods("a.py", Language::Python, src);
+        let m = |n: &str| calls.iter().find(|(c, _)| c == n).map(|(_, b)| *b);
+        assert_eq!(m("plain"), Some(false));
+        assert_eq!(m("method"), Some(true));
+    }
+
+    #[test]
+    fn is_method_rust_field_vs_path() {
+        // `Type::assoc()` (scoped) is a free/path call; `x.field()` is a method.
+        let src = "fn f() { free(); Type::assoc(); x.field(); }\n";
+        let calls = call_methods("a.rs", Language::Rust, src);
+        let m = |n: &str| calls.iter().find(|(c, _)| c == n).map(|(_, b)| *b);
+        assert_eq!(m("free"), Some(false));
+        assert_eq!(m("assoc"), Some(false), "Type::assoc() is a path call");
+        assert_eq!(m("field"), Some(true), "x.field() is a method call");
+    }
+
+    #[test]
+    fn is_method_go_selector() {
+        let src = "package p\nfunc f() {\n\tplain()\n\tobj.Method()\n}\n";
+        let calls = call_methods("a.go", Language::Go, src);
+        let m = |n: &str| calls.iter().find(|(c, _)| c == n).map(|(_, b)| *b);
+        assert_eq!(m("plain"), Some(false));
+        assert_eq!(m("Method"), Some(true));
     }
 }
