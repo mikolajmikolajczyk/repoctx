@@ -166,6 +166,13 @@ it first when **dropped into an unfamiliar repo** instead of `ls`/`cat`/grep
 round-trips. Public API surface not included yet (#8); hotspots are
 name-based.
 
+### `{REPOCTX_BIN} changed [--since REF]`
+
+Change-aware blast radius for review: symbols changed since a git ref
+(default `HEAD`; `--since main` for a whole branch) + their transitive
+callers ("what this change touches + what it can break"). Name-based
+(ADR-0010); tracked files only.
+
 ### `{REPOCTX_BIN} outline <file>`
 
 Document-symbol tree for one file. Path may be repo-relative or

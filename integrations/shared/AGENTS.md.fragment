@@ -49,6 +49,7 @@ involves navigating or understanding code in this repo.
 | Who calls `X` / what `X` calls | `{REPOCTX_BIN} callers X` / `{REPOCTX_BIN} callees X` |
 | Trace the call chain | `{REPOCTX_BIN} callgraph X --depth 2 --direction up` |
 | What breaks if I change `X` (blast radius) | `{REPOCTX_BIN} impact X` |
+| What this branch/edit touches + its blast radius | `{REPOCTX_BIN} changed --since main` |
 | Find unused functions/methods | `{REPOCTX_BIN} deadcode` |
 | Find recursion / call cycles | `{REPOCTX_BIN} cycles` |
 | What a file imports / what imports a module | `{REPOCTX_BIN} deps path/to/file.ts` / `{REPOCTX_BIN} rdeps @scope/mod` |

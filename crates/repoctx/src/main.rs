@@ -8,6 +8,7 @@ use tracing_subscriber::EnvFilter;
 mod advisory;
 mod analysis_cmd;
 mod callgraph_cmd;
+mod changed_cmd;
 mod config;
 mod config_cmd;
 mod context_cmd;
@@ -195,6 +196,13 @@ enum Cmd {
     /// Repo architecture in one call: totals, languages, modules, entry
     /// points, hotspots. The "dropped into an unfamiliar repo" command.
     Overview,
+    /// Change-aware blast radius: symbols changed since a git ref + their
+    /// transitive callers ("what this change touches + what it can break").
+    Changed {
+        /// Git ref to diff against (working tree vs REF). Default: HEAD.
+        #[arg(long, default_value = "HEAD")]
+        since: String,
+    },
     /// Check an import boundary: list files matching `--from` that import a
     /// specifier matching `--to`. Answers "does layer A import layer B?".
     Boundary {
@@ -493,6 +501,7 @@ fn run() -> Result<()> {
         }
         Cmd::Modules => modulegraph_cmd::run_modules(&repo_root, render, gain_opts),
         Cmd::Overview => overview_cmd::run(&repo_root, render, gain_opts),
+        Cmd::Changed { since } => changed_cmd::run(&repo_root, since, render, gain_opts),
         Cmd::Discover { samples, idiom } => {
             if samples {
                 discover_cmd::run_samples(&repo_root, idiom, render)

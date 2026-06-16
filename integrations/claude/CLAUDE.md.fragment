@@ -15,6 +15,7 @@ Quick cues:
 - "Who calls X / what does X call?" → `{REPOCTX_BIN} callers X` / `{REPOCTX_BIN} callees X`
 - "Trace the call chain from X" → `{REPOCTX_BIN} callgraph X --depth N --direction up|down|both`
 - "What breaks if I change X?" → `{REPOCTX_BIN} impact X`
+- "What does this branch change + its blast radius?" → `{REPOCTX_BIN} changed --since main`
 - "Find dead code / call cycles" → `{REPOCTX_BIN} deadcode` / `{REPOCTX_BIN} cycles`
 - "What does this file import / what imports module M?" → `{REPOCTX_BIN} deps <file>` / `{REPOCTX_BIN} rdeps <module>`
 - "Does layer A import layer B?" → `{REPOCTX_BIN} boundary --from <path> --to <module>`

@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `changed`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -382,6 +382,23 @@ repoctx overview
 ```
 
 Public API surface (exported symbols per module) is **not** included yet — it needs per-language export extraction (#8); the advisory notes this.
+
+## `repoctx changed [--since REF]`
+
+Change-aware blast radius — pairs with code review. Diffs the working tree against a git ref, finds the symbols overlapping the changed lines, and walks their transitive callers.
+
+| Flag | Effect |
+|---|---|
+| `--since <ref>` | Git ref to diff against (working tree vs ref). Default `HEAD` (uncommitted changes); use `main` for a whole PR. |
+
+Output: `{since, files_changed, changed:[{name,kind,path,line}], impacted:[{name,kind,path,line,depth}]}` — `impacted` is the transitive callers (blast radius), `depth` = hops from a changed symbol.
+
+```sh
+repoctx changed                 # uncommitted changes + what they break
+repoctx changed --since main    # the whole branch's blast radius
+```
+
+Tracked files only (untracked aren't in `git diff`). Blast radius is name-based (ADR-0010) — verify; capped at 500 impacted symbols.
 
 ## `repoctx status`
 
