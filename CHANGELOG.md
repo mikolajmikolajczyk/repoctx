@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.4] — 2026-06-16
+
 ### Added
 
 - **`repoctx deadcode` / `impact` / `cycles`** (issue #3 — Tier-1 call-graph analyses, no new indexing): `deadcode` lists function/method symbols with zero incoming call edges (entry points like `main` excluded; `--lang`/`--limit`) — something grep fundamentally can't do; `impact <name>` is the blast radius (everything that transitively calls `name`, framing `callgraph --direction up`); `cycles` detects recursion / mutual recursion in the call graph (capped, large graphs skipped). All name-based (ADR-0010 accuracy class) and advisory — dynamic dispatch, traits, FFI, and out-of-scope callers are invisible, so results are candidates to verify, not proof. Pure queries over the existing v4 `calls` table.
