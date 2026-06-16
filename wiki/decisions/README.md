@@ -60,3 +60,4 @@ What would make us re-open this decision.
 - [2026-06-14 — Textually-complete search (`repoctx search`)](2026-06-14-textually-complete-search.md)
 - [2026-06-15 — search provenance + call-edge surfacing](2026-06-15-search-provenance.md)
 - [2026-06-15 — callee resolution by index scope (internal/external)](2026-06-15-callee-index-scope-resolution.md)
+- [2026-06-16 — petgraph for graph algorithms in #4/#5/#6 (ephemeral helper, not the model)](2026-06-16-petgraph-for-graph-algos.md)
