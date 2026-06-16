@@ -6,6 +6,7 @@ use tracing::Level;
 use tracing_subscriber::EnvFilter;
 
 mod advisory;
+mod analysis_cmd;
 mod callgraph_cmd;
 mod config;
 mod config_cmd;
@@ -161,6 +162,26 @@ enum Cmd {
     Rdeps {
         /// Module specifier or substring, e.g. `@adapters/storage-idb`.
         module: String,
+    },
+    /// Dead-code candidates: function/method symbols with zero incoming call
+    /// edges (and not an entry point). Name-based; verify before deleting.
+    Deadcode {
+        #[arg(long)]
+        lang: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: usize,
+    },
+    /// Blast radius: everything that transitively calls `<name>` ("if I
+    /// change this, what breaks"). Frames `callgraph --direction up`.
+    Impact {
+        name: String,
+        #[arg(long, default_value_t = 3)]
+        depth: u32,
+    },
+    /// Detect cycles (recursion / mutual recursion) in the call graph.
+    Cycles {
+        #[arg(long, default_value_t = 0)]
+        limit: usize,
     },
     /// Check an import boundary: list files matching `--from` that import a
     /// specifier matching `--to`. Answers "does layer A import layer B?".
@@ -448,6 +469,13 @@ fn run() -> Result<()> {
         Cmd::Boundary { from, to, forbid } => {
             deps_cmd::run_boundary(&repo_root, from, to, forbid, render, gain_opts)
         }
+        Cmd::Deadcode { lang, limit } => {
+            analysis_cmd::run_deadcode(&repo_root, lang, limit, render, gain_opts)
+        }
+        Cmd::Impact { name, depth } => {
+            analysis_cmd::run_impact(&repo_root, name, depth, render, gain_opts)
+        }
+        Cmd::Cycles { limit } => analysis_cmd::run_cycles(&repo_root, limit, render, gain_opts),
         Cmd::Discover { samples, idiom } => {
             if samples {
                 discover_cmd::run_samples(&repo_root, idiom, render)

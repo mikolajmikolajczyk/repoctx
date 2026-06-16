@@ -533,6 +533,57 @@ impl Store {
         Ok(out)
     }
 
+    /// Dead-code candidates: function/method symbols whose name is never a
+    /// callee in any call edge (issue #3). Name-based — a symbol called only
+    /// dynamically, via a trait object, or from outside the indexed scope
+    /// (public API, FFI) shows up here as a false positive, so callers treat
+    /// it as a candidate list, not proof. `lang` filters by language slug.
+    pub fn uncalled_symbols(&self, lang: Option<&str>) -> Result<Vec<SymbolRecord>> {
+        let sql = "SELECT s.file_path, s.name, s.kind, s.start_line, s.start_column,
+                          s.end_line, s.end_column
+                   FROM symbols s
+                   JOIN files f ON f.path = s.file_path
+                   WHERE s.kind IN ('function', 'method')
+                     AND (?1 IS NULL OR f.language = ?1)
+                     AND s.name NOT IN (SELECT callee_name FROM calls)
+                   ORDER BY s.file_path ASC, s.start_line ASC";
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = stmt.query_map(params![lang], |row| {
+            Ok(SymbolRecord {
+                file_path: row.get(0)?,
+                name: row.get(1)?,
+                kind: row.get(2)?,
+                start_line: row.get(3)?,
+                start_column: row.get(4)?,
+                end_line: row.get(5)?,
+                end_column: row.get(6)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// All call edges as `(caller_name, callee_name)` pairs where BOTH names
+    /// resolve to indexed symbols (so cycle detection only walks in-repo
+    /// edges). Deduplicated. For `repoctx cycles` (issue #3).
+    pub fn resolved_edge_pairs(&self) -> Result<Vec<(String, String)>> {
+        let sql = "SELECT DISTINCT c.caller_name, c.callee_name
+                   FROM calls c
+                   WHERE c.callee_name IN (SELECT name FROM symbols)
+                     AND c.caller_name <> c.callee_name
+                   ORDER BY c.caller_name ASC, c.callee_name ASC";
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
     /// Direct callers of `name`: every call edge whose callee name is `name`.
     /// The caller is the resolved enclosing symbol; the callee column carries
     /// the resolved target(s) of `name` (several rows when `name` is

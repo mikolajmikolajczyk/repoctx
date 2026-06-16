@@ -103,6 +103,15 @@ external/unresolved), the call site, and an `ambiguous` flag.
 Use these instead of `rg "name("` — you get structured caller/callee
 symbols with locations, not raw text matches.
 
+### `{REPOCTX_BIN} deadcode` / `impact <name>` / `cycles`
+
+Analyses over the call graph (no extra indexing): `deadcode` = function/method
+symbols with no in-repo caller (entry points excluded) — grep can't do this;
+`impact <name>` = blast radius (everything transitively calling `name`, i.e.
+"what breaks if I change this"); `cycles` = recursion / mutual recursion.
+Name-based + advisory — verify before acting (dynamic dispatch / traits / FFI
+/ public API are invisible).
+
 ### `{REPOCTX_BIN} callgraph <name> [--depth N] [--direction up|down|both]`
 
 Transitive call graph from `name`. `--depth` (default 3) bounds the walk;

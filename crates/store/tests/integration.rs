@@ -194,6 +194,64 @@ fn rdeps_substring_does_not_match_wildcards_literally() {
 }
 
 #[test]
+fn uncalled_symbols_are_dead_code_candidates() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(
+        &fr("a.rs", 1, 10, "rust"),
+        &[
+            sr("a.rs", "main", "function", 0),
+            sr("a.rs", "used", "function", 1),
+            sr("a.rs", "orphan", "function", 2),
+            sr("a.rs", "AStruct", "class", 3), // non-callable kind, never dead
+        ],
+    )
+    .unwrap();
+    s.upsert_calls("a.rs", &[cr("a.rs", "main", 0, "used", 0)])
+        .unwrap();
+
+    let dead: Vec<String> = s
+        .uncalled_symbols(None)
+        .unwrap()
+        .into_iter()
+        .map(|s| s.name)
+        .collect();
+    // `used` is called; `main`/`orphan` are not; `AStruct` isn't a fn/method.
+    assert!(dead.contains(&"orphan".to_string()));
+    assert!(dead.contains(&"main".to_string())); // store doesn't apply entry heuristic
+    assert!(!dead.contains(&"used".to_string()));
+    assert!(!dead.contains(&"AStruct".to_string()));
+
+    // Language filter.
+    assert!(s.uncalled_symbols(Some("python")).unwrap().is_empty());
+}
+
+#[test]
+fn resolved_edge_pairs_only_in_repo() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(
+        &fr("a.rs", 1, 10, "rust"),
+        &[
+            sr("a.rs", "a", "function", 0),
+            sr("a.rs", "b", "function", 1),
+        ],
+    )
+    .unwrap();
+    s.upsert_calls(
+        "a.rs",
+        &[
+            cr("a.rs", "a", 0, "b", 0),        // resolved (b is a symbol)
+            cr("a.rs", "b", 1, "a", 1),        // resolved (cycle)
+            cr("a.rs", "a", 0, "external", 0), // unresolved -> excluded
+        ],
+    )
+    .unwrap();
+    let pairs = s.resolved_edge_pairs().unwrap();
+    assert!(pairs.contains(&("a".to_string(), "b".to_string())));
+    assert!(pairs.contains(&("b".to_string(), "a".to_string())));
+    assert!(!pairs.iter().any(|(_, c)| c == "external"));
+}
+
+#[test]
 fn call_edges_pruned_on_file_reindex() {
     let mut s = Store::open_in_memory().unwrap();
     s.upsert_file(

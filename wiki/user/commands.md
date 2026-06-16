@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deps`, `rdeps`, `boundary`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -297,6 +297,20 @@ The call graph is **name-based and approximate — the same accuracy class as `d
 - **Languages:** the core 8 (Rust, Python, JavaScript, TypeScript, Go, C, C++, Java). Other indexed languages return no edges until a follow-up adds their call queries.
 
 When edges are ambiguous or unresolved, the command emits an `advisory` pointing at `rg` as the fallback. Treat the output as a strong hint, not a proof.
+
+## `repoctx deadcode` / `impact` / `cycles`
+
+Tier-1 analyses over the call graph (no new indexing — pure queries over the `calls` table). All inherit the **name-based** accuracy class (ADR-0010): dynamic dispatch, trait objects, FFI, and callers outside the indexed scope are invisible, so output is a **candidate list to verify, not proof**. Each carries an advisory.
+
+- **`repoctx deadcode [--lang L] [--limit N]`** — function/method symbols with zero incoming call edges. Entry points (`main`) are excluded. Something grep can't do. Caveat: a public-API export, test fixture, or dynamically-called function shows up here — verify before deleting.
+- **`repoctx impact <name> [--depth N]`** — blast radius: everything that transitively *calls* `name` ("if I change this, what breaks"). Frames `callgraph <name> --direction up`.
+- **`repoctx cycles [--limit N]`** — recursion / mutual-recursion cycles in the call graph. In-repo edges only; cycles rotated to a canonical start + deduped. Very large graphs (20k+ edges) are skipped with an advisory.
+
+```sh
+repoctx deadcode --lang rust
+repoctx impact parse_config --depth 2
+repoctx cycles
+```
 
 ## `repoctx deps <file>` / `repoctx rdeps <module>`
 
