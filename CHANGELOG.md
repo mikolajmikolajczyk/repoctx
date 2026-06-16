@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.12.1] — 2026-06-16
+
 ### Fixed
 
 - **`communities`/`report`/`export` now agree on the subsystem count.** Two root causes: (1) **Louvain was nondeterministic** — adjacency was built from a randomized `HashMap` and the local-moving phase iterated a `HashMap`, so each invocation (they're separate processes) produced a slightly different partition (e.g. 25 vs 23 vs 23). Adjacency construction and candidate-community selection are now deterministically ordered (sorted, lowest-id tie-break), so the partition is reproducible. (2) **No shared definition of "subsystem"** — `report` capped at 12, `communities` at 30, `export` colored all 114 raw clusters. A subsystem is now a Louvain cluster with **≥ `analysis.subsystem_min_size` members** (default 5, configurable), and all three report that same count; display caps (how many to list) are separate from the count.
