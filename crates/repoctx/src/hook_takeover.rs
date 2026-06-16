@@ -53,6 +53,11 @@ impl HumanRender for TakeoverReport {
 }
 
 const REPOCTX_HOOK_COMMAND: &str = "repoctx hook claude";
+/// SessionStart hook: inject the repo orientation digest so the agent starts
+/// primed to use repoctx (issue #11, adoption-via-priming). stdout becomes
+/// session context. `2>/dev/null` keeps a stale/missing index from leaking a
+/// hook error into the transcript — no digest is better than an error banner.
+const REPOCTX_PRIME_COMMAND: &str = "repoctx prime 2>/dev/null";
 
 /// Findings from a scan of `~/.claude/settings.json`. repoctx is
 /// deliberately project-scoped — we never write to user-global
@@ -179,6 +184,7 @@ pub fn run(dir: &Path, dry_run: bool) -> Result<TakeoverReport> {
     };
 
     let displaced = takeover(&mut root)?;
+    ensure_session_start(&mut root)?;
 
     let already_owned = displaced.is_empty() && {
         let bash = bash_matcher_entry(&root);
@@ -321,6 +327,42 @@ fn takeover(root: &mut Value) -> Result<Vec<String>> {
 
     *pretooluse = new_pretooluse;
     Ok(displaced)
+}
+
+/// Ensure exactly one repoctx `SessionStart` hook running `repoctx prime`.
+/// Idempotent; preserves any other SessionStart entries the user has.
+fn ensure_session_start(root: &mut Value) -> Result<()> {
+    let arr = root
+        .as_object_mut()
+        .context("settings.json root is not a JSON object")?
+        .entry("hooks")
+        .or_insert(json!({}))
+        .as_object_mut()
+        .context("settings.json `hooks` is not a JSON object")?
+        .entry("SessionStart")
+        .or_insert(json!([]))
+        .as_array_mut()
+        .context("settings.json `hooks.SessionStart` is not a JSON array")?;
+    let present = arr.iter().any(|e| {
+        e.get("hooks")
+            .and_then(|h| h.as_array())
+            .map(|hs| hs.iter().any(is_repoctx_prime))
+            .unwrap_or(false)
+    });
+    if !present {
+        arr.push(json!({
+            "hooks": [{ "type": "command", "command": REPOCTX_PRIME_COMMAND }]
+        }));
+    }
+    Ok(())
+}
+
+fn is_repoctx_prime(entry: &Value) -> bool {
+    entry
+        .get("command")
+        .and_then(|c| c.as_str())
+        .map(|s| s.trim() == REPOCTX_PRIME_COMMAND)
+        .unwrap_or(false)
 }
 
 fn repoctx_bash_entry() -> Value {
@@ -566,5 +608,57 @@ mod tests {
         let hooks = bash["hooks"].as_array().unwrap();
         // Should be single repoctx entry now.
         assert_eq!(hooks.len(), 1);
+    }
+
+    fn session_start_prime_count(v: &Value) -> usize {
+        v.get("hooks")
+            .and_then(|h| h.get("SessionStart"))
+            .and_then(|s| s.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter(|e| {
+                        e.get("hooks")
+                            .and_then(|h| h.as_array())
+                            .map(|hs| hs.iter().any(is_repoctx_prime))
+                            .unwrap_or(false)
+                    })
+                    .count()
+            })
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn install_registers_session_start_prime() {
+        let tmp = tempdir().unwrap();
+        run(tmp.path(), false).unwrap();
+        let v = read_settings(tmp.path());
+        assert_eq!(session_start_prime_count(&v), 1, "one prime SessionStart hook");
+    }
+
+    #[test]
+    fn session_start_prime_is_idempotent_and_preserves_others() {
+        let tmp = tempdir().unwrap();
+        write_settings(
+            tmp.path(),
+            r#"{
+                "hooks": {
+                    "SessionStart": [
+                        {"hooks": [{"type": "command", "command": "echo hi"}]}
+                    ]
+                }
+            }"#,
+        );
+        run(tmp.path(), false).unwrap();
+        run(tmp.path(), false).unwrap(); // twice — must not duplicate
+        let v = read_settings(tmp.path());
+        assert_eq!(session_start_prime_count(&v), 1, "no duplicate prime hook");
+        let arr = v["hooks"]["SessionStart"].as_array().unwrap();
+        // user's own SessionStart entry preserved.
+        assert!(arr.iter().any(|e| {
+            e.get("hooks")
+                .and_then(|h| h.as_array())
+                .map(|hs| hs.iter().any(|x| x.get("command").and_then(|c| c.as_str()) == Some("echo hi")))
+                .unwrap_or(false)
+        }));
     }
 }

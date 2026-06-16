@@ -34,6 +34,7 @@ mod output;
 mod output_calls;
 mod output_symbols;
 mod overview_cmd;
+mod prime_cmd;
 mod read_cmd;
 mod repo_root;
 mod report_cmd;
@@ -215,6 +216,9 @@ enum Cmd {
     Overview,
     /// Cluster the call graph into subsystems (Louvain) + god nodes.
     Communities,
+    /// Session-start orientation digest (compact repo map) for context
+    /// injection via a SessionStart hook — primes the agent to use repoctx.
+    Prime,
     /// Deterministic architecture report (markdown) from graph topology: god
     /// nodes, subsystems, cross-cluster bridges, entry points, questions.
     Report {
@@ -557,6 +561,7 @@ fn run() -> Result<()> {
         Cmd::Modules => modulegraph_cmd::run_modules(&repo_root, render, gain_opts),
         Cmd::Overview => overview_cmd::run(&repo_root, render, gain_opts),
         Cmd::Communities => communities_cmd::run(&repo_root, render, gain_opts),
+        Cmd::Prime => prime_cmd::run(&repo_root),
         Cmd::Report { out } => report_cmd::run(&repo_root, render, gain_opts, out),
         Cmd::Export { out } => export_cmd::run(&repo_root, out),
         Cmd::Changed { since } => changed_cmd::run(&repo_root, since, render, gain_opts),

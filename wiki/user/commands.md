@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `communities`, `report`, `export`, `changed`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `communities`, `report`, `export`, `prime`, `changed`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -444,6 +444,16 @@ repoctx export --out graph.html   # then open graph.html in a browser
 ```
 
 External call targets (no in-repo definition) are dropped so the graph stays about this repo. Name-based (ADR-0010).
+
+## `repoctx prime`
+
+A compact, token-budgeted (~600 token) **session-start orientation digest** — meant to be injected into an agent's context so it begins primed to use repoctx instead of blind `grep`/`cat`. Deterministic markdown to stdout: headline (files / code symbols / top languages), top subsystems (#14, 3 members each), highest-degree hubs, entry points, and a one-block `repoctx` skill pointer. The full call graph is referenced by command (`repoctx export`), never inlined.
+
+`repoctx hook install claude` registers this as a **SessionStart** hook automatically, so you normally don't run it by hand. It never cold-indexes — if the repo isn't indexed yet it emits a one-line nudge and exits (keeping session start fast); otherwise it refreshes incrementally.
+
+```sh
+repoctx prime          # print the digest (what the SessionStart hook injects)
+```
 
 ## `repoctx changed [--since REF]`
 

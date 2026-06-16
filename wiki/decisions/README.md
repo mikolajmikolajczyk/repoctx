@@ -65,3 +65,4 @@ What would make us re-open this decision.
 - [2026-06-16 — Communities: hand-rolled Louvain over plain adjacency, not petgraph](2026-06-16-louvain-hand-rolled.md)
 - [2026-06-16 — Graph node identity = (name, file, line); resolved-only degree; host-method exclusion](2026-06-16-graph-node-identity.md)
 - [2026-06-16 — Receiver-aware call resolution: is_method, method calls bind only to methods](2026-06-16-receiver-aware-call-resolution.md)
+- [2026-06-16 — Adoption via session-start priming (`repoctx prime`), not per-command hook rewriting](2026-06-16-adoption-via-priming.md)

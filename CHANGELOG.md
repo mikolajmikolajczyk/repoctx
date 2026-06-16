@@ -4,6 +4,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **`repoctx prime` + SessionStart priming — adoption via context, not interception (issue #11).** A new compact, token-budgeted (~600 token) repo orientation digest — headline (files/code symbols/languages), top subsystems (#14), hubs, entry points, and a `repoctx` skill pointer — generated deterministically from the index. `repoctx hook install claude` now also registers it as a **SessionStart** hook, so the digest lands in the agent's context at session start: the agent begins with a structural map and a nudge to use `repoctx search/outline/callers/...` instead of blind `grep`/`cat`. `prime` never cold-indexes (it emits a one-line nudge if unindexed, so session start stays fast) and refreshes incrementally otherwise; the full call graph is referenced by command (`repoctx export`), never inlined. This reframes the adoption strategy away from the brittle per-command rewrite hook (most of whose traffic `rtk` already compresses) toward priming the agent once. Decision: `wiki/decisions/2026-06-16-adoption-via-priming.md`.
+
 ## [0.12.1] — 2026-06-16
 
 ### Fixed
