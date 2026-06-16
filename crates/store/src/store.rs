@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -195,6 +195,32 @@ impl Store {
              ORDER BY i.file_path ASC, i.site_line ASC, i.site_column ASC",
             &pattern,
         )
+    }
+
+    /// Every import edge as `(file_path, module)`, for building an in-memory
+    /// module graph (issue #4 — import cycles / dependency map). Ordered.
+    pub fn all_import_edges(&self) -> Result<Vec<(String, String)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT file_path, module FROM imports ORDER BY file_path ASC, site_line ASC",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Set of every indexed file path — the resolution target set for the
+    /// module-graph resolver.
+    pub fn all_file_paths(&self) -> Result<HashSet<String>> {
+        let mut stmt = self.conn.prepare("SELECT path FROM files")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        let mut out = HashSet::new();
+        for r in rows {
+            out.insert(r?);
+        }
+        Ok(out)
     }
 
     /// Boundary crossings: import edges whose importing file contains `from`

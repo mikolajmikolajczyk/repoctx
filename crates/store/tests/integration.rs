@@ -136,6 +136,28 @@ fn import_edges_deps_and_rdeps() {
 }
 
 #[test]
+fn all_import_edges_and_file_paths() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(&fr("src/a.ts", 1, 10, "typescript"), &[])
+        .unwrap();
+    s.upsert_imports(
+        "src/a.ts",
+        &[ir("src/a.ts", "./b", 0), ir("src/a.ts", "react", 1)],
+    )
+    .unwrap();
+    s.upsert_file(&fr("src/b.ts", 1, 10, "typescript"), &[])
+        .unwrap();
+
+    let edges = s.all_import_edges().unwrap();
+    assert_eq!(edges.len(), 2);
+    assert!(edges.contains(&("src/a.ts".to_string(), "./b".to_string())));
+
+    let files = s.all_file_paths().unwrap();
+    assert!(files.contains("src/a.ts") && files.contains("src/b.ts"));
+    assert_eq!(files.len(), 2);
+}
+
+#[test]
 fn boundary_crossings_match_from_and_to() {
     let mut s = Store::open_in_memory().unwrap();
     s.upsert_file(&fr("src/ui/Panel.tsx", 1, 10, "tsx"), &[])

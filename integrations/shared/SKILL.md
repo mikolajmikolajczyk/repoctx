@@ -146,7 +146,10 @@ For an explicit **layering check**, `{REPOCTX_BIN} boundary --from <path>
 --to <module>` lists files whose path contains `--from` importing a
 specifier containing `--to` (e.g. `boundary --from src/ui --to @adapters`
 = "does the UI import the storage adapter?"); `--forbid` exits non-zero on
-any crossing (CI gate).
+any crossing (CI gate). `{REPOCTX_BIN} import-cycles` finds circular
+imports; `{REPOCTX_BIN} modules` gives the resolved import topology + a
+dependency-first build order (relative imports resolved to files;
+alias/package specifiers counted external).
 
 Use these for **architecture / boundary questions** instead of grepping
 import lines: "what depends on this module", "does the UI layer import the

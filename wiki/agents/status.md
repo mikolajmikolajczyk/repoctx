@@ -13,6 +13,7 @@ CLI surface complete on Linux, macOS, and Windows. 20 languages indexed (16 full
 - `repoctx search <pattern>` (v0.8.0) — textually-complete search: exact-name symbol definitions **+** every textual match from real ripgrep, compressed to `file:line` (caps: 40 files, 8/file, 200-char lines; truncation flagged). repoctx owns the compression; rg-absent → symbol-only + advisory. What the hook rewrites `rg <ident>` to.
 - `repoctx callers <name>` / `callees <name>` / `callgraph <name>` (v0.8.0) — static, name-based call graph for the core-8 langs (Rust/Python/JS/TS/Go/C/C++/Java); ADR-0010; schema v4 `calls` table; callee resolution at query time; ambiguous/unresolved edges flagged + advised. `callgraph` adds `--depth` (default 3) + `--direction up|down|both`, cycle-safe.
 - `repoctx deadcode` / `impact <name>` / `cycles` (unreleased, issue #3) — Tier-1 analyses over the existing `calls` table: uncalled function/method defs (entry points excluded), transitive-caller blast radius, and call-cycle detection. Name-based (ADR-0010), advisory, no new indexing.
+- `repoctx import-cycles` / `modules` (unreleased, epic #4) — petgraph over the import graph: circular-import detection (SCC) + resolved import topology with dependency-first build order (toposort). Relative specifiers resolved to files; alias/package edges counted external. First petgraph adopter (ephemeral graph, decision 2026-06-16).
 - `repoctx deps <file>` / `rdeps <module>` / `boundary --from --to` (unreleased, epic #4) — import / dependency graph for the core-8 langs; ADR-0011; schema v5 `imports` table. `deps` lists a file's import specifiers; `rdeps` finds importers by substring; `boundary` lists crossings where files under `--from` import `--to` ("does layer A import B?"), `--forbid` makes it a CI gate. String-based, query-time resolution. Remaining #4 children: import-cycle detection, module map + public API surface.
 - `repoctx outline <file>` — document symbols for one file. Indented containment tree (human) or flat `{count, items}` (machine). Path arg accepts repo-relative or absolute; normalized through `to_db_path`. File-not-in-index → exit 1 with a prescriptive error.
 - `repoctx definition <name>` — exact-name (case-sensitive) lookup over the workspace, kind-whitelisted to `{function, method, class, interface, type, module, macro, constant}`. `--lang`, `--limit` (default 50). Zero hits = exit 0, `count: 0`.
@@ -62,7 +63,7 @@ All under their release-issue budgets.
 `gh issue list --label state:in-progress` is the source of truth.
 
 - **Call graph — remaining languages** (`#1`): the call graph ships for the core 8; call-site queries for the other indexed langs (Ruby/C#/PHP/Lua/Kotlin/Swift/Bash) are the open follow-up.
-- **Import / dependency graph** (`#4`, epic): `deps`/`rdeps`/`boundary` landed (schema v5, core-8 import extraction, ADR-0011, boundary/layering check with `--forbid` CI gate); remaining children — import-cycle detection, module dependency map + public API surface.
+- **Import / dependency graph** (`#4`, epic): `deps`/`rdeps`/`boundary`/`import-cycles`/`modules` landed (schema v5, core-8 import extraction, ADR-0011; cycles + topology via petgraph, decision 2026-06-16); remaining child — public API surface (exported symbols per module; needs `pub`/`export` extraction).
 
 ## Broken / regressions
 

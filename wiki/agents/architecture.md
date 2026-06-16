@@ -44,6 +44,7 @@ Tracked across the foundation epic, navigation epic, integrations epic, and daem
 | `repoctx callgraph <name>`  | `callgraph_cmd` | transitive traversal; `--depth`, `--direction up\|down\|both`; cycle-safe |
 | `repoctx deadcode` / `impact <name>` / `cycles` | `analysis_cmd` + `store::uncalled_symbols/resolved_edge_pairs` | Tier-1 call-graph analyses (issue #3): uncalled defs, blast radius, cycle detection |
 | `repoctx deps <file>` / `rdeps <module>` / `boundary --from --to` | `deps_cmd` + `store::deps_of/importers_of/boundary_crossings` | import / dependency graph (string-based, ADR-0011); `boundary` lists layer crossings, `--forbid` = CI gate |
+| `repoctx import-cycles` / `modules` | `modulegraph_cmd` + petgraph | resolved file→file import graph: circular imports (SCC), topology + build order (toposort); relative-resolved, alias edges external |
 | `repoctx gain` / `gain top` | `store::gain` | navigation cost avoided, aggregates only |
 | `repoctx discover`          | `discover_cmd` + `store::hook_event_stats` | hook passthrough telemetry — adoption gap per grep idiom (issue #7) |
 | `repoctx outline <file>`    | `document_symbols` | indented tree (human) / flat (machine) |

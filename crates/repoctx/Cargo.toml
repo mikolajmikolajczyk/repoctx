@@ -20,6 +20,7 @@ repoctx-store.workspace = true
 
 clap.workspace = true
 anyhow.workspace = true
+petgraph.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toon-format.workspace = true

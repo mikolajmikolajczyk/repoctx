@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -355,6 +355,18 @@ repoctx boundary --from src/plugins --to @adapters --forbid
 ```
 
 Output is the crossing edges (`{file, module, line}`). No crossings = clean (exit 0; an advisory notes whether `--from`/`--to` matched anything, since the import graph covers the core 8 languages only). Same string-based caveats as `deps`/`rdeps` — substrings match the raw specifier, no specifier→file resolution.
+
+## `repoctx import-cycles` / `modules`
+
+Graph analyses over the import graph (petgraph). To get file→file edges, **relative** specifiers (`./x`, `../y`) are resolved against the indexed file set (common extensions + `/index`); alias/package specifiers (`@scope/x`, `react`, `std::…`) need build-config resolution that isn't done yet, so they're counted as `external` and excluded. Best fit for JS/TS / relative includes.
+
+- **`repoctx import-cycles [--limit N]`** — circular imports (strongly-connected groups of files that import each other, directly or transitively).
+- **`repoctx modules`** — the resolved import topology: `{files, edges, external_edges, cyclic, order, dependencies}`. `order` is a dependency-first build order (toposort), empty when the graph is cyclic. `dependencies` lists the resolved `from → to` edges (capped at 500).
+
+```sh
+repoctx import-cycles
+repoctx modules
+```
 
 ## `repoctx status`
 

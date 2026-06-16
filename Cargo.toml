@@ -25,6 +25,10 @@ clap = { version = "4.5", features = ["derive"] }
 anyhow = "1"
 thiserror = "1"
 
+# Graph algorithms (ephemeral compute over store edges — see
+# wiki/decisions/2026-06-16-petgraph-for-graph-algos.md)
+petgraph = "0.6"
+
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

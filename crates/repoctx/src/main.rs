@@ -25,6 +25,7 @@ mod hook_takeover;
 mod index_cmd;
 mod init_cmd;
 mod languages_cmd;
+mod modulegraph_cmd;
 mod outline_cmd;
 mod output;
 mod output_calls;
@@ -183,6 +184,13 @@ enum Cmd {
         #[arg(long, default_value_t = 0)]
         limit: usize,
     },
+    /// Detect circular imports (import graph, relative-resolved file→file).
+    ImportCycles {
+        #[arg(long, default_value_t = 0)]
+        limit: usize,
+    },
+    /// Module dependency map: resolved import topology + dependency-first order.
+    Modules,
     /// Check an import boundary: list files matching `--from` that import a
     /// specifier matching `--to`. Answers "does layer A import layer B?".
     Boundary {
@@ -476,6 +484,10 @@ fn run() -> Result<()> {
             analysis_cmd::run_impact(&repo_root, name, depth, render, gain_opts)
         }
         Cmd::Cycles { limit } => analysis_cmd::run_cycles(&repo_root, limit, render, gain_opts),
+        Cmd::ImportCycles { limit } => {
+            modulegraph_cmd::run_import_cycles(&repo_root, limit, render, gain_opts)
+        }
+        Cmd::Modules => modulegraph_cmd::run_modules(&repo_root, render, gain_opts),
         Cmd::Discover { samples, idiom } => {
             if samples {
                 discover_cmd::run_samples(&repo_root, idiom, render)
