@@ -660,6 +660,13 @@ impl Store {
                    JOIN files f ON f.path = s.file_path
                    WHERE s.kind IN ('function', 'method')
                      AND (?1 IS NULL OR f.language = ?1)
+                     -- Only languages with call-site extraction (core-8): in any
+                     -- other language there are no call edges, so EVERY function
+                     -- would look uncalled. (Must match index::language calls_query.)
+                     AND f.language IN ('rust','python','javascript','typescript',
+                                        'tsx','go','c','cpp','java')
+                     -- Constructors are invoked via `new`, never called by name.
+                     AND s.name <> 'constructor'
                      AND s.name NOT IN (SELECT callee_name FROM calls)
                      AND f.path NOT LIKE '%.d.ts'
                      AND f.path NOT LIKE '%.test.%'

@@ -324,6 +324,34 @@ fn uncalled_symbols_excludes_tests_and_declarations() {
 }
 
 #[test]
+fn uncalled_symbols_skips_non_callgraph_langs_and_constructors() {
+    let mut s = Store::open_in_memory().unwrap();
+    // Bash has no call-site extraction -> every fn would look dead. Excluded.
+    s.upsert_file(
+        &fr("hook.sh", 1, 10, "bash"),
+        &[sr("hook.sh", "print_section", "function", 0)],
+    )
+    .unwrap();
+    // TS constructor: invoked via `new`, never called by name. Excluded.
+    s.upsert_file(
+        &fr("src/c.ts", 1, 10, "typescript"),
+        &[
+            sr("src/c.ts", "constructor", "method", 0),
+            sr("src/c.ts", "deadMethod", "method", 1),
+        ],
+    )
+    .unwrap();
+
+    let dead: Vec<String> = s
+        .uncalled_symbols(None)
+        .unwrap()
+        .into_iter()
+        .map(|s| s.name)
+        .collect();
+    assert_eq!(dead, vec!["deadMethod".to_string()]);
+}
+
+#[test]
 fn resolved_edge_pairs_only_in_repo() {
     let mut s = Store::open_in_memory().unwrap();
     s.upsert_file(
