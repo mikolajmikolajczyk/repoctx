@@ -4,10 +4,12 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.7] — 2026-06-16
+
 ### Changed
 
-- **Skip minified/generated files at index time** (issue #9): files with any line longer than 5000 chars (bundles, emscripten glue, source maps) are no longer indexed — they flooded `symbols`/`overview` hotspots/`deadcode` with machine-emitted noise. Cuts noise across every command, not just one.
-- **`deadcode` tightened** (issue #9): now restricted to the core-8 call-graph languages (in any other language there are no call edges, so *every* function looked dead — e.g. every Bash function); excludes `constructor` (invoked via `new`, never called by name), test files (`.test.`/`.spec.`/`_test.`/`tests/`/`test/`), `.d.ts` declarations, and (via the above) minified files. Dynamic-dispatch / public-API false positives remain (name-based, ADR-0010); advisory says so.
+- **Skip minified/generated files at index time** (issue #9): files with any line longer than 5000 chars (bundles, emscripten glue, source maps) are no longer indexed — they flooded `symbols`/`overview` hotspots/`deadcode` with machine-emitted noise. A file that *becomes* minified-skipped (or was indexed by an older build) has its stale symbols purged on the next index, not orphaned. Cuts noise across every command.
+- **`deadcode` tightened** (issue #9): now restricted to the core-8 call-graph languages (in any other language there are no call edges, so *every* function looked dead — e.g. every Bash function); excludes `constructor` (invoked via `new`, never called by name), test files (`.test.`/`.spec.`/`_test.`/`tests/`/`test/`), `.d.ts` declarations, and (via the above) minified files. Dynamic-dispatch / public-API false positives remain (name-based, ADR-0010); advisory says so. (Validated on a real repo: ~44% fewer candidates.)
 
 ## [0.11.6] — 2026-06-16
 
