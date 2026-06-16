@@ -17,7 +17,7 @@ use anyhow::{Context, Result};
 use repoctx_store::Store;
 use serde::Serialize;
 
-use crate::communities_cmd::Graph;
+use crate::communities_cmd::{node_key, resolved_graph};
 use crate::read_cmd;
 
 const TEMPLATE: &str = include_str!("export_template.html");
@@ -47,57 +47,51 @@ struct VizData {
 pub fn run(repo_root: &Path, out: Option<PathBuf>) -> Result<()> {
     read_cmd::ensure_fresh(repo_root)?;
     let store = Store::open(repo_root).context("open store")?;
-    let raw = store.graph_edges()?;
+    let located = store.located_edges()?;
 
-    // Keep internal edges only (callee has >=1 code def); drop external/library
-    // calls so the graph stays about this repo. defs==1 resolved, >1 ambiguous.
-    let kept: Vec<(&str, &str, bool)> = raw
-        .iter()
-        .filter(|(_, _, defs)| *defs >= 1)
-        .map(|(a, b, defs)| (a.as_str(), b.as_str(), *defs > 1))
-        .collect();
-
-    // Communities over the *resolved* subgraph (unambiguous edges), same basis
-    // as `communities`/`report`.
-    let resolved_pairs: Vec<(String, String)> = kept
-        .iter()
-        .filter(|(_, _, amb)| !amb)
-        .map(|(a, b, _)| (a.to_string(), b.to_string()))
-        .collect();
-    let cgraph = Graph::from_pairs(&resolved_pairs);
-    let comm = cgraph.louvain();
-    let mut community_of: HashMap<String, i64> = HashMap::new();
-    for (i, &cid) in comm.iter().enumerate() {
-        community_of.insert(cgraph.name(i).to_string(), cid as i64);
+    // Communities + node identity over the resolved subgraph — same basis as
+    // `communities`/`report`. Map each definition's identity key to its
+    // community so viz nodes color consistently (node-identity fix).
+    let resolved = resolved_graph(&located);
+    let comm = resolved.graph.louvain();
+    let mut community_of: HashMap<&str, i64> = HashMap::new();
+    for (i, key) in resolved.keys.iter().enumerate() {
+        community_of.insert(key.as_str(), comm[i] as i64);
     }
 
-    // Node index over every endpoint of a kept edge.
-    let mut idx: HashMap<&str, usize> = HashMap::new();
-    let mut names: Vec<&str> = Vec::new();
-    let mut degree: Vec<usize> = Vec::new();
-    let mut edges: Vec<VizEdge> = Vec::with_capacity(kept.len());
-    for (a, b, amb) in &kept {
-        let ia = intern_node(a, &mut idx, &mut names, &mut degree);
-        let ib = intern_node(b, &mut idx, &mut names, &mut degree);
-        degree[ia] += 1;
-        degree[ib] += 1;
+    // Build viz nodes keyed by definition location. A resolved callee uses its
+    // unique def key; an ambiguous callee (N defs, location unknown) buckets to
+    // one name node, drawn with dashed edges so the uncertainty is visible.
+    let mut acc = NodeAcc::default();
+    let mut edges: Vec<VizEdge> = Vec::with_capacity(located.len());
+    for e in &located {
+        let ckey = node_key(&e.caller_name, &e.caller_file, e.caller_line);
+        let ia = acc.intern(
+            ckey,
+            &e.caller_name,
+            Some(&e.caller_file),
+            Some(e.caller_line),
+        );
+        let (ib, ambiguous) = match (e.callee_defs, &e.callee_file, e.callee_line) {
+            (1, Some(f), Some(l)) => {
+                let key = node_key(&e.callee_name, f, l);
+                (acc.intern(key, &e.callee_name, Some(f), Some(l)), false)
+            }
+            _ => {
+                let key = format!("{}\u{1}?", e.callee_name);
+                (acc.intern(key, &e.callee_name, None, None), true)
+            }
+        };
+        acc.degree[ia] += 1;
+        acc.degree[ib] += 1;
         edges.push(VizEdge {
             source: ia,
             target: ib,
-            ambiguous: *amb,
+            ambiguous,
         });
     }
 
-    let nodes: Vec<VizNode> = names
-        .iter()
-        .enumerate()
-        .map(|(i, &n)| VizNode {
-            name: n.to_string(),
-            community: community_of.get(n).copied().unwrap_or(-1),
-            degree: degree[i],
-        })
-        .collect();
-
+    let nodes = acc.into_nodes(&community_of);
     let data = VizData { nodes, edges };
     let json = serde_json::to_string(&data).context("serialize graph")?;
     let html = TEMPLATE.replace("/*__DATA__*/", &json).replace(
@@ -134,22 +128,67 @@ fn distinct_communities(d: &VizData) -> usize {
     set.len()
 }
 
-/// Intern a node name into the parallel `idx`/`names`/`degree` vectors,
-/// returning its index. New nodes start at degree 0.
-fn intern_node<'a>(
-    s: &'a str,
-    idx: &mut HashMap<&'a str, usize>,
-    names: &mut Vec<&'a str>,
-    degree: &mut Vec<usize>,
-) -> usize {
-    if let Some(&i) = idx.get(s) {
-        return i;
+/// Accumulator interning graph nodes by their identity key while tracking the
+/// bare name, definition location, and degree for each.
+#[derive(Default)]
+struct NodeAcc {
+    idx: HashMap<String, usize>,
+    keys: Vec<String>,
+    names: Vec<String>,
+    files: Vec<Option<String>>,
+    lines: Vec<Option<u32>>,
+    degree: Vec<usize>,
+}
+
+impl NodeAcc {
+    fn intern(&mut self, key: String, name: &str, file: Option<&str>, line: Option<u32>) -> usize {
+        if let Some(&i) = self.idx.get(&key) {
+            return i;
+        }
+        let i = self.keys.len();
+        self.idx.insert(key.clone(), i);
+        self.keys.push(key);
+        self.names.push(name.to_string());
+        self.files.push(file.map(str::to_string));
+        self.lines.push(line);
+        self.degree.push(0);
+        i
     }
-    let i = names.len();
-    idx.insert(s, i);
-    names.push(s);
-    degree.push(0);
-    i
+
+    /// Finalize: qualify labels for names with >1 definition node, color by
+    /// community via the per-key map.
+    fn into_nodes(self, community_of: &HashMap<&str, i64>) -> Vec<VizNode> {
+        let mut name_count: HashMap<&str, usize> = HashMap::new();
+        for n in &self.names {
+            *name_count.entry(n.as_str()).or_insert(0) += 1;
+        }
+        (0..self.keys.len())
+            .map(|i| {
+                let name = &self.names[i];
+                let label = if name_count.get(name.as_str()).copied().unwrap_or(0) > 1 {
+                    match (&self.files[i], self.lines[i]) {
+                        // line stored 0-based (Tree-sitter native); show 1-based.
+                        (Some(f), Some(l)) => format!("{name}@{}:{}", basename(f), l + 1),
+                        _ => format!("{name}@?"),
+                    }
+                } else {
+                    name.clone()
+                };
+                VizNode {
+                    community: community_of
+                        .get(self.keys[i].as_str())
+                        .copied()
+                        .unwrap_or(-1),
+                    degree: self.degree[i],
+                    name: label,
+                }
+            })
+            .collect()
+    }
+}
+
+fn basename(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
 }
 
 #[cfg(test)]

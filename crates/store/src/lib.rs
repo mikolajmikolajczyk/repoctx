@@ -18,6 +18,6 @@ pub use gain::{CommandBreakdown, GainTotals, UsageRecord};
 pub use migrations::SUPPORTED_VERSION;
 pub use record::{
     from_db_path, to_db_path, CallEdgeRow, CallRecord, FileRecord, HookEventStat, HookSample,
-    ImportEdgeRow, ImportRecord, SymbolRecord,
+    ImportEdgeRow, ImportRecord, LocatedEdge, SymbolRecord,
 };
 pub use store::{Counts, Store, SymbolFilter};

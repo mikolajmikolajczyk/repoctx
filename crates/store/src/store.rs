@@ -10,10 +10,25 @@ use crate::like;
 use crate::migrations;
 use crate::record::{
     CallEdgeRow, CallRecord, FileRecord, HookEventStat, HookSample, ImportEdgeRow, ImportRecord,
-    SymbolRecord,
+    LocatedEdge, SymbolRecord,
 };
 
 const SQLITE_BUSY_TIMEOUT_MS: u32 = 5000;
+
+/// Receiver-blind method/builtin names that collide by name with a lone
+/// same-named repo definition: under name-based resolution (ADR-0010) every
+/// `x.set()` / `arr.push()` binds to the one `set`/`push` symbol, fabricating a
+/// false super-hub. Excluded from centrality everywhere (hotspots, god nodes,
+/// communities, report, export degree). Heuristic — receiver-awareness (#9) is
+/// the real fix. Kept as one SQL `IN`-list literal so every query stays in sync.
+const HOST_METHOD_NAMES: &str = "'get','set','has','delete','push','pop','shift','unshift',\
+    'map','filter','forEach','reduce','find','findIndex','some',\
+    'every','join','split','slice','splice','concat','flat',\
+    'keys','values','entries','on','off','once','emit','then',\
+    'catch','finally','add','remove','clear','toString','valueOf',\
+    'call','apply','bind','test','exec','match','replace',\
+    'includes','indexOf','startsWith','endsWith','next','length',\
+    'log','warn','error','info','debug','assign','create'";
 
 #[derive(Debug, Clone, Default)]
 pub struct Counts {
@@ -226,6 +241,7 @@ impl Store {
     /// Entry-point symbols: functions/methods named `main`. Heuristic — for
     /// `overview` (issue #5).
     pub fn entry_points(&self) -> Result<Vec<SymbolRecord>> {
+        // `main` functions/methods (Rust/Go/C/C++/Java CLI entry).
         let mut stmt = self.conn.prepare(
             "SELECT file_path, name, kind, start_line, start_column, end_line, end_column, visibility
              FROM symbols
@@ -248,6 +264,37 @@ impl Store {
         for r in rows {
             out.push(r?);
         }
+
+        // JS/TS web-app bootstraps: a `main`/`index` module is the bundler
+        // entry even though it defines no `main` function. Detected by file
+        // basename (Vite/webpack/Parcel convention). Synthesized as a
+        // `kind: "entry"` record at line 1 so `overview`/`report` stop reporting
+        // "none detected" for SPA codebases.
+        let mut fstmt = self.conn.prepare(
+            "SELECT DISTINCT path FROM files
+             WHERE path LIKE '%/main.tsx' OR path = 'main.tsx'
+                OR path LIKE '%/main.jsx' OR path = 'main.jsx'
+                OR path LIKE '%/main.ts'  OR path = 'main.ts'
+                OR path LIKE '%/main.js'  OR path = 'main.js'
+                OR path LIKE '%/index.tsx' OR path = 'index.tsx'
+                OR path LIKE '%/index.jsx' OR path = 'index.jsx'
+             ORDER BY path ASC",
+        )?;
+        let froms = fstmt.query_map([], |row| row.get::<_, String>(0))?;
+        for f in froms {
+            let path = f?;
+            let base = path.rsplit('/').next().unwrap_or(&path).to_string();
+            out.push(SymbolRecord {
+                file_path: path,
+                name: base,
+                kind: "entry".to_string(),
+                start_line: 1,
+                start_column: 0,
+                end_line: 1,
+                end_column: 0,
+                visibility: "public".to_string(),
+            });
+        }
         Ok(out)
     }
 
@@ -261,7 +308,7 @@ impl Store {
     /// `.on()` call never binds to a YAML `key` named `on` (#9-C).
     pub fn hotspots(&self, limit: usize) -> Result<Vec<(String, u64, String, u32)>> {
         let lim = if limit == 0 { -1 } else { limit as i64 };
-        let mut stmt = self.conn.prepare(
+        let sql = format!(
             "SELECT c.callee_name, COUNT(*) AS n,
                     (SELECT s.file_path FROM symbols s
                      WHERE s.name = c.callee_name AND s.kind IN ('function','method')
@@ -276,24 +323,14 @@ impl Store {
                      GROUP BY name HAVING COUNT(*) = 1
                    )
                -- Host/builtin method names collide by name with a lone repo
-               -- def (`.get()`/`.push()` -> Map/Array, not the repo symbol).
-               -- A name-based graph can't tell them apart, so they dominate
-               -- hotspots as popularity, not centrality. Exclude the common
-               -- offenders (issue #9; heuristic — receiver-awareness later).
-               AND c.callee_name NOT IN (
-                     'get','set','has','delete','push','pop','shift','unshift',
-                     'map','filter','forEach','reduce','find','findIndex','some',
-                     'every','join','split','slice','splice','concat','flat',
-                     'keys','values','entries','on','off','once','emit','then',
-                     'catch','finally','add','remove','clear','toString','valueOf',
-                     'call','apply','bind','test','exec','match','replace',
-                     'includes','indexOf','startsWith','endsWith','next','length',
-                     'log','warn','error','info','debug','assign','create'
-                   )
+               -- def (`.get()`/`.push()` -> Map/Array, not the repo symbol);
+               -- a name-based graph can't tell them apart (see HOST_METHOD_NAMES).
+               AND c.callee_name NOT IN ({HOST_METHOD_NAMES})
              GROUP BY c.callee_name
              ORDER BY n DESC, c.callee_name ASC
-             LIMIT ?1",
-        )?;
+             LIMIT ?1"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map(params![lim], |row| {
             Ok((
                 row.get::<_, String>(0)?,
@@ -768,25 +805,60 @@ impl Store {
         Ok(out)
     }
 
-    /// Every call edge for whole-graph visualization (#16), as
-    /// `(caller, callee, callee_def_count)`. `callee_def_count` is the number
-    /// of code (non-`key`/`section`) symbols sharing the callee name: `1` =
-    /// resolved, `>1` = ambiguous, `0` = external/unresolved. The viz styles
-    /// edges by this; external edges (`0`) are dropped at the call site so the
-    /// graph stays internal. Deduped per `(caller, callee)`.
-    pub fn graph_edges(&self) -> Result<Vec<(String, String, usize)>> {
-        let sql = "SELECT c.caller_name, c.callee_name,
+    /// Every call edge with both endpoints located by definition, for
+    /// node-identity-correct graph building (god nodes / communities / report /
+    /// export). The caller is keyed by its enclosing definition
+    /// `(name, file, caller_start_line)`; the callee carries `callee_defs` (the
+    /// count of code symbols sharing its name) so consumers can split
+    /// definitions and style ambiguity. When `callee_defs == 1` the callee's
+    /// location is in `callee_file`/`callee_line`; for ambiguous (`>1`) callees
+    /// the location is unknown (`None`). External callees (`0` defs) are
+    /// dropped. Deduped per `(caller-def, callee-name)`.
+    pub fn located_edges(&self) -> Result<Vec<LocatedEdge>> {
+        // The callee location subqueries are read only when callee_defs == 1
+        // (where the single def is unambiguous); LIMIT 1 keeps them scalar for
+        // the ambiguous case we discard anyway. Host/builtin method names are
+        // excluded on BOTH endpoints (a `.set()` caller or callee binds to the
+        // lone `set` def, faking a super-hub — see HOST_METHOD_NAMES).
+        let sql = format!(
+            "SELECT c.caller_name, c.file_path, c.caller_start_line, c.callee_name,
                           (SELECT COUNT(*) FROM symbols s
                              WHERE s.name = c.callee_name
-                               AND s.kind NOT IN ('key', 'section')) AS defs
+                               AND s.kind NOT IN ('key', 'section')) AS defs,
+                          (SELECT s.file_path FROM symbols s
+                             WHERE s.name = c.callee_name
+                               AND s.kind NOT IN ('key', 'section')
+                             ORDER BY s.file_path, s.start_line LIMIT 1) AS cfile,
+                          (SELECT s.start_line FROM symbols s
+                             WHERE s.name = c.callee_name
+                               AND s.kind NOT IN ('key', 'section')
+                             ORDER BY s.file_path, s.start_line LIMIT 1) AS cline
                    FROM calls c
                    WHERE c.caller_name <> c.callee_name
-                   GROUP BY c.caller_name, c.callee_name
-                   ORDER BY c.caller_name ASC, c.callee_name ASC";
-        let mut stmt = self.conn.prepare(sql)?;
+                     AND c.caller_name NOT IN ({HOST_METHOD_NAMES})
+                     AND c.callee_name NOT IN ({HOST_METHOD_NAMES})
+                   GROUP BY c.caller_name, c.file_path, c.caller_start_line, c.callee_name
+                   HAVING defs >= 1
+                   ORDER BY c.caller_name, c.file_path, c.caller_start_line, c.callee_name"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
         let rows = stmt.query_map([], |row| {
-            let defs: i64 = row.get(2)?;
-            Ok((row.get(0)?, row.get(1)?, defs as usize))
+            let defs: i64 = row.get(4)?;
+            let defs = defs as usize;
+            let (callee_file, callee_line) = if defs == 1 {
+                (Some(row.get(5)?), Some(row.get::<_, u32>(6)?))
+            } else {
+                (None, None)
+            };
+            Ok(LocatedEdge {
+                caller_name: row.get(0)?,
+                caller_file: row.get(1)?,
+                caller_line: row.get::<_, u32>(2)?,
+                callee_name: row.get(3)?,
+                callee_defs: defs,
+                callee_file,
+                callee_line,
+            })
         })?;
         let mut out = Vec::new();
         for r in rows {

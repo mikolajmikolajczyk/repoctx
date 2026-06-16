@@ -60,6 +60,25 @@ pub struct CallEdgeRow {
     pub resolution: String,
 }
 
+/// A call edge with both endpoints located by definition (issue: node
+/// identity). The caller is identified by `(name, file, start_line)` — its
+/// enclosing definition — so distinct same-named definitions stay distinct
+/// graph nodes instead of collapsing into one fake super-hub. The callee
+/// carries its def-count: `1` = resolved (location in `callee_file`/`line`),
+/// `>1` = ambiguous (location unknown — `callee_file`/`line` are `None`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocatedEdge {
+    pub caller_name: String,
+    pub caller_file: String,
+    pub caller_line: u32,
+    pub callee_name: String,
+    pub callee_defs: usize,
+    /// `Some` only when `callee_defs == 1`.
+    pub callee_file: Option<String>,
+    /// `Some` only when `callee_defs == 1`.
+    pub callee_line: Option<u32>,
+}
+
 /// One import SITE for insertion (import graph, epic #4 / ADR-0011).
 ///
 /// `module` is the raw specifier as written in source (quotes/brackets

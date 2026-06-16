@@ -18,7 +18,9 @@ use anyhow::{Context, Result};
 use repoctx_store::Store;
 use serde::Serialize;
 
-use crate::communities_cmd::{build_communities, top_god_nodes, Community, GodNode, Graph};
+use crate::communities_cmd::{
+    build_communities, resolved_graph, top_god_nodes, Community, GodNode, Graph,
+};
 use crate::gain::GainOpts;
 use crate::output::{HumanRender, Render};
 use crate::read_cmd;
@@ -150,9 +152,9 @@ pub fn run(
 ) -> Result<()> {
     read_cmd::ensure_fresh(repo_root)?;
     let mut store = Store::open(repo_root).context("open store")?;
-    let pairs = store.resolved_edge_pairs()?;
+    let located = store.located_edges()?;
 
-    let graph = Graph::from_pairs(&pairs);
+    let graph = resolved_graph(&located).graph;
     let comm = graph.louvain();
 
     let god_nodes = top_god_nodes(&graph, MAX_GOD_NODES);
@@ -179,7 +181,7 @@ pub fn run(
 
     let report = ReportDoc {
         nodes: graph.n,
-        edges: pairs.len(),
+        edges: graph.edges().len(),
         communities_count: communities.len(),
         god_nodes,
         communities,
@@ -299,7 +301,10 @@ fn advisory(nodes: usize) -> Option<String> {
     }
     Some(
         "Generated from call-graph topology (name-based, ADR-0010). Deterministic, no LLM. \
-         Suggested questions are structural prompts, not findings."
+         God-node degree + clustering use resolved (unambiguous) edges only, over \
+         per-definition nodes (same-named defs stay distinct); host/builtin method \
+         names (get/set/push/…) are excluded so they don't fake hubs. Suggested \
+         questions are structural prompts, not findings."
             .to_string(),
     )
 }

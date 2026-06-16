@@ -2,7 +2,8 @@
 //! "orientation layer").
 //!
 //! Runs single-level Louvain modularity optimization over the **resolved**
-//! call graph (unambiguous, callable callees only — `resolved_edge_pairs`) to
+//! call graph (unambiguous, callable callees only — `located_edges` →
+//! [`resolved_graph`], per-definition nodes) to
 //! group symbols into subsystems, labels each cluster by its highest-degree
 //! member, and surfaces god nodes (highest-degree symbols overall). Pure
 //! topology — no embeddings, no LLM. Clustering over ambiguous fan-out would
@@ -16,7 +17,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use repoctx_store::Store;
+use repoctx_store::{LocatedEdge, Store};
 use serde::Serialize;
 
 use crate::gain::GainOpts;
@@ -85,9 +86,9 @@ impl HumanRender for CommunitiesReport {
 pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> {
     read_cmd::ensure_fresh(repo_root)?;
     let mut store = Store::open(repo_root).context("open store")?;
-    let pairs = store.resolved_edge_pairs()?;
+    let located = store.located_edges()?;
 
-    let graph = Graph::from_pairs(&pairs);
+    let graph = resolved_graph(&located).graph;
     let comm = graph.louvain();
 
     let communities = build_communities(&graph, &comm, MAX_COMMUNITIES, MAX_MEMBERS);
@@ -96,7 +97,7 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
     let advisory = advisory(graph.n);
     let report = CommunitiesReport {
         nodes: graph.n,
-        edges: pairs.len(),
+        edges: graph.edges().len(),
         count: communities.len(),
         communities,
         god_nodes,
@@ -123,7 +124,10 @@ fn advisory(nodes: usize) -> Option<String> {
     }
     Some(
         "clusters from single-level Louvain over resolved (unambiguous) call edges; \
-         labels = highest-degree member. Topology-only, name-based (ADR-0010)."
+         nodes are per-definition (same-named defs stay distinct, qualified as \
+         name@file:line); labels = highest-degree member. Host/builtin method \
+         names (get/set/push/…) excluded — they bind to a lone same-named def \
+         under name-based resolution (ADR-0010), faking hubs. Topology-only."
             .to_string(),
     )
 }
@@ -177,6 +181,83 @@ pub(crate) fn top_god_nodes(graph: &Graph, max: usize) -> Vec<GodNode> {
     god_nodes
 }
 
+// ── Node-identity-correct graph construction ───────────────────────────────
+
+/// A node's unique identity key: `(name, file, line)`. Two definitions sharing
+/// a name (e.g. `set` in `event-bus.ts` and `storage.ts`) get distinct keys, so
+/// they stay distinct graph nodes instead of collapsing into one fake super-hub
+/// whose degree is the sum of unrelated definitions.
+pub(crate) fn node_key(name: &str, file: &str, line: u32) -> String {
+    format!("{name}\u{1}{file}\u{1}{line}")
+}
+
+fn basename(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}
+
+/// Resolved-only graph keyed by definition location, plus the per-node identity
+/// keys (so consumers like `export` can map their own nodes to communities).
+/// Only `callee_defs == 1` (unambiguous) edges feed degree/clustering —
+/// extends the ADR-0010 resolved-only rule to god-node degree.
+pub(crate) struct Resolved {
+    pub graph: Graph,
+    pub keys: Vec<String>,
+}
+
+/// Build the resolved call graph from located edges, with display labels that
+/// stay bare (`getDB`) for unique names and qualify (`set@event-bus.ts:23`)
+/// only when a name has multiple definitions.
+pub(crate) fn resolved_graph(located: &[LocatedEdge]) -> Resolved {
+    let mut idx: HashMap<String, usize> = HashMap::new();
+    let mut keys: Vec<String> = Vec::new();
+    let mut meta: Vec<(String, String, u32)> = Vec::new(); // (name, file, line)
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+
+    let mut intern = |name: &str, file: &str, line: u32| -> usize {
+        let key = node_key(name, file, line);
+        if let Some(&i) = idx.get(&key) {
+            return i;
+        }
+        let i = keys.len();
+        idx.insert(key.clone(), i);
+        keys.push(key);
+        meta.push((name.to_string(), file.to_string(), line));
+        i
+    };
+
+    for e in located.iter().filter(|e| e.callee_defs == 1) {
+        let (cf, cl) = match (&e.callee_file, e.callee_line) {
+            (Some(f), Some(l)) => (f.as_str(), l),
+            _ => continue,
+        };
+        let a = intern(&e.caller_name, &e.caller_file, e.caller_line);
+        let b = intern(&e.callee_name, cf, cl);
+        edges.push((a, b));
+    }
+
+    // Qualify labels only for names with >1 definition.
+    let mut name_count: HashMap<&str, usize> = HashMap::new();
+    for (name, _, _) in &meta {
+        *name_count.entry(name.as_str()).or_insert(0) += 1;
+    }
+    let labels: Vec<String> = meta
+        .iter()
+        .map(|(name, file, line)| {
+            if name_count.get(name.as_str()).copied().unwrap_or(0) > 1 {
+                // line stored 0-based (Tree-sitter native); display 1-based.
+                format!("{name}@{}:{}", basename(file), line + 1)
+            } else {
+                name.clone()
+            }
+        })
+        .collect();
+
+    Resolved {
+        graph: Graph::build(labels, &edges),
+        keys,
+    }
+}
+
 // ── Graph + Louvain ───────────────────────────────────────────────────────
 
 /// Undirected weighted graph over symbol names, built from `(caller, callee)`
@@ -193,30 +274,18 @@ pub(crate) struct Graph {
 }
 
 impl Graph {
-    pub(crate) fn from_pairs(pairs: &[(String, String)]) -> Self {
-        let mut idx: HashMap<String, usize> = HashMap::new();
-        let mut names: Vec<String> = Vec::new();
-        fn intern(s: &str, idx: &mut HashMap<String, usize>, names: &mut Vec<String>) -> usize {
-            if let Some(&i) = idx.get(s) {
-                return i;
-            }
-            let i = names.len();
-            names.push(s.to_string());
-            idx.insert(s.to_string(), i);
-            i
-        }
-        // weight by parallel-edge count (a calls b twice -> stronger tie).
+    /// Build from pre-interned node labels + index edges. Parallel edges
+    /// accumulate weight; self-loops dropped.
+    pub(crate) fn build(names: Vec<String>, edges: &[(usize, usize)]) -> Self {
+        let n = names.len();
         let mut wmap: HashMap<(usize, usize), f64> = HashMap::new();
-        for (a, b) in pairs {
-            let ia = intern(a, &mut idx, &mut names);
-            let ib = intern(b, &mut idx, &mut names);
-            if ia == ib {
+        for &(a, b) in edges {
+            if a == b {
                 continue;
             }
-            let key = if ia < ib { (ia, ib) } else { (ib, ia) };
+            let key = if a < b { (a, b) } else { (b, a) };
             *wmap.entry(key).or_insert(0.0) += 1.0;
         }
-        let n = names.len();
         let mut adj = vec![Vec::new(); n];
         let mut k = vec![0.0; n];
         let mut m2 = 0.0;
@@ -234,6 +303,28 @@ impl Graph {
             k,
             m2,
         }
+    }
+
+    /// Name-keyed build — for tests only. Production paths use
+    /// [`resolved_graph`] so distinct same-named definitions stay distinct
+    /// nodes (node-identity fix).
+    #[cfg(test)]
+    pub(crate) fn from_pairs(pairs: &[(String, String)]) -> Self {
+        let mut idx: HashMap<&str, usize> = HashMap::new();
+        let mut names: Vec<String> = Vec::new();
+        let mut edges: Vec<(usize, usize)> = Vec::new();
+        for (a, b) in pairs {
+            let ia = *idx.entry(a.as_str()).or_insert_with(|| {
+                names.push(a.clone());
+                names.len() - 1
+            });
+            let ib = *idx.entry(b.as_str()).or_insert_with(|| {
+                names.push(b.clone());
+                names.len() - 1
+            });
+            edges.push((ia, ib));
+        }
+        Graph::build(names, &edges)
     }
 
     pub(crate) fn name(&self, n: usize) -> &str {
@@ -315,6 +406,46 @@ fn relabel(comm: &[usize]) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn edge(cn: &str, cf: &str, cl: u32, kn: &str, kf: &str, kl: u32) -> LocatedEdge {
+        LocatedEdge {
+            caller_name: cn.into(),
+            caller_file: cf.into(),
+            caller_line: cl,
+            callee_name: kn.into(),
+            callee_defs: 1,
+            callee_file: Some(kf.into()),
+            callee_line: Some(kl),
+        }
+    }
+
+    #[test]
+    fn same_name_defs_stay_distinct_nodes() {
+        // Two distinct definitions of `helper` (different files) must NOT
+        // collapse into one node — the node-identity fix.
+        let located = vec![
+            edge("helper", "a.ts", 0, "foo", "f.ts", 0),
+            edge("helper", "b.ts", 0, "bar", "g.ts", 0),
+        ];
+        let r = resolved_graph(&located);
+        assert_eq!(r.graph.n, 4, "helper@a, helper@b, foo, bar are distinct");
+        let labels: Vec<&str> = (0..r.graph.n).map(|i| r.graph.name(i)).collect();
+        // colliding name qualified with basename:1-based-line; unique stays bare.
+        assert!(labels.contains(&"helper@a.ts:1"));
+        assert!(labels.contains(&"helper@b.ts:1"));
+        assert!(labels.contains(&"foo"));
+        assert!(labels.contains(&"bar"));
+    }
+
+    #[test]
+    fn ambiguous_callees_excluded_from_resolved_graph() {
+        let mut amb = edge("caller", "a.ts", 0, "set", "x.ts", 0);
+        amb.callee_defs = 3;
+        amb.callee_file = None;
+        amb.callee_line = None;
+        let r = resolved_graph(&[amb]);
+        assert_eq!(r.graph.n, 0, "ambiguous-only input yields an empty graph");
+    }
 
     #[test]
     fn two_clusters_separate() {
