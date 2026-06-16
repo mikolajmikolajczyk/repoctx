@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.9] — 2026-06-16
+
 ### Changed
 
 - **Call-graph aggregation now consumes edge quality (issue #9).** `callers`/`callees`/`callgraph`/`impact` gain `--resolved-only` (drop ambiguous + external edges, keep only names resolving to a single in-repo symbol); without it, resolved edges sort first. **`overview` hotspots** are de-noised: count only names resolving to a single callable definition, exclude a stop-list of host/builtin method names (`get`/`set`/`push`/`has`/`map`/… — `.get()`→Map, not your symbol), and resolve representative locations to callable kinds only (so `.on()` no longer binds to a YAML `key` named `on`). On a real TS repo, hotspots flip from `get`/`set`/`push` collisions to genuine central functions (`getDB`, …). Remaining: deeper receiver-awareness (`foo.push()` vs `push()`) instead of a stop-list.
