@@ -290,6 +290,40 @@ fn uncalled_symbols_are_dead_code_candidates() {
 }
 
 #[test]
+fn uncalled_symbols_excludes_tests_and_declarations() {
+    let mut s = Store::open_in_memory().unwrap();
+    // Uncalled symbols in: a test file, a .d.ts, a tests/ dir, and a real src.
+    s.upsert_file(
+        &fr("src/foo.test.ts", 1, 10, "typescript"),
+        &[sr("src/foo.test.ts", "helperInTest", "function", 0)],
+    )
+    .unwrap();
+    s.upsert_file(
+        &fr("src/types.d.ts", 1, 10, "typescript"),
+        &[sr("src/types.d.ts", "declaredFn", "function", 0)],
+    )
+    .unwrap();
+    s.upsert_file(
+        &fr("tests/contract.ts", 1, 10, "typescript"),
+        &[sr("tests/contract.ts", "fixture", "function", 0)],
+    )
+    .unwrap();
+    s.upsert_file(
+        &fr("src/real.ts", 1, 10, "typescript"),
+        &[sr("src/real.ts", "reallyDead", "function", 0)],
+    )
+    .unwrap();
+
+    let dead: Vec<String> = s
+        .uncalled_symbols(None)
+        .unwrap()
+        .into_iter()
+        .map(|s| s.name)
+        .collect();
+    assert_eq!(dead, vec!["reallyDead".to_string()], "only the real-src fn");
+}
+
+#[test]
 fn resolved_edge_pairs_only_in_repo() {
     let mut s = Store::open_in_memory().unwrap();
     s.upsert_file(

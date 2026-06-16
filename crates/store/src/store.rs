@@ -649,6 +649,10 @@ impl Store {
     /// dynamically, via a trait object, or from outside the indexed scope
     /// (public API, FFI) shows up here as a false positive, so callers treat
     /// it as a candidate list, not proof. `lang` filters by language slug.
+    ///
+    /// Filters out two classes of guaranteed false positives (issue #9):
+    /// type-declaration files (`.d.ts` — signatures, not deletable code) and
+    /// test files (functions run by the test framework, never called by name).
     pub fn uncalled_symbols(&self, lang: Option<&str>) -> Result<Vec<SymbolRecord>> {
         let sql = "SELECT s.file_path, s.name, s.kind, s.start_line, s.start_column,
                           s.end_line, s.end_column
@@ -657,6 +661,14 @@ impl Store {
                    WHERE s.kind IN ('function', 'method')
                      AND (?1 IS NULL OR f.language = ?1)
                      AND s.name NOT IN (SELECT callee_name FROM calls)
+                     AND f.path NOT LIKE '%.d.ts'
+                     AND f.path NOT LIKE '%.test.%'
+                     AND f.path NOT LIKE '%.spec.%'
+                     AND f.path NOT LIKE '%\\_test.%' ESCAPE '\\'
+                     AND f.path NOT LIKE '%/tests/%'
+                     AND f.path NOT LIKE '%/test/%'
+                     AND f.path NOT LIKE 'tests/%'
+                     AND f.path NOT LIKE 'test/%'
                    ORDER BY s.file_path ASC, s.start_line ASC";
         let mut stmt = self.conn.prepare(sql)?;
         let rows = stmt.query_map(params![lang], |row| {

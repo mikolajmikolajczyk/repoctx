@@ -302,7 +302,7 @@ When edges are ambiguous or unresolved, the command emits an `advisory` pointing
 
 Tier-1 analyses over the call graph (no new indexing — pure queries over the `calls` table). All inherit the **name-based** accuracy class (ADR-0010): dynamic dispatch, trait objects, FFI, and callers outside the indexed scope are invisible, so output is a **candidate list to verify, not proof**. Each carries an advisory.
 
-- **`repoctx deadcode [--lang L] [--limit N]`** — function/method symbols with zero incoming call edges. Entry points (`main`) are excluded. Something grep can't do. Caveat: a public-API export, test fixture, or dynamically-called function shows up here — verify before deleting.
+- **`repoctx deadcode [--lang L] [--limit N]`** — function/method symbols with zero incoming call edges. Excludes entry points (`main`), test files, `.d.ts` declarations, and minified/generated files (those aren't indexed at all). Something grep can't do. Caveat: a public-API export or dynamically-called function (trait dispatch, registry/spread) still shows up — verify before deleting.
 - **`repoctx impact <name> [--depth N]`** — blast radius: everything that transitively *calls* `name` ("if I change this, what breaks"). Frames `callgraph <name> --direction up`.
 - **`repoctx cycles [--limit N]`** — recursion / mutual-recursion cycles in the call graph. In-repo edges only; cycles rotated to a canonical start + deduped. Very large graphs (20k+ edges) are skipped with an advisory.
 

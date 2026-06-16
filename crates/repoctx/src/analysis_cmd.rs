@@ -86,9 +86,10 @@ fn deadcode_advisory(empty: bool) -> Option<String> {
         );
     }
     Some(
-        "name-based: these have no in-repo caller, but may be public API, \
-         entry points, test fixtures, or called dynamically / via traits / \
-         FFI. Treat as candidates — verify before deleting."
+        "name-based: these have no in-repo caller, but may be public API or \
+         called dynamically / via traits / FFI. Test files, `.d.ts` decls, and \
+         minified/generated files are already excluded. Treat as candidates — \
+         verify before deleting."
             .to_string(),
     )
 }

@@ -101,6 +101,14 @@ pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Res
                     return;
                 }
             };
+            // Skip minified / generated files (e.g. emscripten glue, bundles):
+            // one absurdly long line means it's machine-emitted, not source.
+            // Indexing it floods symbols/hotspots/dead-code with noise. Treat
+            // like the size/UTF-8 skips — drop it from the index entirely.
+            if is_minified(&source) {
+                warn!(path = %c.abs.display(), "skipping minified/generated file");
+                return;
+            }
             let symbols = match parse_file_with(&c.rel, c.language, &source, parse_opts) {
                 Ok(v) => v,
                 Err(e) => {
@@ -171,4 +179,29 @@ pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Res
         removed,
         duration_ms: started.elapsed().as_millis(),
     })
+}
+
+/// Any single line this long means the file is machine-generated/minified
+/// (bundles, emscripten glue, source maps). Hand-written source effectively
+/// never has a line this wide.
+const MAX_SOURCE_LINE: usize = 5000;
+
+/// Heuristic: is `source` a minified/generated file? True if any line exceeds
+/// [`MAX_SOURCE_LINE`] bytes.
+fn is_minified(source: &str) -> bool {
+    source.split('\n').any(|line| line.len() > MAX_SOURCE_LINE)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_minified;
+
+    #[test]
+    fn detects_minified_by_line_length() {
+        assert!(!is_minified("fn main() {}\nlet x = 1;\n"));
+        let long = format!("var a={};", "x".repeat(6000));
+        assert!(is_minified(&long));
+        // many short lines are fine.
+        assert!(!is_minified(&"a\n".repeat(10000)));
+    }
 }

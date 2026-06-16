@@ -4,6 +4,11 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **Skip minified/generated files at index time** (issue #9): files with any line longer than 5000 chars (bundles, emscripten glue, source maps) are no longer indexed — they flooded `symbols`/`overview` hotspots/`deadcode` with machine-emitted noise. Cuts noise across every command, not just one.
+- **`deadcode` tightened** (issue #9): excludes test files (`.test.`/`.spec.`/`_test.`/`tests/`/`test/`), `.d.ts` declaration files, and (via the above) minified files — all guaranteed false positives (framework-run test fns, type-only decls). Dynamic-dispatch / public-API false positives remain (name-based, ADR-0010); advisory says so.
+
 ## [0.11.6] — 2026-06-16
 
 ### Added
