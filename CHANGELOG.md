@@ -4,6 +4,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **`repoctx overview`** (issue #5): repo architecture in one call — totals, per-language breakdown, per-directory module sizes (files/symbols/bytes, ranked by symbols), entry points (`main` functions), and hotspots (most-called symbols from the call graph). The "agent dropped into an unfamiliar repo" command; replaces dozens of `ls`/`cat`/grep round-trips. Composes data the index + call graph already hold — no new extraction. Public API surface (exported symbols per module) is intentionally absent until per-language export extraction lands (#8); the advisory says so. Hotspots are name-based (ADR-0010).
+
 ## [0.11.5] — 2026-06-16
 
 ### Added

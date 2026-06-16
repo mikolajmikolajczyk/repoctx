@@ -30,6 +30,7 @@ mod outline_cmd;
 mod output;
 mod output_calls;
 mod output_symbols;
+mod overview_cmd;
 mod read_cmd;
 mod repo_root;
 mod search_cmd;
@@ -191,6 +192,9 @@ enum Cmd {
     },
     /// Module dependency map: resolved import topology + dependency-first order.
     Modules,
+    /// Repo architecture in one call: totals, languages, modules, entry
+    /// points, hotspots. The "dropped into an unfamiliar repo" command.
+    Overview,
     /// Check an import boundary: list files matching `--from` that import a
     /// specifier matching `--to`. Answers "does layer A import layer B?".
     Boundary {
@@ -488,6 +492,7 @@ fn run() -> Result<()> {
             modulegraph_cmd::run_import_cycles(&repo_root, limit, render, gain_opts)
         }
         Cmd::Modules => modulegraph_cmd::run_modules(&repo_root, render, gain_opts),
+        Cmd::Overview => overview_cmd::run(&repo_root, render, gain_opts),
         Cmd::Discover { samples, idiom } => {
             if samples {
                 discover_cmd::run_samples(&repo_root, idiom, render)

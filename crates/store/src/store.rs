@@ -197,6 +197,91 @@ impl Store {
         )
     }
 
+    /// `(path, size)` for every indexed file — for module/size aggregation
+    /// in `repoctx overview` (issue #5).
+    pub fn file_sizes(&self) -> Result<Vec<(String, i64)>> {
+        let mut stmt = self.conn.prepare("SELECT path, size FROM files")?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Symbol count per file (`file_path`, count). For `overview` module stats.
+    pub fn symbol_counts_by_file(&self) -> Result<Vec<(String, u64)>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT file_path, COUNT(*) FROM symbols GROUP BY file_path")?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as u64)))?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Entry-point symbols: functions/methods named `main`. Heuristic — for
+    /// `overview` (issue #5).
+    pub fn entry_points(&self) -> Result<Vec<SymbolRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT file_path, name, kind, start_line, start_column, end_line, end_column
+             FROM symbols
+             WHERE name = 'main' AND kind IN ('function', 'method')
+             ORDER BY file_path ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(SymbolRecord {
+                file_path: row.get(0)?,
+                name: row.get(1)?,
+                kind: row.get(2)?,
+                start_line: row.get(3)?,
+                start_column: row.get(4)?,
+                end_line: row.get(5)?,
+                end_column: row.get(6)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    /// Hotspots: the most-called in-repo symbols by incoming call-edge count.
+    /// Returns `(name, callers, file_path, start_line)` — a representative
+    /// definition site per name (ambiguous names pick the first by path). For
+    /// `overview` (issue #5).
+    pub fn hotspots(&self, limit: usize) -> Result<Vec<(String, u64, String, u32)>> {
+        let lim = if limit == 0 { -1 } else { limit as i64 };
+        let mut stmt = self.conn.prepare(
+            "SELECT c.callee_name, COUNT(*) AS n,
+                    (SELECT s.file_path FROM symbols s WHERE s.name = c.callee_name
+                     ORDER BY s.file_path, s.start_line LIMIT 1),
+                    (SELECT s.start_line FROM symbols s WHERE s.name = c.callee_name
+                     ORDER BY s.file_path, s.start_line LIMIT 1)
+             FROM calls c
+             WHERE c.callee_name IN (SELECT name FROM symbols)
+             GROUP BY c.callee_name
+             ORDER BY n DESC, c.callee_name ASC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![lim], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)? as u64,
+                row.get::<_, String>(2)?,
+                row.get::<_, u32>(3)?,
+            ))
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
     /// Every import edge as `(file_path, module)`, for building an in-memory
     /// module graph (issue #4 — import cycles / dependency map). Ordered.
     pub fn all_import_edges(&self) -> Result<Vec<(String, String)>> {

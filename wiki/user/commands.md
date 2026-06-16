@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -367,6 +367,21 @@ Graph analyses over the import graph (petgraph). To get file→file edges, **rel
 repoctx import-cycles
 repoctx modules
 ```
+
+## `repoctx overview`
+
+Repo architecture in one call — the "dropped into an unfamiliar repo" command. Composes what the index + call graph already hold (no new extraction):
+
+- `files` / `symbols` totals + per-`languages` symbol counts
+- `modules` — per-directory `{dir, files, symbols, bytes}`, ranked by symbols (top 30)
+- `entry_points` — `main` functions/methods (heuristic)
+- `hotspots` — most-called symbols (incoming call-edge count, name-based per ADR-0010)
+
+```sh
+repoctx overview
+```
+
+Public API surface (exported symbols per module) is **not** included yet — it needs per-language export extraction (#8); the advisory notes this.
 
 ## `repoctx status`
 

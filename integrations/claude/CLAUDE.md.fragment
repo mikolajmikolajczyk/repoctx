@@ -7,6 +7,7 @@ and choose-the-right-tool guidance.
 
 Quick cues:
 
+- "Get oriented in this repo" → `{REPOCTX_BIN} overview`
 - "Where is X defined?" → `{REPOCTX_BIN} definition X`
 - "Show me X and its surrounding code" → `{REPOCTX_BIN} context X`
 - "Explore symbols matching ..." → `{REPOCTX_BIN} symbols <substring>`

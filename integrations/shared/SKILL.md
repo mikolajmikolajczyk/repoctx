@@ -158,6 +158,14 @@ written (aliases like `@adapters/x` match exactly; relative `./x` are
 verbatim). Precise specifier→file resolution is not done yet; an empty
 result carries an `advisory`.
 
+### `{REPOCTX_BIN} overview`
+
+Repo architecture in one call — totals, per-language breakdown, per-directory
+module sizes, entry points (`main`), and hotspots (most-called symbols). Use
+it first when **dropped into an unfamiliar repo** instead of `ls`/`cat`/grep
+round-trips. Public API surface not included yet (#8); hotspots are
+name-based.
+
 ### `{REPOCTX_BIN} outline <file>`
 
 Document-symbol tree for one file. Path may be repo-relative or

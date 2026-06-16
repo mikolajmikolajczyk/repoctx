@@ -41,6 +41,7 @@ involves navigating or understanding code in this repo.
 
 | You want to | Run |
 |---|---|
+| Get oriented in an unfamiliar repo | `{REPOCTX_BIN} overview` |
 | Find where `X` is defined | `{REPOCTX_BIN} definition X` |
 | Show `X` with surrounding code | `{REPOCTX_BIN} context X` |
 | Explore symbols matching `pattern` | `{REPOCTX_BIN} symbols pattern` |

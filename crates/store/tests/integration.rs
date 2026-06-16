@@ -136,6 +136,48 @@ fn import_edges_deps_and_rdeps() {
 }
 
 #[test]
+fn overview_aggregates_modules_entrypoints_hotspots() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(
+        &fr("src/main.rs", 1, 100, "rust"),
+        &[
+            sr("src/main.rs", "main", "function", 0),
+            sr("src/main.rs", "helper", "function", 1),
+        ],
+    )
+    .unwrap();
+    s.upsert_calls(
+        "src/main.rs",
+        &[
+            cr("src/main.rs", "main", 0, "helper", 0),
+            cr("src/main.rs", "main", 0, "helper", 0),
+        ],
+    )
+    .unwrap();
+
+    // file_sizes + symbol_counts_by_file feed module aggregation.
+    assert_eq!(
+        s.file_sizes().unwrap(),
+        vec![("src/main.rs".to_string(), 100)]
+    );
+    assert_eq!(
+        s.symbol_counts_by_file().unwrap(),
+        vec![("src/main.rs".to_string(), 2)]
+    );
+
+    // entry points: main.
+    let ep = s.entry_points().unwrap();
+    assert_eq!(ep.len(), 1);
+    assert_eq!(ep[0].name, "main");
+
+    // hotspots: helper called twice.
+    let hot = s.hotspots(10).unwrap();
+    assert_eq!(hot[0].0, "helper");
+    assert_eq!(hot[0].1, 2);
+    assert_eq!(hot[0].2, "src/main.rs");
+}
+
+#[test]
 fn all_import_edges_and_file_paths() {
     let mut s = Store::open_in_memory().unwrap();
     s.upsert_file(&fr("src/a.ts", 1, 10, "typescript"), &[])
