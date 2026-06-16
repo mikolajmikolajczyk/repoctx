@@ -129,6 +129,22 @@ fn boundary_reports_and_gates() {
 }
 
 #[test]
+fn boundary_zero_with_aliased_imports_warns_not_clean() {
+    // fixture: src/ui.ts imports @adapters/storage-idb (alias) + ./util.
+    let tmp = fixture();
+    let root = tmp.path();
+    // No RELATIVE crossing for `--to @adapters` (alias isn't relative-resolved),
+    // but aliased imports exist → advisory must say NOT clean.
+    let v = json(root, &["boundary", "--from", "src", "--to", "src/adapters"]);
+    assert_eq!(v["count"].as_u64().unwrap(), 0);
+    let adv = v["advisory"].as_str().unwrap();
+    assert!(
+        adv.contains("NOT checked") && adv.contains("NOT a clean bill"),
+        "{adv}"
+    );
+}
+
+#[test]
 fn deps_outside_repo_errors() {
     let tmp = fixture();
     index(tmp.path());

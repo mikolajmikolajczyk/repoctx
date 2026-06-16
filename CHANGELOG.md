@@ -4,6 +4,11 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- **Call edges no longer resolve to data/doc symbols (issue #9).** A callee whose only same-named symbol is a JSON/YAML/TOML `key` or a markdown `section` now resolves to external (`null`) instead of binding to that data symbol — `callgraph`/`impact`/`cycles`/`callers`/`callees` stop reporting calls to e.g. a `toolchain` key in `project.json`. (The v0.11.9 fix covered only the `overview` hotspot path; this covers the shared `call_edges` join.)
+- **`boundary` no longer reports a false "clean" (issue #13).** `boundary` resolves relative imports only, so alias/bare imports (`@adapters/…`) were invisible — `count: 0` looked like a passing layering check when 100+ edges weren't examined. When there are no relative crossings, the advisory now states how many alias/bare imports from the `--from` layer were **not** checked and how to query them ("NOT a clean bill"). Real alias resolution is tracked in #8.
+
 ## [0.11.9] — 2026-06-16
 
 ### Changed

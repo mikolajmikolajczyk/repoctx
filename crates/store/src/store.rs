@@ -362,6 +362,22 @@ impl Store {
         Ok(out)
     }
 
+    /// Count import edges from files matching `from` whose specifier is
+    /// **alias/bare** (not relative `./`/`../`). `boundary` only resolves
+    /// relative imports, so these are the edges it can't see — surfaced in the
+    /// advisory so `count: 0` never reads as a bare "clean" (issue #13).
+    pub fn aliased_import_count(&self, from: &str) -> Result<u64> {
+        let from_pat = format!("%{}%", crate::like::escape(from));
+        let n: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM imports
+             WHERE file_path LIKE ?1 ESCAPE '\\'
+               AND module NOT LIKE '.%'",
+            params![from_pat],
+            |row| row.get(0),
+        )?;
+        Ok(n as u64)
+    }
+
     /// Shared query for `deps_of`/`importers_of`. `tail` is the WHERE body
     /// plus ORDER BY; `bind` is the single positional parameter.
     fn import_edges(&self, tail: &str, bind: &str) -> Result<Vec<ImportEdgeRow>> {
@@ -782,6 +798,11 @@ impl Store {
               AND caller_s.start_line = c.caller_start_line
              LEFT JOIN symbols callee_s
                ON callee_s.name = c.callee_name
+              -- A callee must be a CODE symbol, never a data/doc symbol: a
+              -- JSON/YAML/TOML `key` or a markdown `section` named the same as
+              -- a function must not resolve as the call target (issue #9). An
+              -- all-data name then resolves to NULL = external, as it should.
+              AND callee_s.kind NOT IN ('key', 'section')
              WHERE {where_clause}
              ORDER BY caller_s.file_path ASC, caller_s.start_line ASC,
                       c.site_line ASC, c.site_column ASC,

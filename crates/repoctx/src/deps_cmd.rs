@@ -143,10 +143,24 @@ pub fn run_boundary(
     let rows = store.boundary_crossings(&from, &to)?;
     let crossed = !rows.is_empty();
     let advisory = if rows.is_empty() {
-        Some(format!(
-            "no crossings: nothing matching `{from}` imports `{to}` (clean — or \
-             `{from}`/`{to}` matched no indexed files; core-8 import coverage only)"
-        ))
+        // count: 0 must NOT read as "clean" — boundary resolves relative
+        // specifiers only, so alias/bare imports from the `from` layer are
+        // invisible. Surface that count so the result isn't false confidence
+        // (issue #13). Real fix = tsconfig alias resolution (#8).
+        let aliased = store.aliased_import_count(&from).unwrap_or(0);
+        if aliased > 0 {
+            Some(format!(
+                "no RELATIVE-import crossings — but {aliased} alias/bare import(s) from \
+                 `{from}` were NOT checked (boundary resolves `./`/`../` only). If your \
+                 layers use path aliases, pass the alias as `--to` (e.g. `--to @adapters`), \
+                 or check `rg \"from ['\\\"]@\" {from}`. NOT a clean bill."
+            ))
+        } else {
+            Some(format!(
+                "no crossings: nothing matching `{from}` imports `{to}` (clean — or \
+                 `{from}`/`{to}` matched no indexed files; core-8 import coverage only)"
+            ))
+        }
     } else if forbid {
         Some(format!(
             "FORBIDDEN: {} import(s) from `{from}` into `{to}`",

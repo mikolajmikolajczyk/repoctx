@@ -445,6 +445,52 @@ fn resolved_edge_pairs_only_in_repo() {
 }
 
 #[test]
+fn callee_never_resolves_to_data_key() {
+    let mut s = Store::open_in_memory().unwrap();
+    // `caller` calls `toolchain`; the only `toolchain` symbol is a JSON key.
+    s.upsert_file(
+        &fr("svc.ts", 1, 10, "typescript"),
+        &[sr("svc.ts", "caller", "function", 0)],
+    )
+    .unwrap();
+    s.upsert_file(
+        &fr("project.json", 1, 10, "json"),
+        &[sr("project.json", "toolchain", "key", 5)],
+    )
+    .unwrap();
+    s.upsert_calls("svc.ts", &[cr("svc.ts", "caller", 0, "toolchain", 0)])
+        .unwrap();
+
+    let callees = s.callees_of("caller").unwrap();
+    assert_eq!(callees.len(), 1);
+    // The key must NOT resolve as the callee — it's external (None).
+    assert!(
+        callees[0].callee.is_none(),
+        "data key must not be a call target"
+    );
+    assert_eq!(callees[0].callee_name, "toolchain");
+}
+
+#[test]
+fn aliased_import_count_for_boundary_advisory() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(&fr("src/ui/a.tsx", 1, 10, "tsx"), &[])
+        .unwrap();
+    s.upsert_imports(
+        "src/ui/a.tsx",
+        &[
+            ir("src/ui/a.tsx", "@adapters/storage", 0), // alias
+            ir("src/ui/a.tsx", "react", 1),             // bare
+            ir("src/ui/a.tsx", "./local", 2),           // relative — not counted
+        ],
+    )
+    .unwrap();
+    // alias + bare counted; relative excluded.
+    assert_eq!(s.aliased_import_count("src/ui").unwrap(), 2);
+    assert_eq!(s.aliased_import_count("src/other").unwrap(), 0);
+}
+
+#[test]
 fn call_edges_pruned_on_file_reindex() {
     let mut s = Store::open_in_memory().unwrap();
     s.upsert_file(
