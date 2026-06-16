@@ -4,10 +4,16 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.6] — 2026-06-16
+
 ### Added
 
 - **`repoctx changed [--since REF]`** (issue #6): change-aware blast radius for code review. Diffs the working tree against a git ref (default `HEAD`), maps changed lines to the **symbols** they overlap, then walks their **transitive callers** = "what this change touches + what it can break." Output: changed symbols + impacted callers tagged with BFS depth. Reuses the call graph's narrow `callers` queries (reverse BFS, name-based per ADR-0010 — dynamic dispatch / external callers invisible; advisory says so). Tracked files only (untracked aren't in `git diff`); blast radius capped at 500.
 - **`repoctx overview`** (issue #5): repo architecture in one call — totals, per-language breakdown, per-directory module sizes (files/symbols/bytes, ranked by symbols), entry points (`main` functions), and hotspots (most-called symbols from the call graph). The "agent dropped into an unfamiliar repo" command; replaces dozens of `ls`/`cat`/grep round-trips. Composes data the index + call graph already hold — no new extraction. Public API surface (exported symbols per module) is intentionally absent until per-language export extraction lands (#8); the advisory says so. Hotspots are name-based (ADR-0010).
+
+### Changed
+
+- **Agent guidance refreshed** to the full v0.11.x command surface — SKILL.md + the AGENTS.md / CLAUDE.md fragments now document/cue every nav command (deadcode/impact/cycles, deps/rdeps/boundary, import-cycles/modules, overview, changed).
 
 ## [0.11.5] — 2026-06-16
 
