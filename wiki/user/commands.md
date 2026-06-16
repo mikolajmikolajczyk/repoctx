@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `changed`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `communities`, `changed`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -384,6 +384,19 @@ repoctx overview
 ```
 
 Public API surface (exported symbols per module) is **not** included yet — it needs per-language export extraction (#8); the advisory notes this.
+
+## `repoctx communities`
+
+Cluster the call graph into subsystems — the "where are the seams in this repo" command. Runs single-level Louvain modularity optimization over the **resolved** call graph (unambiguous edges, callees resolving to a single callable definition), then:
+
+- `communities` — each cluster's `{label, size, members}`, ranked by size (top 30, 15 members each). `label` = the cluster's highest-degree member, its representative symbol.
+- `god_nodes` — highest-degree symbols overall (top 15): the cross-cutting hubs that touch many subsystems.
+
+Pure topology — name-based (ADR-0010), no embeddings or LLM. Clustering ambiguous fan-out yields noise, so the input is resolved-only by construction. Empty/non-core-8-language repos get an advisory instead of clusters.
+
+```sh
+repoctx communities
+```
 
 ## `repoctx changed [--since REF]`
 

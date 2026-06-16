@@ -62,3 +62,4 @@ What would make us re-open this decision.
 - [2026-06-15 — callee resolution by index scope (internal/external)](2026-06-15-callee-index-scope-resolution.md)
 - [2026-06-16 — petgraph for graph algorithms in #4/#5/#6 (ephemeral helper, not the model)](2026-06-16-petgraph-for-graph-algos.md)
 - [2026-06-16 — Import alias resolution: tsconfig paths, query-time, repo-root scan](2026-06-16-import-alias-resolution.md)
+- [2026-06-16 — Communities: hand-rolled Louvain over plain adjacency, not petgraph](2026-06-16-louvain-hand-rolled.md)

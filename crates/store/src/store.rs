@@ -746,10 +746,18 @@ impl Store {
     /// resolve to indexed symbols (so cycle detection only walks in-repo
     /// edges). Deduplicated. For `repoctx cycles` (issue #3).
     pub fn resolved_edge_pairs(&self) -> Result<Vec<(String, String)>> {
+        // Only edges whose callee resolves to exactly ONE callable definition:
+        // unambiguous (single def) + a code symbol (never a data `key`/doc
+        // `section`). Ambiguous fan-out + data-key callees poison cycle
+        // detection and community structure (issues #9, #14).
         let sql = "SELECT DISTINCT c.caller_name, c.callee_name
                    FROM calls c
-                   WHERE c.callee_name IN (SELECT name FROM symbols)
-                     AND c.caller_name <> c.callee_name
+                   WHERE c.caller_name <> c.callee_name
+                     AND c.callee_name IN (
+                           SELECT name FROM symbols
+                           WHERE kind NOT IN ('key', 'section')
+                           GROUP BY name HAVING COUNT(*) = 1
+                         )
                    ORDER BY c.caller_name ASC, c.callee_name ASC";
         let mut stmt = self.conn.prepare(sql)?;
         let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;

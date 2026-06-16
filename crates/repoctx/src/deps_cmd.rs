@@ -157,13 +157,13 @@ pub fn run_boundary(
     let mut unresolved = 0usize;
     for e in store.imports_under(&from)? {
         match resolver.resolve(&e.file_path, &e.module) {
-            Some(target) => {
+            Some(target)
                 if target.contains(&to)
-                    && seen.insert((e.file_path.clone(), e.module.clone(), e.site_line))
-                {
-                    rows.push(e);
-                }
+                    && seen.insert((e.file_path.clone(), e.module.clone(), e.site_line)) =>
+            {
+                rows.push(e);
             }
+            Some(_) => {}
             None if !e.module.starts_with('.') => unresolved += 1,
             None => {}
         }
