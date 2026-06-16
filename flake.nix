@@ -13,7 +13,7 @@
 
         repoctx = pkgs.rustPlatform.buildRustPackage {
           pname = "repoctx";
-          version = "0.11.7";
+          version = "0.11.8";
           src = ./.;
 
           cargoLock = {
