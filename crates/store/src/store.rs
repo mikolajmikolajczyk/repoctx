@@ -252,19 +252,44 @@ impl Store {
     }
 
     /// Hotspots: the most-called in-repo symbols by incoming call-edge count.
-    /// Returns `(name, callers, file_path, start_line)` — a representative
-    /// definition site per name (ambiguous names pick the first by path). For
-    /// `overview` (issue #5).
+    /// Returns `(name, callers, file_path, start_line)`. For `overview` (#5).
+    ///
+    /// Counts only names that resolve **unambiguously to a single callable
+    /// definition** (issue #9): a name with several defs is a collision, not
+    /// centrality, and host-method names (`get`/`set`/`push`) usually resolve
+    /// to many or none. Resolution is restricted to callable kinds so a
+    /// `.on()` call never binds to a YAML `key` named `on` (#9-C).
     pub fn hotspots(&self, limit: usize) -> Result<Vec<(String, u64, String, u32)>> {
         let lim = if limit == 0 { -1 } else { limit as i64 };
         let mut stmt = self.conn.prepare(
             "SELECT c.callee_name, COUNT(*) AS n,
-                    (SELECT s.file_path FROM symbols s WHERE s.name = c.callee_name
+                    (SELECT s.file_path FROM symbols s
+                     WHERE s.name = c.callee_name AND s.kind IN ('function','method')
                      ORDER BY s.file_path, s.start_line LIMIT 1),
-                    (SELECT s.start_line FROM symbols s WHERE s.name = c.callee_name
+                    (SELECT s.start_line FROM symbols s
+                     WHERE s.name = c.callee_name AND s.kind IN ('function','method')
                      ORDER BY s.file_path, s.start_line LIMIT 1)
              FROM calls c
-             WHERE c.callee_name IN (SELECT name FROM symbols)
+             WHERE c.callee_name IN (
+                     SELECT name FROM symbols
+                     WHERE kind IN ('function','method')
+                     GROUP BY name HAVING COUNT(*) = 1
+                   )
+               -- Host/builtin method names collide by name with a lone repo
+               -- def (`.get()`/`.push()` -> Map/Array, not the repo symbol).
+               -- A name-based graph can't tell them apart, so they dominate
+               -- hotspots as popularity, not centrality. Exclude the common
+               -- offenders (issue #9; heuristic — receiver-awareness later).
+               AND c.callee_name NOT IN (
+                     'get','set','has','delete','push','pop','shift','unshift',
+                     'map','filter','forEach','reduce','find','findIndex','some',
+                     'every','join','split','slice','splice','concat','flat',
+                     'keys','values','entries','on','off','once','emit','then',
+                     'catch','finally','add','remove','clear','toString','valueOf',
+                     'call','apply','bind','test','exec','match','replace',
+                     'includes','indexOf','startsWith','endsWith','next','length',
+                     'log','warn','error','info','debug','assign','create'
+                   )
              GROUP BY c.callee_name
              ORDER BY n DESC, c.callee_name ASC
              LIMIT ?1",

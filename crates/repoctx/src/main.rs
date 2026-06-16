@@ -138,12 +138,19 @@ enum Cmd {
         name: String,
         #[arg(long, default_value_t = 50)]
         limit: usize,
+        /// Drop ambiguous / external edges; keep only edges that resolve to a
+        /// single in-repo symbol.
+        #[arg(long)]
+        resolved_only: bool,
     },
     /// Find direct callees of a symbol (what it calls). Static, name-based.
     Callees {
         name: String,
         #[arg(long, default_value_t = 50)]
         limit: usize,
+        /// Drop ambiguous / external edges; keep only resolved ones.
+        #[arg(long)]
+        resolved_only: bool,
     },
     /// Transitive call graph from a symbol (static, name-based).
     Callgraph {
@@ -154,6 +161,9 @@ enum Cmd {
         /// Direction to walk: `up` (callers), `down` (callees), or `both`.
         #[arg(long, default_value = "down")]
         direction: String,
+        /// Follow only edges that resolve to a single in-repo symbol.
+        #[arg(long)]
+        resolved_only: bool,
     },
     /// List the modules a file imports (the import / dependency graph).
     Deps {
@@ -180,6 +190,9 @@ enum Cmd {
         name: String,
         #[arg(long, default_value_t = 3)]
         depth: u32,
+        /// Count only edges that resolve to a single in-repo symbol.
+        #[arg(long)]
+        resolved_only: bool,
     },
     /// Detect cycles (recursion / mutual recursion) in the call graph.
     Cycles {
@@ -460,19 +473,29 @@ fn run() -> Result<()> {
             render,
             gain_opts,
         ),
-        Cmd::Callers { name, limit } => callgraph_cmd::run(
+        Cmd::Callers {
+            name,
+            limit,
+            resolved_only,
+        } => callgraph_cmd::run(
             &repo_root,
             name,
             callgraph_cmd::Edges::Callers,
             limit,
+            resolved_only,
             render,
             gain_opts,
         ),
-        Cmd::Callees { name, limit } => callgraph_cmd::run(
+        Cmd::Callees {
+            name,
+            limit,
+            resolved_only,
+        } => callgraph_cmd::run(
             &repo_root,
             name,
             callgraph_cmd::Edges::Callees,
             limit,
+            resolved_only,
             render,
             gain_opts,
         ),
@@ -480,9 +503,18 @@ fn run() -> Result<()> {
             name,
             depth,
             direction,
+            resolved_only,
         } => {
             let dir = callgraph_cmd::Direction::parse(&direction)?;
-            callgraph_cmd::run_graph(&repo_root, name, depth, dir, render, gain_opts)
+            callgraph_cmd::run_graph(
+                &repo_root,
+                name,
+                depth,
+                dir,
+                resolved_only,
+                render,
+                gain_opts,
+            )
         }
         Cmd::Deps { file } => deps_cmd::run_deps(&repo_root, file, render, gain_opts),
         Cmd::Rdeps { module } => deps_cmd::run_rdeps(&repo_root, module, render, gain_opts),
@@ -492,9 +524,11 @@ fn run() -> Result<()> {
         Cmd::Deadcode { lang, limit } => {
             analysis_cmd::run_deadcode(&repo_root, lang, limit, render, gain_opts)
         }
-        Cmd::Impact { name, depth } => {
-            analysis_cmd::run_impact(&repo_root, name, depth, render, gain_opts)
-        }
+        Cmd::Impact {
+            name,
+            depth,
+            resolved_only,
+        } => analysis_cmd::run_impact(&repo_root, name, depth, resolved_only, render, gain_opts),
         Cmd::Cycles { limit } => analysis_cmd::run_cycles(&repo_root, limit, render, gain_opts),
         Cmd::ImportCycles { limit } => {
             modulegraph_cmd::run_import_cycles(&repo_root, limit, render, gain_opts)

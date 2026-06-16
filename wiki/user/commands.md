@@ -298,6 +298,8 @@ The call graph is **name-based and approximate — the same accuracy class as `d
 
 When edges are ambiguous or unresolved, the command emits an `advisory` pointing at `rg` as the fallback. Treat the output as a strong hint, not a proof.
 
+**`--resolved-only`** (on `callers`/`callees`/`callgraph`/`impact`): drop ambiguous + external edges, keeping only those that resolve to a single in-repo symbol — the trustworthy core of the graph. Without it, resolved edges are sorted first so they lead. `overview` hotspots apply the same idea automatically (single-definition names only, host/builtin method names like `get`/`set`/`push` excluded).
+
 ## `repoctx deadcode` / `impact` / `cycles`
 
 Tier-1 analyses over the call graph (no new indexing — pure queries over the `calls` table). All inherit the **name-based** accuracy class (ADR-0010): dynamic dispatch, trait objects, FFI, and callers outside the indexed scope are invisible, so output is a **candidate list to verify, not proof**. Each carries an advisory.
@@ -375,7 +377,7 @@ Repo architecture in one call — the "dropped into an unfamiliar repo" command.
 - `files` / `symbols` totals + per-`languages` symbol counts
 - `modules` — per-directory `{dir, files, symbols, bytes}`, ranked by symbols (top 30)
 - `entry_points` — `main` functions/methods (heuristic)
-- `hotspots` — most-called symbols (incoming call-edge count, name-based per ADR-0010)
+- `hotspots` — most-called symbols (incoming call-edge count). Counts only names resolving to a single callable definition and excludes host/builtin method names (`get`/`set`/`push`/…) so the ranking is centrality, not name popularity (name-based per ADR-0010; #9)
 
 ```sh
 repoctx overview

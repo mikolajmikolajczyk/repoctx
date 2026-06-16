@@ -183,6 +183,41 @@ fn overview_aggregates_modules_entrypoints_hotspots() {
 }
 
 #[test]
+fn hotspots_filters_host_names_and_ambiguous() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(
+        &fr("a.ts", 1, 10, "typescript"),
+        &[
+            sr("a.ts", "realHotspot", "function", 0),
+            sr("a.ts", "get", "method", 1),   // host-method name
+            sr("a.ts", "dup", "function", 2), // ambiguous (2nd def below)
+        ],
+    )
+    .unwrap();
+    s.upsert_file(
+        &fr("b.ts", 1, 10, "typescript"),
+        &[sr("b.ts", "dup", "function", 0)],
+    )
+    .unwrap();
+    s.upsert_calls(
+        "a.ts",
+        &[
+            cr("a.ts", "realHotspot", 0, "realHotspot", 0), // 3 calls
+            cr("a.ts", "realHotspot", 0, "realHotspot", 0),
+            cr("a.ts", "realHotspot", 0, "realHotspot", 0),
+            cr("a.ts", "realHotspot", 0, "get", 0), // host name — excluded
+            cr("a.ts", "realHotspot", 0, "get", 0),
+            cr("a.ts", "realHotspot", 0, "dup", 0), // ambiguous (2 defs) — excluded
+            cr("a.ts", "realHotspot", 0, "dup", 0),
+        ],
+    )
+    .unwrap();
+
+    let names: Vec<String> = s.hotspots(10).unwrap().into_iter().map(|h| h.0).collect();
+    assert_eq!(names, vec!["realHotspot".to_string()]);
+}
+
+#[test]
 fn all_import_edges_and_file_paths() {
     let mut s = Store::open_in_memory().unwrap();
     s.upsert_file(&fr("src/a.ts", 1, 10, "typescript"), &[])

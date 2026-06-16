@@ -73,6 +73,19 @@ fn callees_of_main_includes_unresolved_external() {
 }
 
 #[test]
+fn callees_resolved_only_drops_external() {
+    let tmp = fixture();
+    index(tmp.path());
+    // main calls helper (resolved) + external_thing (unresolved). --resolved-only
+    // keeps only the resolved edge.
+    let v = json(tmp.path(), &["callees", "main", "--resolved-only"]);
+    let items = v["items"].as_array().unwrap();
+    assert!(items.iter().all(|e| e["callee"].is_object()), "{v}");
+    assert!(items.iter().any(|e| e["callee_name"] == "helper"));
+    assert!(!items.iter().any(|e| e["callee_name"] == "external_thing"));
+}
+
+#[test]
 fn callers_empty_has_advisory() {
     let tmp = fixture();
     index(tmp.path());

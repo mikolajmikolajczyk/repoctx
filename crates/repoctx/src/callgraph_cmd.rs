@@ -17,6 +17,13 @@ use crate::read_cmd;
 /// Safety cap on transitive traversal so a hot symbol can't explode output.
 const MAX_GRAPH_EDGES: usize = 2000;
 
+/// An edge is "resolved" when the name maps to exactly one in-repo symbol —
+/// not ambiguous (several defs) and not external/unresolved (`callee: None`).
+/// The trustworthy edges; `--resolved-only` keeps just these (issue #9).
+fn is_resolved(e: &CallEdge) -> bool {
+    !e.ambiguous && e.callee.is_some()
+}
+
 /// Which direction to walk from `name`.
 #[derive(Debug, Clone, Copy)]
 pub enum Edges {
@@ -40,6 +47,7 @@ pub fn run(
     name: String,
     edges: Edges,
     limit: usize,
+    resolved_only: bool,
     render: Render,
     gain_opts: GainOpts,
 ) -> Result<()> {
@@ -51,6 +59,14 @@ pub fn run(
         Edges::Callers => backend.callers(&name)?,
         Edges::Callees => backend.callees(&name)?,
     };
+    // Edge-quality consumption (#9): `--resolved-only` drops ambiguous /
+    // external edges; otherwise sort resolved-first so the trustworthy edges
+    // lead.
+    if resolved_only {
+        hits.retain(is_resolved);
+    } else {
+        hits.sort_by_key(|e| !is_resolved(e));
+    }
     if limit > 0 {
         hits.truncate(limit);
     }
@@ -157,6 +173,7 @@ pub fn run_graph(
     name: String,
     depth: u32,
     direction: Direction,
+    resolved_only: bool,
     render: Render,
     gain_opts: GainOpts,
 ) -> Result<()> {
@@ -174,6 +191,9 @@ pub fn run_graph(
         for sym in &frontier {
             if direction.down() {
                 for e in backend.callees(sym)? {
+                    if resolved_only && !is_resolved(&e) {
+                        continue;
+                    }
                     let nxt = e.callee_name.clone();
                     edges.push(GraphEdge {
                         depth: d,
@@ -191,6 +211,9 @@ pub fn run_graph(
             }
             if direction.up() {
                 for e in backend.callers(sym)? {
+                    if resolved_only && !is_resolved(&e) {
+                        continue;
+                    }
                     let nxt = e.caller.name.clone();
                     edges.push(GraphEdge {
                         depth: d,

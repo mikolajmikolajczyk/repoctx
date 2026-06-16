@@ -102,10 +102,19 @@ pub fn run_impact(
     repo_root: &Path,
     name: String,
     depth: u32,
+    resolved_only: bool,
     render: Render,
     gain_opts: GainOpts,
 ) -> Result<()> {
-    callgraph_cmd::run_graph(repo_root, name, depth, Direction::Up, render, gain_opts)
+    callgraph_cmd::run_graph(
+        repo_root,
+        name,
+        depth,
+        Direction::Up,
+        resolved_only,
+        render,
+        gain_opts,
+    )
 }
 
 // ── Cycles ──────────────────────────────────────────────────────────────
