@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `communities`, `report`, `changed`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `communities`, `report`, `export`, `changed`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -423,6 +423,24 @@ repoctx report --json           # structured data
 ```
 
 Name-based (ADR-0010); the same single-callable-def resolution as `communities`. An opt-in `--llm` prose-narration layer is deferred.
+
+## `repoctx export`
+
+Export an **interactive, self-contained HTML graph** of the call graph — **no CDN, no build step, no server**. The graph is embedded as JSON and laid out by a small hand-rolled force simulation in vanilla JS, so the file opens offline in any browser.
+
+- Nodes = symbols, **colored by community** (#14), **sized by degree**.
+- Edges = call edges, **styled by ambiguity** — dashed amber = name-ambiguous, solid green = resolved. This is the differentiator: repoctx knows which edges are uncertain and the viz shows it.
+- Interaction: drag nodes, scroll to zoom, drag background to pan, search box highlights matching symbols, legend toggles subsystems on/off.
+
+| Flag | Effect |
+|---|---|
+| `--out <path>` | Write the HTML to a file (e.g. `graph.html`). Without it, the HTML is printed to stdout. |
+
+```sh
+repoctx export --out graph.html   # then open graph.html in a browser
+```
+
+External call targets (no in-repo definition) are dropped so the graph stays about this repo. Name-based (ADR-0010).
 
 ## `repoctx changed [--since REF]`
 

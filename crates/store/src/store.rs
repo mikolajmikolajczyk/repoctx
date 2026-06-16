@@ -768,6 +768,33 @@ impl Store {
         Ok(out)
     }
 
+    /// Every call edge for whole-graph visualization (#16), as
+    /// `(caller, callee, callee_def_count)`. `callee_def_count` is the number
+    /// of code (non-`key`/`section`) symbols sharing the callee name: `1` =
+    /// resolved, `>1` = ambiguous, `0` = external/unresolved. The viz styles
+    /// edges by this; external edges (`0`) are dropped at the call site so the
+    /// graph stays internal. Deduped per `(caller, callee)`.
+    pub fn graph_edges(&self) -> Result<Vec<(String, String, usize)>> {
+        let sql = "SELECT c.caller_name, c.callee_name,
+                          (SELECT COUNT(*) FROM symbols s
+                             WHERE s.name = c.callee_name
+                               AND s.kind NOT IN ('key', 'section')) AS defs
+                   FROM calls c
+                   WHERE c.caller_name <> c.callee_name
+                   GROUP BY c.caller_name, c.callee_name
+                   ORDER BY c.caller_name ASC, c.callee_name ASC";
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = stmt.query_map([], |row| {
+            let defs: i64 = row.get(2)?;
+            Ok((row.get(0)?, row.get(1)?, defs as usize))
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
     /// Direct callers of `name`: every call edge whose callee name is `name`.
     /// The caller is the resolved enclosing symbol; the callee column carries
     /// the resolved target(s) of `name` (several rows when `name` is

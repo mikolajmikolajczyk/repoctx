@@ -16,6 +16,7 @@ mod context_cmd;
 mod definition_cmd;
 mod deps_cmd;
 mod discover_cmd;
+mod export_cmd;
 mod gain;
 mod gain_cmd;
 mod hook_cmd;
@@ -219,6 +220,13 @@ enum Cmd {
     Report {
         /// Write the markdown report to this file (e.g. REPORT.md) instead of
         /// stdout. Always writes markdown regardless of --json/--toon.
+        #[arg(long)]
+        out: Option<std::path::PathBuf>,
+    },
+    /// Export an interactive, self-contained HTML graph of the call graph:
+    /// nodes colored by community + sized by degree, edges styled by ambiguity.
+    Export {
+        /// Write the HTML to this file (e.g. graph.html) instead of stdout.
         #[arg(long)]
         out: Option<std::path::PathBuf>,
     },
@@ -550,6 +558,7 @@ fn run() -> Result<()> {
         Cmd::Overview => overview_cmd::run(&repo_root, render, gain_opts),
         Cmd::Communities => communities_cmd::run(&repo_root, render, gain_opts),
         Cmd::Report { out } => report_cmd::run(&repo_root, render, gain_opts, out),
+        Cmd::Export { out } => export_cmd::run(&repo_root, out),
         Cmd::Changed { since } => changed_cmd::run(&repo_root, since, render, gain_opts),
         Cmd::Discover { samples, idiom } => {
             if samples {
