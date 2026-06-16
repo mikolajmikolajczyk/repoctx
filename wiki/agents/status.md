@@ -4,7 +4,7 @@ Snapshot of what works, what's in flight, what's broken. **Not the roadmap** —
 
 Update this when a feature lands, breaks, or gets pulled. Stale status is worse than no status — if you can't keep it fresh, link straight to GitHub issue filters instead.
 
-## Works (as of v0.8.0, 2026-06-15)
+## Works (as of v0.11.4, 2026-06-16)
 
 CLI surface complete on Linux, macOS, and Windows. 20 languages indexed (16 full coverage + 4 partial). `repoctx init` wires repoctx into Claude Code as the sole PreToolUse hook (a committed `.repoctx/hook.sh` dumb-pipe script + in-binary rewrite/chain), chaining rtk underneath with race detection, `hook doctor` drift repair, and `--uninstall`. The hook rewrites `rg <ident>` and navigation-flag variants (`-n`/`-l`/`-i`/`-w`/`-F`/`--type`/`-A/-B/-C`) to `repoctx search`/`context` (v0.8.0); residual flagged `rg` rtk can't handle (`-c`/`-v`/`-o`/`-g`, any pipeline segment) bypasses the chain so the agent's real ripgrep runs. Integration content is embedded in the binary (no network). Per-repo config layer + agent-coverage advisory live. `gain` token figures are bytes/4 estimates (method-consistent ratio); precise BPE counting lives in the bench suite — the agent benchmark harness (`scripts/agent-bench/`) + results page (`wiki/bench/results.md`) gate token savings on three real codebases.
 

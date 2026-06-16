@@ -47,7 +47,11 @@ involves navigating or understanding code in this repo.
 | Find `X` everywhere (defs + textual, incl. comments) | `{REPOCTX_BIN} search X` |
 | Who calls `X` / what `X` calls | `{REPOCTX_BIN} callers X` / `{REPOCTX_BIN} callees X` |
 | Trace the call chain | `{REPOCTX_BIN} callgraph X --depth 2 --direction up` |
+| What breaks if I change `X` (blast radius) | `{REPOCTX_BIN} impact X` |
+| Find unused functions/methods | `{REPOCTX_BIN} deadcode` |
+| Find recursion / call cycles | `{REPOCTX_BIN} cycles` |
 | What a file imports / what imports a module | `{REPOCTX_BIN} deps path/to/file.ts` / `{REPOCTX_BIN} rdeps @scope/mod` |
+| Does layer A import layer B? (boundary check) | `{REPOCTX_BIN} boundary --from src/ui --to @adapters` |
 | See the structure of one file | `{REPOCTX_BIN} outline path/to/file.rs` |
 | Check index health / staleness | `{REPOCTX_BIN} status` |
 | See how many tokens you've saved | `{REPOCTX_BIN} gain` |

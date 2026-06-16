@@ -249,7 +249,7 @@ To get the full coverage matrix in one call:
 Returns `{slug, coverage: "full"|"partial", notes}` per language.
 Cache this once per session.
 
-Today (v0.8.0): 16 languages are `full` — Rust, Go, Python, TypeScript,
+Currently 16 languages are `full` — Rust, Go, Python, TypeScript,
 TSX, JavaScript, C, C++, Java, C#, Ruby, PHP, Lua, Kotlin, Swift,
 Markdown. JSON, YAML, TOML are `partial` (top-level keys / TOML section
 headers; opt-in all-depth via `index.nested_keys`), and Bash is

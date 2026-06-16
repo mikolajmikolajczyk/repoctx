@@ -4,7 +4,7 @@ Repo shape, data flow, key modules. Keep this **descriptive of the current state
 
 ## Status
 
-v0.8.0 shipped 2026-06-15: static **call graph** (`callers`/`callees`/`callgraph`, core-8 langs, ADR-0010, schema v4 `calls` table) + **`repoctx search`** (textually-complete: symbol defs + every ripgrep match; the hook rewrites `rg <ident>` here). CLI surface complete: indexing, search, navigation, call graph, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall, `-g` installs a global skill), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic in GitHub issues.
+v0.11.4 (2026-06-16): static **call graph** (`callers`/`callees`/`callgraph`, core-8 langs, ADR-0010, schema v4 `calls`) + **call-graph analyses** (`deadcode`/`impact`/`cycles`, issue #3) + **import / dependency graph** (`deps`/`rdeps`/`boundary`, ADR-0011, schema v5 `imports`) + **`repoctx search`** (textually-complete; the hook rewrites `rg <ident>` here) + **hook passthrough telemetry** (`discover`, schema v6 `hook_events` / v7 `hook_samples`, issue #7). CLI surface complete: indexing, search, navigation, call graph, import graph, `repoctx init` meta-hook (committed script + in-binary rewrite/rtk-chain + doctor + uninstall, `-g` global skill, guidance-only when a global hook exists), embedded per-agent install, per-repo config, language-coverage advisory. LSP daemon deferred — see [`status.md`](status.md) and the daemon epic in GitHub issues.
 
 ## Current layout
 
