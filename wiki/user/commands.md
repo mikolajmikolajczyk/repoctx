@@ -356,11 +356,11 @@ repoctx boundary --from src/ui --to @adapters/storage-idb
 repoctx boundary --from src/plugins --to @adapters --forbid
 ```
 
-Output is the crossing edges (`{file, module, line}`). No crossings = clean (exit 0; an advisory notes whether `--from`/`--to` matched anything, since the import graph covers the core 8 languages only). Same string-based caveats as `deps`/`rdeps` — substrings match the raw specifier, no specifier→file resolution.
+Output is the crossing edges (`{file, module, line}`). A crossing is counted when an import from `--from` **resolves** to a file path containing `--to` — relative imports **and tsconfig path aliases** (#8), so `--to src/adapters` catches `@adapters/*` imports (you can also pass the alias directly: `--to @adapters`). `count: 0` is honest: the advisory reports how many bare/unresolved imports (node_modules / unmapped aliases) couldn't be checked, rather than a blind "clean."
 
 ## `repoctx import-cycles` / `modules`
 
-Graph analyses over the import graph (petgraph). To get file→file edges, **relative** specifiers (`./x`, `../y`) are resolved against the indexed file set (common extensions + `/index`); alias/package specifiers (`@scope/x`, `react`, `std::…`) need build-config resolution that isn't done yet, so they're counted as `external` and excluded. Best fit for JS/TS / relative includes.
+Graph analyses over the import graph (petgraph). To get file→file edges, **relative** specifiers (`./x`, `../y`) **and tsconfig path aliases** (`@adapters/*` → `src/adapters/*`, from any `tsconfig*.json`/`jsconfig.json` at the repo root) are resolved against the indexed file set; bare/package specifiers (`react`) and non-TS module syntax (Rust/Python/Go) stay `external`. Best for JS/TS.
 
 - **`repoctx import-cycles [--limit N]`** — circular imports (strongly-connected groups of files that import each other, directly or transitively).
 - **`repoctx modules`** — the resolved import topology: `{files, edges, external_edges, cyclic, order, dependencies}`. `order` is a dependency-first build order (toposort), empty when the graph is cyclic. `dependencies` lists the resolved `from → to` edges (capped at 500).

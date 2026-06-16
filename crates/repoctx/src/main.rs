@@ -34,6 +34,7 @@ mod output_symbols;
 mod overview_cmd;
 mod read_cmd;
 mod repo_root;
+mod resolver;
 mod search_cmd;
 mod status_cmd;
 mod symbols_cmd;

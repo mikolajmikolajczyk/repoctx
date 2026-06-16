@@ -129,17 +129,16 @@ fn boundary_reports_and_gates() {
 }
 
 #[test]
-fn boundary_zero_with_aliased_imports_warns_not_clean() {
-    // fixture: src/ui.ts imports @adapters/storage-idb (alias) + ./util.
+fn boundary_zero_surfaces_unresolved_imports() {
+    // fixture has no tsconfig, so @adapters/storage-idb is an unmapped/bare
+    // alias → can't be resolved → count:0 must say so, not bare "clean".
     let tmp = fixture();
     let root = tmp.path();
-    // No RELATIVE crossing for `--to @adapters` (alias isn't relative-resolved),
-    // but aliased imports exist → advisory must say NOT clean.
     let v = json(root, &["boundary", "--from", "src", "--to", "src/adapters"]);
     assert_eq!(v["count"].as_u64().unwrap(), 0);
     let adv = v["advisory"].as_str().unwrap();
     assert!(
-        adv.contains("NOT checked") && adv.contains("NOT a clean bill"),
+        adv.contains("bare/unresolved") && adv.contains("couldn't be checked"),
         "{adv}"
     );
 }

@@ -472,22 +472,27 @@ fn callee_never_resolves_to_data_key() {
 }
 
 #[test]
-fn aliased_import_count_for_boundary_advisory() {
+fn imports_under_returns_edges_by_path_prefix() {
     let mut s = Store::open_in_memory().unwrap();
     s.upsert_file(&fr("src/ui/a.tsx", 1, 10, "tsx"), &[])
         .unwrap();
     s.upsert_imports(
         "src/ui/a.tsx",
         &[
-            ir("src/ui/a.tsx", "@adapters/storage", 0), // alias
-            ir("src/ui/a.tsx", "react", 1),             // bare
-            ir("src/ui/a.tsx", "./local", 2),           // relative — not counted
+            ir("src/ui/a.tsx", "@adapters/storage", 0),
+            ir("src/ui/a.tsx", "./local", 1),
         ],
     )
     .unwrap();
-    // alias + bare counted; relative excluded.
-    assert_eq!(s.aliased_import_count("src/ui").unwrap(), 2);
-    assert_eq!(s.aliased_import_count("src/other").unwrap(), 0);
+    s.upsert_file(&fr("src/core/b.ts", 1, 10, "typescript"), &[])
+        .unwrap();
+    s.upsert_imports("src/core/b.ts", &[ir("src/core/b.ts", "react", 0)])
+        .unwrap();
+
+    let under_ui = s.imports_under("src/ui").unwrap();
+    assert_eq!(under_ui.len(), 2);
+    assert!(under_ui.iter().all(|e| e.file_path.starts_with("src/ui")));
+    assert_eq!(s.imports_under("src/core").unwrap().len(), 1);
 }
 
 #[test]

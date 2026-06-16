@@ -5,14 +5,12 @@
 //! and dropped. SQLite stays the source of truth.
 //!
 //! Import edges are stored file → raw specifier. To get a file→file module
-//! graph we resolve **relative** specifiers (`./x`, `../y`) against the
-//! indexed file set (trying common extensions + `/index`). Alias/package
-//! specifiers (`@scope/x`, `react`, `std::…`) need build-config resolution we
-//! don't do yet, so they're counted as external and excluded from the graph —
-//! the advisory says so. Path-relative resolution fits JS/TS/relative-include
-//! best; Rust/Python module syntax mostly stays external.
+//! graph the shared [`ImportResolver`] resolves relative specifiers (`./x`)
+//! AND **tsconfig path aliases** (`@adapters/*` → `src/adapters/*`, issue #8)
+//! against the indexed file set. Bare/package specifiers (`react`) and
+//! non-TS module syntax (Rust/Python/Go) stay external — counted, advised.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -25,57 +23,9 @@ use crate::analysis_cmd::CycleReport;
 use crate::gain::GainOpts;
 use crate::output::{HumanRender, Render};
 use crate::read_cmd;
+use crate::resolver::ImportResolver;
 
 const MAX_EDGES_OUT: usize = 500;
-
-/// Resolve a relative import specifier to an indexed file path, or `None`
-/// (alias/package/unresolvable). DB paths are `/`-separated.
-fn resolve_relative(importer: &str, spec: &str, files: &HashSet<String>) -> Option<String> {
-    if !spec.starts_with('.') {
-        return None;
-    }
-    let dir = match importer.rfind('/') {
-        Some(i) => &importer[..i],
-        None => "",
-    };
-    let raw = if dir.is_empty() {
-        spec.to_string()
-    } else {
-        format!("{dir}/{spec}")
-    };
-    let joined = normalize_path(&raw);
-    const EXTS: &[&str] = &[
-        "", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".rs", ".py", ".go", ".d.ts",
-    ];
-    for e in EXTS {
-        let c = format!("{joined}{e}");
-        if files.contains(&c) {
-            return Some(c);
-        }
-    }
-    for e in EXTS {
-        let c = format!("{joined}/index{e}");
-        if files.contains(&c) {
-            return Some(c);
-        }
-    }
-    None
-}
-
-/// Collapse `.`/`..`/empty segments in a `/`-separated path.
-fn normalize_path(p: &str) -> String {
-    let mut out: Vec<&str> = Vec::new();
-    for seg in p.split('/') {
-        match seg {
-            "" | "." => {}
-            ".." => {
-                out.pop();
-            }
-            s => out.push(s),
-        }
-    }
-    out.join("/")
-}
 
 /// Resolved file→file import edges + how many edges were external/unresolved.
 struct ResolvedGraph {
@@ -83,15 +33,15 @@ struct ResolvedGraph {
     external: usize,
 }
 
-fn resolve_graph(store: &Store) -> Result<ResolvedGraph> {
+fn resolve_graph(repo_root: &Path, store: &Store) -> Result<ResolvedGraph> {
     let files = store.all_file_paths()?;
     let raw = store.all_import_edges()?;
+    let resolver = ImportResolver::load(repo_root, files);
     let mut edges = Vec::new();
     let mut external = 0usize;
     for (importer, spec) in raw {
-        match resolve_relative(&importer, &spec, &files) {
-            Some(target) if target != importer => edges.push((importer, target)),
-            Some(_) => {} // self-import, ignore
+        match resolver.resolve(&importer, &spec) {
+            Some(target) => edges.push((importer, target)),
             None => external += 1,
         }
     }
@@ -128,7 +78,7 @@ pub fn run_import_cycles(
 ) -> Result<()> {
     read_cmd::ensure_fresh(repo_root)?;
     let mut store = Store::open(repo_root).context("open store")?;
-    let rg = resolve_graph(&store)?;
+    let rg = resolve_graph(repo_root, &store)?;
     let (g, _) = build(&rg.edges);
 
     // SCCs with >1 member are import cycles (self-loops were filtered out).
@@ -169,15 +119,15 @@ fn import_cycle_advisory(rg: &ResolvedGraph, empty: bool, truncated: bool) -> Op
     }
     if empty {
         return Some(format!(
-            "no import cycles among {} resolved intra-repo edges ({} external/alias \
-             edges not resolved — relative imports only)",
+            "no import cycles among {} resolved intra-repo edges ({} external edges \
+             unresolved — bare/package imports + non-TS-alias languages)",
             rg.edges.len(),
             rg.external
         ));
     }
     Some(
         "members of each strongly-connected group import each other (directly or \
-         transitively). Relative-path resolution only; alias/package edges excluded."
+         transitively). Relative + tsconfig-alias resolution; bare/package edges excluded."
             .to_string(),
     )
 }
@@ -238,7 +188,7 @@ impl HumanRender for ModuleMap {
 pub fn run_modules(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> {
     read_cmd::ensure_fresh(repo_root)?;
     let mut store = Store::open(repo_root).context("open store")?;
-    let rg = resolve_graph(&store)?;
+    let rg = resolve_graph(repo_root, &store)?;
     let (g, _) = build(&rg.edges);
 
     // toposort gives importer-before-imported; reverse for dependency-first.
@@ -275,8 +225,9 @@ pub fn run_modules(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Res
 fn modules_advisory(rg: &ResolvedGraph, cyclic: bool, shown: usize) -> Option<String> {
     if rg.edges.is_empty() {
         return Some(format!(
-            "no resolved intra-repo import edges ({} external/alias edges) — relative \
-             imports only; alias/package specifiers need build-config resolution (deferred)",
+            "no resolved intra-repo import edges ({} external edges) — relative + \
+             tsconfig-alias resolution; bare/package specifiers + non-TS languages \
+             (Rust/Python/Go module resolution) stay external",
             rg.external
         ));
     }

@@ -362,20 +362,16 @@ impl Store {
         Ok(out)
     }
 
-    /// Count import edges from files matching `from` whose specifier is
-    /// **alias/bare** (not relative `./`/`../`). `boundary` only resolves
-    /// relative imports, so these are the edges it can't see — surfaced in the
-    /// advisory so `count: 0` never reads as a bare "clean" (issue #13).
-    pub fn aliased_import_count(&self, from: &str) -> Result<u64> {
-        let from_pat = format!("%{}%", crate::like::escape(from));
-        let n: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM imports
-             WHERE file_path LIKE ?1 ESCAPE '\\'
-               AND module NOT LIKE '.%'",
-            params![from_pat],
-            |row| row.get(0),
-        )?;
-        Ok(n as u64)
+    /// All import edges whose importing file path contains `from` (substring).
+    /// For alias-aware `boundary`: each is resolved specifier→file at query
+    /// time (issue #8).
+    pub fn imports_under(&self, from: &str) -> Result<Vec<ImportEdgeRow>> {
+        let pattern = format!("%{}%", crate::like::escape(from));
+        self.import_edges(
+            "i.file_path LIKE ?1 ESCAPE '\\'
+             ORDER BY i.file_path ASC, i.site_line ASC",
+            &pattern,
+        )
     }
 
     /// Shared query for `deps_of`/`importers_of`. `tail` is the WHERE body
