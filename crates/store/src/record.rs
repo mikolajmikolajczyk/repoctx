@@ -23,6 +23,10 @@ pub struct SymbolRecord {
     pub start_column: u32,
     pub end_line: u32,
     pub end_column: u32,
+    /// Lexical visibility (issue #10): `"public"` | `"private"` | `"unknown"`.
+    /// Set per-language by the extractor; `"unknown"` where the language has
+    /// no visibility signal yet (safe default — keeps prior behavior).
+    pub visibility: String,
 }
 
 /// One call SITE for insertion (static call graph, epic af42572 / ADR-0010).

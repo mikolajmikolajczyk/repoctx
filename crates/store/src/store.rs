@@ -97,8 +97,8 @@ impl Store {
         )?;
         {
             let mut stmt = tx.prepare(
-                "INSERT INTO symbols(file_path, name, kind, start_line, start_column, end_line, end_column)
-                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO symbols(file_path, name, kind, start_line, start_column, end_line, end_column, visibility)
+                 VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             )?;
             for s in symbols {
                 debug_assert_eq!(s.file_path, file.path);
@@ -110,6 +110,7 @@ impl Store {
                     s.start_column,
                     s.end_line,
                     s.end_column,
+                    s.visibility,
                 ])?;
             }
         }
@@ -226,7 +227,7 @@ impl Store {
     /// `overview` (issue #5).
     pub fn entry_points(&self) -> Result<Vec<SymbolRecord>> {
         let mut stmt = self.conn.prepare(
-            "SELECT file_path, name, kind, start_line, start_column, end_line, end_column
+            "SELECT file_path, name, kind, start_line, start_column, end_line, end_column, visibility
              FROM symbols
              WHERE name = 'main' AND kind IN ('function', 'method')
              ORDER BY file_path ASC",
@@ -240,6 +241,7 @@ impl Store {
                 start_column: row.get(4)?,
                 end_line: row.get(5)?,
                 end_column: row.get(6)?,
+                visibility: row.get(7)?,
             })
         })?;
         let mut out = Vec::new();
@@ -505,7 +507,7 @@ impl Store {
         let pattern = format!("%{}%", like::escape(query));
         let mut sql = String::from(
             "SELECT s.file_path, s.name, s.kind, s.start_line, s.start_column,
-                    s.end_line, s.end_column, f.language
+                    s.end_line, s.end_column, f.language, s.visibility
              FROM symbols s
              JOIN files f ON f.path = s.file_path
              WHERE s.name LIKE ?1 ESCAPE '\\'",
@@ -539,6 +541,7 @@ impl Store {
                     start_column: row.get(4)?,
                     end_line: row.get(5)?,
                     end_column: row.get(6)?,
+                    visibility: row.get(8)?,
                 },
                 row.get::<_, String>(7)?,
             ))
@@ -621,7 +624,7 @@ impl Store {
     /// Symbols in one file, ordered by `(start_line, start_column)`.
     pub fn symbols_by_file(&self, path: &str) -> Result<Vec<SymbolRecord>> {
         let mut stmt = self.conn.prepare(
-            "SELECT file_path, name, kind, start_line, start_column, end_line, end_column
+            "SELECT file_path, name, kind, start_line, start_column, end_line, end_column, visibility
              FROM symbols
              WHERE file_path = ?1
              ORDER BY start_line ASC, start_column ASC",
@@ -635,6 +638,7 @@ impl Store {
                 start_column: row.get(4)?,
                 end_line: row.get(5)?,
                 end_column: row.get(6)?,
+                visibility: row.get(7)?,
             })
         })?;
         let mut out = Vec::new();
@@ -650,12 +654,12 @@ impl Store {
     /// (public API, FFI) shows up here as a false positive, so callers treat
     /// it as a candidate list, not proof. `lang` filters by language slug.
     ///
-    /// Filters out two classes of guaranteed false positives (issue #9):
-    /// type-declaration files (`.d.ts` — signatures, not deletable code) and
-    /// test files (functions run by the test framework, never called by name).
+    /// Filters out guaranteed false positives: exported/public symbols
+    /// (issue #10 — public API, called across boundaries name-based analysis
+    /// can't see), type-declaration files (`.d.ts`), and test files (issue #9).
     pub fn uncalled_symbols(&self, lang: Option<&str>) -> Result<Vec<SymbolRecord>> {
         let sql = "SELECT s.file_path, s.name, s.kind, s.start_line, s.start_column,
-                          s.end_line, s.end_column
+                          s.end_line, s.end_column, s.visibility
                    FROM symbols s
                    JOIN files f ON f.path = s.file_path
                    WHERE s.kind IN ('function', 'method')
@@ -665,6 +669,10 @@ impl Store {
                      -- would look uncalled. (Must match index::language calls_query.)
                      AND f.language IN ('rust','python','javascript','typescript',
                                         'tsx','go','c','cpp','java')
+                     -- Exported/public symbols are API, not dead (issue #10).
+                     -- 'unknown' (no visibility signal yet) is kept — current
+                     -- behavior for languages without extraction.
+                     AND s.visibility <> 'public'
                      -- Constructors are invoked via `new`, never called by name.
                      AND s.name <> 'constructor'
                      AND s.name NOT IN (SELECT callee_name FROM calls)
@@ -687,6 +695,7 @@ impl Store {
                 start_column: row.get(4)?,
                 end_line: row.get(5)?,
                 end_column: row.get(6)?,
+                visibility: row.get(7)?,
             })
         })?;
         let mut out = Vec::new();
@@ -739,7 +748,8 @@ impl Store {
                     c.callee_name,
                     callee_s.file_path, callee_s.name, callee_s.kind,
                     callee_s.start_line, callee_s.start_column, callee_s.end_line, callee_s.end_column,
-                    c.site_line, c.site_column, c.resolution
+                    c.site_line, c.site_column, c.resolution,
+                    caller_s.visibility, callee_s.visibility
              FROM calls c
              JOIN symbols caller_s
                ON caller_s.file_path = c.file_path
@@ -763,6 +773,7 @@ impl Store {
                     start_column: row.get(12)?,
                     end_line: row.get(13)?,
                     end_column: row.get(14)?,
+                    visibility: row.get::<_, Option<String>>(19)?.unwrap_or_default(),
                 }),
                 None => None,
             };
@@ -775,6 +786,7 @@ impl Store {
                     start_column: row.get(4)?,
                     end_line: row.get(5)?,
                     end_column: row.get(6)?,
+                    visibility: row.get(18)?,
                 },
                 callee_name: row.get(7)?,
                 callee,

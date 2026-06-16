@@ -215,6 +215,7 @@ pub fn parse_file_with(
 
         let start = def.start_position();
         let end = def.end_position();
+        let visibility = visibility_for(language, &name).to_string();
         out.push(SymbolRecord {
             file_path: file_path.to_string(),
             name,
@@ -223,6 +224,7 @@ pub fn parse_file_with(
             start_column: start.column as u32,
             end_line: end.row as u32,
             end_column: end.column as u32,
+            visibility,
         });
     }
 
@@ -538,6 +540,25 @@ fn node_text<'a>(n: Node, bytes: &'a [u8]) -> &'a str {
     n.utf8_text(bytes).unwrap_or("")
 }
 
+/// Lexical visibility of a symbol (issue #10). Per-language, syntactic.
+/// `"unknown"` where the language has no cheap signal yet — a safe default
+/// that preserves prior behavior (the `languages` full/partial philosophy).
+///
+/// Go: exported iff the identifier's first letter is uppercase (the language
+/// rule — no AST lookup needed).
+fn visibility_for(language: Language, name: &str) -> &'static str {
+    match language {
+        Language::Go => {
+            if name.chars().next().is_some_and(|c| c.is_uppercase()) {
+                "public"
+            } else {
+                "private"
+            }
+        }
+        _ => "unknown",
+    }
+}
+
 /// Strip surrounding quotes from string-keyed captures (json, toml).
 fn strip_name(raw: &str, language: Language) -> String {
     if matches!(language, Language::Toml | Language::Json | Language::Yaml) {
@@ -619,5 +640,28 @@ export { foo } from "./util";
     fn uncovered_language_yields_nothing() {
         // Ruby has no import query yet — no-op, not an error.
         assert!(modules(Language::Ruby, "require 'foo'\n").is_empty());
+    }
+
+    #[test]
+    fn go_visibility_from_capitalization() {
+        let syms = parse_file(
+            "f.go",
+            Language::Go,
+            "package p\nfunc Exported() {}\nfunc private() {}\n",
+        )
+        .unwrap();
+        let vis = |n: &str| {
+            syms.iter()
+                .find(|s| s.name == n)
+                .map(|s| s.visibility.as_str())
+        };
+        assert_eq!(vis("Exported"), Some("public"));
+        assert_eq!(vis("private"), Some("private"));
+    }
+
+    #[test]
+    fn non_go_visibility_is_unknown() {
+        let syms = parse_file("a.rs", Language::Rust, "pub fn foo() {}\nfn bar() {}\n").unwrap();
+        assert!(syms.iter().all(|s| s.visibility == "unknown"));
     }
 }

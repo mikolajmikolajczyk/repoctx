@@ -12,6 +12,7 @@ fn sym(file: &str, name: &str, kind: &str, line: u32) -> SymbolRecord {
         start_column: 0,
         end_line: line,
         end_column: 1,
+        visibility: "unknown".into(),
     }
 }
 

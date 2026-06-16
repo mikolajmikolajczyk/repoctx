@@ -22,6 +22,7 @@ fn sr(file: &str, name: &str) -> SymbolRecord {
         start_column: 0,
         end_line: 0,
         end_column: 5,
+        visibility: "unknown".into(),
     }
 }
 
@@ -52,7 +53,7 @@ fn rec(
 fn schema_on_fresh_open() {
     let s = Store::open_in_memory().unwrap();
     assert_eq!(s.schema_version().unwrap(), SUPPORTED_VERSION);
-    assert_eq!(SUPPORTED_VERSION, 7);
+    assert_eq!(SUPPORTED_VERSION, 8);
 }
 
 #[test]

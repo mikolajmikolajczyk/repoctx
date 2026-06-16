@@ -8,7 +8,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::error::{Result, StoreError};
 
 /// Highest schema version this binary supports.
-pub const SUPPORTED_VERSION: u32 = 7;
+pub const SUPPORTED_VERSION: u32 = 8;
 
 /// Migration scripts indexed by target version. Position N is the SQL to
 /// move the DB from version N-1 to version N.
@@ -158,6 +158,16 @@ const MIGRATIONS: &[&str] = &[
     );
 
     CREATE INDEX hook_samples_idiom_idx ON hook_samples(idiom);
+    "#,
+    // -> v8 (lexical visibility; issue #10)
+    //
+    // Per-symbol export/visibility, set syntactically by the extractor
+    // ('public'/'private'); 'unknown' where the language has no signal yet.
+    // Lets `deadcode` stop flagging exported API and feeds the `overview`
+    // public-API surface. Existing rows default to 'unknown' until a
+    // `repoctx index --force` repopulates them.
+    r#"
+    ALTER TABLE symbols ADD COLUMN visibility TEXT NOT NULL DEFAULT 'unknown';
     "#,
 ];
 

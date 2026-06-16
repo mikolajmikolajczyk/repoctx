@@ -28,6 +28,10 @@ fn fr(path: &str, mtime: i64, size: i64, lang: &str) -> FileRecord {
 }
 
 fn sr(file: &str, name: &str, kind: &str, line: u32) -> SymbolRecord {
+    sr_vis(file, name, kind, line, "unknown")
+}
+
+fn sr_vis(file: &str, name: &str, kind: &str, line: u32, visibility: &str) -> SymbolRecord {
     SymbolRecord {
         file_path: file.into(),
         name: name.into(),
@@ -36,6 +40,7 @@ fn sr(file: &str, name: &str, kind: &str, line: u32) -> SymbolRecord {
         start_column: 0,
         end_line: line,
         end_column: 10,
+        visibility: visibility.into(),
     }
 }
 
@@ -349,6 +354,33 @@ fn uncalled_symbols_skips_non_callgraph_langs_and_constructors() {
         .map(|s| s.name)
         .collect();
     assert_eq!(dead, vec!["deadMethod".to_string()]);
+}
+
+#[test]
+fn uncalled_symbols_excludes_public_visibility() {
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(
+        &fr("svc.go", 1, 10, "go"),
+        &[
+            sr_vis("svc.go", "Exported", "function", 0, "public"),
+            sr_vis("svc.go", "internalHelper", "function", 1, "private"),
+            sr_vis("svc.go", "noSignal", "function", 2, "unknown"),
+        ],
+    )
+    .unwrap();
+    let dead: Vec<String> = s
+        .uncalled_symbols(None)
+        .unwrap()
+        .into_iter()
+        .map(|s| s.name)
+        .collect();
+    // public excluded; private + unknown still flagged (unknown = keep prior behavior).
+    assert!(
+        !dead.contains(&"Exported".to_string()),
+        "public is API, not dead"
+    );
+    assert!(dead.contains(&"internalHelper".to_string()));
+    assert!(dead.contains(&"noSignal".to_string()));
 }
 
 #[test]
