@@ -198,6 +198,12 @@ fn rows(cfg: &Config) -> Vec<ConfigRow> {
             cfg.index.nested_keys_source.as_str(),
             &default_for("index.nested_keys"),
         ),
+        row(
+            "analysis.subsystem_min_size",
+            &cfg.analysis.subsystem_min_size.to_string(),
+            cfg.analysis.subsystem_min_size_source.as_str(),
+            &default_for("analysis.subsystem_min_size"),
+        ),
     ]
 }
 

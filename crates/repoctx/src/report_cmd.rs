@@ -153,12 +153,14 @@ pub fn run(
     read_cmd::ensure_fresh(repo_root)?;
     let mut store = Store::open(repo_root).context("open store")?;
     let located = store.located_edges()?;
+    let min_size = crate::config::Config::load(&store)?.analysis.subsystem_min_size;
 
     let graph = resolved_graph(&located).graph;
     let comm = graph.louvain();
 
     let god_nodes = top_god_nodes(&graph, MAX_GOD_NODES);
-    let communities = build_communities(&graph, &comm, MAX_COMMUNITIES, MAX_MEMBERS);
+    let (communities, subsystem_count) =
+        build_communities(&graph, &comm, min_size, MAX_COMMUNITIES, MAX_MEMBERS);
 
     // Per-community label = highest-degree member, so bridges read in cluster
     // terms rather than raw ids.
@@ -182,7 +184,7 @@ pub fn run(
     let report = ReportDoc {
         nodes: graph.n,
         edges: graph.edges().len(),
-        communities_count: communities.len(),
+        communities_count: subsystem_count,
         god_nodes,
         communities,
         bridges,
@@ -359,7 +361,7 @@ mod tests {
         let g = Graph::from_pairs(&p);
         let comm = g.louvain();
         let god = top_god_nodes(&g, 10);
-        let comms = build_communities(&g, &comm, 12, 12);
+        let (comms, _) = build_communities(&g, &comm, 2, 12, 12);
         let labels = community_labels(&g, &comm);
         let bridges = cross_cluster_bridges(&g, &comm, &labels, 12);
         let qs = suggested_questions(&god, &comms, &bridges);

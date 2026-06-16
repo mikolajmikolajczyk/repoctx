@@ -4,6 +4,15 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- **`communities`/`report`/`export` now agree on the subsystem count.** Two root causes: (1) **Louvain was nondeterministic** — adjacency was built from a randomized `HashMap` and the local-moving phase iterated a `HashMap`, so each invocation (they're separate processes) produced a slightly different partition (e.g. 25 vs 23 vs 23). Adjacency construction and candidate-community selection are now deterministically ordered (sorted, lowest-id tie-break), so the partition is reproducible. (2) **No shared definition of "subsystem"** — `report` capped at 12, `communities` at 30, `export` colored all 114 raw clusters. A subsystem is now a Louvain cluster with **≥ `analysis.subsystem_min_size` members** (default 5, configurable), and all three report that same count; display caps (how many to list) are separate from the count.
+
+### Added
+
+- **`analysis.subsystem_min_size` config** (default 5; `REPOCTX_ANALYSIS_SUBSYSTEM_MIN_SIZE`). The shared minimum cluster size that counts as a subsystem across `communities`/`report`/`export`.
+- **`export` readability + honesty.** Only real subsystems get distinct colors; the tiny-cluster tail and the ambiguous/unclustered layer render **grey**, so the eye reads subsystems as colored islands. A **layer toggle** hides the ambiguous/unclustered layer for a clean subsystem view (vs. the full graph-with-uncertainty). The subtitle now reports both sides honestly: `N subsystems · S symbols (R resolved + A ambiguous/builtin) · E edges (Re resolved + Ae ambiguous)`.
+
 ## [0.12.0] — 2026-06-16
 
 ### Fixed

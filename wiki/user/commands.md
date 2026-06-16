@@ -389,10 +389,11 @@ Public API surface (exported symbols per module) is **not** included yet — it 
 
 Cluster the call graph into subsystems — the "where are the seams in this repo" command. Runs single-level Louvain modularity optimization over the **resolved** call graph (unambiguous edges, callees resolving to a single callable definition), then:
 
-- `communities` — each cluster's `{label, size, members}`, ranked by size (top 30, 15 members each). `label` = the cluster's highest-degree member, its representative symbol.
+- `count` — number of **subsystems**: Louvain clusters with **≥ `analysis.subsystem_min_size` members** (default 5). This is the shared definition `report` and `export` also use, so all three report the same number.
+- `communities` — each subsystem's `{label, size, members}`, ranked by size (display capped at top 30, 15 members each). `label` = the cluster's highest-degree member.
 - `god_nodes` — highest-degree symbols overall (top 15): the cross-cutting hubs that touch many subsystems.
 
-Pure topology — name-based (ADR-0010), no embeddings or LLM. Clustering ambiguous fan-out yields noise, so the input is resolved-only by construction. Empty/non-core-8-language repos get an advisory instead of clusters.
+Pure topology — name-based (ADR-0010), no embeddings or LLM. The Louvain partition is **deterministic** (reproducible across runs). Clustering ambiguous fan-out yields noise, so the input is resolved-only by construction. Empty/non-core-8-language repos get an advisory instead of clusters.
 
 ```sh
 repoctx communities
@@ -403,7 +404,7 @@ repoctx communities
 One-page architecture report, **generated deterministically from graph topology — no LLM, no network**. Composes the resolved call graph into:
 
 - **God nodes** — highest-degree symbols (cross-cutting hubs).
-- **Subsystems** — `communities` (#14) clusters, labeled by representative member.
+- **Subsystems** — `communities` (#14) clusters with ≥ `analysis.subsystem_min_size` members (same count `communities`/`export` report), labeled by representative member.
 - **Cross-cluster bridges** — call edges whose endpoints sit in different subsystems, ranked by combined endpoint degree. The coupling worth scrutinizing.
 - **Entry points** — `main`-like symbols (same heuristic as `overview`).
 - **Suggested questions** — templated from structure (top god node, largest subsystem, top bridges). Orientation prompts, **not** findings.
@@ -428,9 +429,11 @@ Name-based (ADR-0010); the same single-callable-def resolution as `communities`.
 
 Export an **interactive, self-contained HTML graph** of the call graph — **no CDN, no build step, no server**. The graph is embedded as JSON and laid out by a small hand-rolled force simulation in vanilla JS, so the file opens offline in any browser.
 
-- Nodes = symbols, **colored by community** (#14), **sized by degree**.
-- Edges = call edges, **styled by ambiguity** — dashed amber = name-ambiguous, solid green = resolved. This is the differentiator: repoctx knows which edges are uncertain and the viz shows it.
-- Interaction: drag nodes, scroll to zoom, drag background to pan, search box highlights matching symbols, legend toggles subsystems on/off.
+- Nodes = symbols, **sized by degree**. Only real **subsystems** (clusters ≥ `analysis.subsystem_min_size`, the same count as `report`) get distinct colors; the tiny-cluster tail + the ambiguous/unclustered layer render **grey** — so subsystems read as colored islands.
+- Edges = call edges, **styled by ambiguity** — dashed amber = name-ambiguous, solid green = resolved. The differentiator: repoctx knows which edges are uncertain and the viz shows it.
+- **Layer toggle** — hide the ambiguous/unclustered layer for a clean subsystem view, or keep it for the full graph-with-uncertainty.
+- Subtitle reports both sides honestly: `N subsystems · S symbols (R resolved + A ambiguous/builtin) · E edges (Re resolved + Ae ambiguous)`.
+- Interaction: drag nodes, scroll to zoom, drag background to pan, search highlights matching symbols, legend toggles subsystems on/off.
 
 | Flag | Effect |
 |---|---|
@@ -533,7 +536,14 @@ rules: [`config.md`](config.md).
 Precedence (highest wins): CLI flag → environment variable → settings
 row → built-in default. Keys today: `hook.rewrite`, `hook.use_rtk`,
 `hook.chainable`, `gain.no_record`, `gain.record_query`,
-`output.default`, `index.nested_keys` (plus read-only `hook.script_path`).
+`output.default`, `index.nested_keys`, `analysis.subsystem_min_size`
+(plus read-only `hook.script_path`).
+
+`analysis.subsystem_min_size` (default `5`, env
+`REPOCTX_ANALYSIS_SUBSYSTEM_MIN_SIZE`): the minimum Louvain-cluster size
+that counts as a "subsystem" in `communities`/`report`/`export`. One
+shared definition so the three commands report the same count. Raise it
+for fewer, larger subsystems; lower it (min `2`) for more.
 
 ## `repoctx init`
 

@@ -17,6 +17,9 @@ use anyhow::{anyhow, Result};
 use repoctx_store::Store;
 use tracing::warn;
 
+/// Default `analysis.subsystem_min_size` (see [`AnalysisConfig`]).
+pub const DEFAULT_SUBSYSTEM_MIN_SIZE: usize = 5;
+
 /// Where a config value came from. Used by `config show` to annotate
 /// each row with its source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -135,6 +138,19 @@ fn parse_bool(s: &str) -> Result<bool> {
     }
 }
 
+/// Parse + validate `analysis.subsystem_min_size`: a positive integer (a
+/// subsystem needs at least 2 members to be a cluster at all).
+fn parse_subsystem_min_size(s: &str) -> Result<usize> {
+    let n: usize = s
+        .trim()
+        .parse()
+        .map_err(|_| anyhow!("expected a positive integer (got '{s}')"))?;
+    if n < 2 {
+        return Err(anyhow!("must be >= 2 (a cluster needs >= 2 members)"));
+    }
+    Ok(n)
+}
+
 /// Split a `,`- or newline-separated list, trimming + dropping blanks.
 fn split_list(s: &str) -> Vec<String> {
     s.split([',', '\n'])
@@ -203,11 +219,21 @@ pub struct IndexConfig {
 }
 
 #[derive(Debug, Clone)]
+pub struct AnalysisConfig {
+    /// Minimum member count for a Louvain cluster to count as a "subsystem"
+    /// (`communities`/`report`/`export` share this definition so their counts
+    /// agree). Pairs/tiny tails below this are not subsystems. Default 5.
+    pub subsystem_min_size: usize,
+    pub subsystem_min_size_source: Source,
+}
+
+#[derive(Debug, Clone)]
 pub struct Config {
     pub hook: HookConfig,
     pub gain: GainConfig,
     pub output: OutputConfig,
     pub index: IndexConfig,
+    pub analysis: AnalysisConfig,
 }
 
 impl Config {
@@ -242,6 +268,10 @@ impl Config {
             index: IndexConfig {
                 nested_keys: false,
                 nested_keys_source: Source::Default,
+            },
+            analysis: AnalysisConfig {
+                subsystem_min_size: DEFAULT_SUBSYSTEM_MIN_SIZE,
+                subsystem_min_size_source: Source::Default,
             },
         }
     }
@@ -326,6 +356,13 @@ impl Config {
                     Ok(v) => {
                         cfg.output.default = v;
                         cfg.output.default_source = Source::Settings;
+                    }
+                    Err(e) => warn_invalid(&key, &value, e),
+                },
+                "analysis.subsystem_min_size" => match parse_subsystem_min_size(&value) {
+                    Ok(v) => {
+                        cfg.analysis.subsystem_min_size = v;
+                        cfg.analysis.subsystem_min_size_source = Source::Settings;
                     }
                     Err(e) => warn_invalid(&key, &value, e),
                 },
@@ -419,6 +456,15 @@ impl Config {
                 Err(e) => warn_invalid("REPOCTX_OUTPUT_DEFAULT", &v, e),
             }
         }
+        if let Ok(v) = env::var("REPOCTX_ANALYSIS_SUBSYSTEM_MIN_SIZE") {
+            match parse_subsystem_min_size(&v) {
+                Ok(n) => {
+                    cfg.analysis.subsystem_min_size = n;
+                    cfg.analysis.subsystem_min_size_source = Source::Env;
+                }
+                Err(e) => warn_invalid("REPOCTX_ANALYSIS_SUBSYSTEM_MIN_SIZE", &v, e),
+            }
+        }
     }
 }
 
@@ -444,6 +490,7 @@ pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
         | "gain.record_query"
         | "index.nested_keys" => fmt_bool(parse_bool(value)?).to_string(),
         "output.default" => OutputDefault::parse(value)?.as_str().to_string(),
+        "analysis.subsystem_min_size" => parse_subsystem_min_size(value)?.to_string(),
         "hook.script_path" => {
             return Err(anyhow!(
                 "hook.script_path is read-only (managed by `repoctx init`)"
@@ -469,6 +516,10 @@ pub fn known_keys() -> Vec<(&'static str, String)> {
         ("gain.record_query", fmt_bool(false).to_string()),
         ("output.default", OutputDefault::Auto.as_str().to_string()),
         ("index.nested_keys", fmt_bool(false).to_string()),
+        (
+            "analysis.subsystem_min_size",
+            DEFAULT_SUBSYSTEM_MIN_SIZE.to_string(),
+        ),
     ]
 }
 

@@ -88,17 +88,20 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
     let mut store = Store::open(repo_root).context("open store")?;
     let located = store.located_edges()?;
 
+    let min_size = crate::config::Config::load(&store)?.analysis.subsystem_min_size;
+
     let graph = resolved_graph(&located).graph;
     let comm = graph.louvain();
 
-    let communities = build_communities(&graph, &comm, MAX_COMMUNITIES, MAX_MEMBERS);
+    let (communities, total) =
+        build_communities(&graph, &comm, min_size, MAX_COMMUNITIES, MAX_MEMBERS);
     let god_nodes = top_god_nodes(&graph, MAX_GOD_NODES);
 
-    let advisory = advisory(graph.n);
+    let advisory = advisory(graph.n, min_size);
     let report = CommunitiesReport {
         nodes: graph.n,
         edges: graph.edges().len(),
-        count: communities.len(),
+        count: total,
         communities,
         god_nodes,
         advisory,
@@ -114,7 +117,7 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
     )
 }
 
-fn advisory(nodes: usize) -> Option<String> {
+fn advisory(nodes: usize, min_size: usize) -> Option<String> {
     if nodes == 0 {
         return Some(
             "no resolved call edges — call graph empty or this repo's languages lack \
@@ -122,30 +125,35 @@ fn advisory(nodes: usize) -> Option<String> {
                 .to_string(),
         );
     }
-    Some(
-        "clusters from single-level Louvain over resolved (unambiguous) call edges; \
-         nodes are per-definition (same-named defs stay distinct, qualified as \
-         name@file:line); labels = highest-degree member. Host/builtin method \
-         names (get/set/push/…) excluded — they bind to a lone same-named def \
-         under name-based resolution (ADR-0010), faking hubs. Topology-only."
-            .to_string(),
-    )
+    Some(format!(
+        "subsystems = Louvain clusters with >= {min_size} members \
+         (analysis.subsystem_min_size); count shared with `report`/`export`. Nodes \
+         per-definition (same-named defs stay distinct, qualified name@file:line); \
+         labels = highest-degree member. Receiver-aware, resolved edges only \
+         (ADR-0010). Topology-only."
+    ))
 }
 
-/// Group nodes by community id and build the ranked, capped `Community` list.
-/// Shared by `communities` and `report` (#15).
+/// Group nodes into subsystems: clusters with `>= min_size` members, ranked by
+/// size. Returns `(displayed, total)` where `displayed` is capped to
+/// `max_communities` for listing and `total` is the full count of qualifying
+/// subsystems — the shared "what is a subsystem" definition, so
+/// `communities`/`report`/`export` all report the same number (issue #9 viz
+/// reconciliation). `min_size` comes from `analysis.subsystem_min_size`.
 pub(crate) fn build_communities(
     graph: &Graph,
     comm: &[usize],
+    min_size: usize,
     max_communities: usize,
     max_members: usize,
-) -> Vec<Community> {
+) -> (Vec<Community>, usize) {
     let mut groups: HashMap<usize, Vec<usize>> = HashMap::new();
     for (node, &cid) in comm.iter().enumerate() {
         groups.entry(cid).or_default().push(node);
     }
     let mut communities: Vec<Community> = groups
         .into_values()
+        .filter(|members| members.len() >= min_size)
         .map(|mut members| {
             // highest-degree first; label = top member.
             members.sort_by_key(|&n| std::cmp::Reverse(graph.degree(n)));
@@ -164,8 +172,9 @@ pub(crate) fn build_communities(
         })
         .collect();
     communities.sort_by(|a, b| b.size.cmp(&a.size).then(a.label.cmp(&b.label)));
+    let total = communities.len();
     communities.truncate(max_communities);
-    communities
+    (communities, total)
 }
 
 /// Top-degree nodes overall — the cross-cutting hubs. Shared by `report` (#15).
@@ -286,10 +295,18 @@ impl Graph {
             let key = if a < b { (a, b) } else { (b, a) };
             *wmap.entry(key).or_insert(0.0) += 1.0;
         }
+        // Build adjacency in a DETERMINISTIC order: HashMap iteration is
+        // randomized per process, and Louvain's local-moving result depends on
+        // neighbor order, so iterating `wmap` directly made the partition (and
+        // thus the subsystem count) differ between `communities`/`report`/
+        // `export` runs. Sort the edges first so every invocation is identical.
+        let mut keys: Vec<(usize, usize)> = wmap.keys().copied().collect();
+        keys.sort_unstable();
         let mut adj = vec![Vec::new(); n];
         let mut k = vec![0.0; n];
         let mut m2 = 0.0;
-        for (&(a, b), &w) in &wmap {
+        for (a, b) in keys {
+            let w = wmap[&(a, b)];
             adj[a].push((b, w));
             adj[b].push((a, w));
             k[a] += w;
@@ -374,7 +391,12 @@ impl Graph {
                 let mut best = ci;
                 let mut best_gain =
                     w_to.get(&ci).copied().unwrap_or(0.0) - sigma_tot[ci] * self.k[i] / self.m2;
-                for (&c, &w) in &w_to {
+                // Iterate candidate communities in sorted order with a strict
+                // `>` so ties resolve to the lowest community id — deterministic
+                // regardless of HashMap iteration order (see `build`).
+                let mut cands: Vec<(usize, f64)> = w_to.iter().map(|(&c, &w)| (c, w)).collect();
+                cands.sort_unstable_by_key(|&(c, _)| c);
+                for (c, w) in cands {
                     let gain = w - sigma_tot[c] * self.k[i] / self.m2;
                     if gain > best_gain {
                         best_gain = gain;
@@ -417,6 +439,29 @@ mod tests {
             callee_file: Some(kf.into()),
             callee_line: Some(kl),
         }
+    }
+
+    #[test]
+    fn louvain_is_deterministic_across_builds() {
+        // Two independent builds of the same graph must yield the SAME partition
+        // — guards against HashMap-iteration nondeterminism that made
+        // communities/report/export disagree on the subsystem count.
+        let located: Vec<LocatedEdge> = (0..30)
+            .map(|i| {
+                let g = i / 5; // 6 clusters of 5
+                edge(
+                    &format!("f{i}"),
+                    &format!("m{g}.ts"),
+                    i,
+                    &format!("f{}", (i + 1) % 30),
+                    &format!("m{}.ts", ((i + 1) % 30) / 5),
+                    (i + 1) % 30,
+                )
+            })
+            .collect();
+        let a = resolved_graph(&located).graph.louvain();
+        let b = resolved_graph(&located).graph.louvain();
+        assert_eq!(a, b, "Louvain partition must be reproducible");
     }
 
     #[test]
