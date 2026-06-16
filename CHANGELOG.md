@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-06-16
+
 ### Fixed
 
 - **`overview` ranks modules by code, not doc/config symbols (issue #9-D).** Module sizes counted every symbol equally, so markdown headings (`section`) and config keys (`key`) pushed `wiki/`, `.github/`, and `docs/` to the top of the module ranking. Modules now rank by **code symbols** (excluding `section`/`key`); the header reports the split (`N code symbols (T total, D doc/config)`) and each module shows its code count. On madside the top modules are now `src/ports`/`src/app`/`src/services`, with 760 doc/config symbols separated from 1175 code. `symbol_counts_by_file` returns `(path, total, code)`; `Overview`/`ModuleStat` gain a `code_symbols` field.
