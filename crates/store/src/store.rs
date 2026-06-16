@@ -245,11 +245,22 @@ impl Store {
     }
 
     /// Symbol count per file (`file_path`, count). For `overview` module stats.
-    pub fn symbol_counts_by_file(&self) -> Result<Vec<(String, u64)>> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT file_path, COUNT(*) FROM symbols GROUP BY file_path")?;
-        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as u64)))?;
+    /// Per-file symbol counts as `(file_path, total, code)`. `code` excludes
+    /// data/doc symbols (markdown `section`, config `key`) so `overview` can
+    /// rank modules by real code, not headings/keys (issue #9-D).
+    pub fn symbol_counts_by_file(&self) -> Result<Vec<(String, u64, u64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT file_path, COUNT(*) AS total,
+                    SUM(CASE WHEN kind NOT IN ('key','section') THEN 1 ELSE 0 END) AS code
+             FROM symbols GROUP BY file_path",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)? as u64,
+                row.get::<_, i64>(2)? as u64,
+            ))
+        })?;
         let mut out = Vec::new();
         for r in rows {
             out.push(r?);

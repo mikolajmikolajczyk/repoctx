@@ -34,6 +34,9 @@ pub struct LanguageStat {
 pub struct ModuleStat {
     pub dir: String,
     pub files: u64,
+    /// Code symbols (excludes markdown headings + config keys). Ranking metric.
+    pub code_symbols: u64,
+    /// Total symbols including doc/config (markdown `section`, config `key`).
     pub symbols: u64,
     pub bytes: i64,
 }
@@ -58,6 +61,8 @@ pub struct Hotspot {
 pub struct Overview {
     pub files: u64,
     pub symbols: u64,
+    /// Code symbols only (total minus markdown headings + config keys).
+    pub code_symbols: u64,
     pub languages: Vec<LanguageStat>,
     pub modules: Vec<ModuleStat>,
     pub entry_points: Vec<EntryPoint>,
@@ -68,9 +73,10 @@ pub struct Overview {
 
 impl HumanRender for Overview {
     fn human(&self) -> String {
+        let docs = self.symbols.saturating_sub(self.code_symbols);
         let mut s = format!(
-            "# overview — {} files, {} symbols\n",
-            self.files, self.symbols
+            "# overview — {} files, {} code symbols ({} total, {} doc/config)\n",
+            self.files, self.code_symbols, self.symbols, docs
         );
 
         s.push_str("\n## languages\n");
@@ -78,11 +84,11 @@ impl HumanRender for Overview {
             s.push_str(&format!("  {:<12} {}\n", l.lang, l.symbols));
         }
 
-        s.push_str("\n## modules (by symbols)\n");
+        s.push_str("\n## modules (by code symbols)\n");
         for m in &self.modules {
             s.push_str(&format!(
-                "  {:<32} {} files, {} symbols, {} B\n",
-                m.dir, m.files, m.symbols, m.bytes
+                "  {:<32} {} files, {} code symbols, {} B\n",
+                m.dir, m.files, m.code_symbols, m.bytes
             ));
         }
 
@@ -143,23 +149,39 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
         .collect();
 
     // Module stats: fold files + per-file symbol counts by parent directory.
+    // Rank by CODE symbols so doc/config dirs (wiki, .github) don't top the
+    // list on heading/key counts (issue #9-D).
     let sizes = store.file_sizes()?;
-    let sym_counts: HashMap<String, u64> = store.symbol_counts_by_file()?.into_iter().collect();
+    let sym_counts: HashMap<String, (u64, u64)> = store
+        .symbol_counts_by_file()?
+        .into_iter()
+        .map(|(path, total, code)| (path, (total, code)))
+        .collect();
+    let mut code_total = 0u64;
     let mut by_dir: HashMap<String, ModuleStat> = HashMap::new();
     for (path, size) in &sizes {
         let dir = parent_dir(path).to_string();
         let e = by_dir.entry(dir.clone()).or_insert(ModuleStat {
             dir,
             files: 0,
+            code_symbols: 0,
             symbols: 0,
             bytes: 0,
         });
+        let (total, code) = sym_counts.get(path).copied().unwrap_or((0, 0));
         e.files += 1;
         e.bytes += *size;
-        e.symbols += sym_counts.get(path).copied().unwrap_or(0);
+        e.symbols += total;
+        e.code_symbols += code;
+        code_total += code;
     }
     let mut modules: Vec<ModuleStat> = by_dir.into_values().collect();
-    modules.sort_by(|a, b| b.symbols.cmp(&a.symbols).then(a.dir.cmp(&b.dir)));
+    modules.sort_by(|a, b| {
+        b.code_symbols
+            .cmp(&a.code_symbols)
+            .then(b.symbols.cmp(&a.symbols))
+            .then(a.dir.cmp(&b.dir))
+    });
     modules.truncate(MAX_MODULES);
 
     let mut entry_points: Vec<EntryPoint> = store
@@ -189,6 +211,7 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
     let report = Overview {
         files: counts.files,
         symbols: counts.symbols,
+        code_symbols: code_total,
         languages,
         modules,
         entry_points,
@@ -208,6 +231,8 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
 
 fn overview_advisory(no_hotspots: bool) -> Option<String> {
     let mut notes = vec![
+        "modules ranked by code symbols; markdown headings + config keys counted \
+         as doc/config, not code (#9-D)",
         "public API surface (exported symbols per module) not included yet — needs \
          per-language export extraction (#8)",
     ];

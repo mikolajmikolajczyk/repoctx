@@ -374,10 +374,10 @@ repoctx modules
 
 Repo architecture in one call — the "dropped into an unfamiliar repo" command. Composes what the index + call graph already hold (no new extraction):
 
-- `files` / `symbols` totals + per-`languages` symbol counts
-- `modules` — per-directory `{dir, files, symbols, bytes}`, ranked by symbols (top 30)
-- `entry_points` — `main` functions/methods (heuristic)
-- `hotspots` — most-called symbols (incoming call-edge count). Counts only names resolving to a single callable definition and excludes host/builtin method names (`get`/`set`/`push`/…) so the ranking is centrality, not name popularity (name-based per ADR-0010; #9)
+- `files` / `symbols` / `code_symbols` totals (doc/config = `symbols − code_symbols`) + per-`languages` symbol counts
+- `modules` — per-directory `{dir, files, code_symbols, symbols, bytes}`, **ranked by code symbols** (top 30). Markdown headings + config keys count as doc/config, not code, so `wiki/`/`.github/`/`docs/` no longer top the list (#9-D)
+- `entry_points` — `main` functions/methods + JS/TS web-app bootstraps (`main.tsx`, `index.tsx`, …)
+- `hotspots` — most-called symbols (incoming call-edge count). Receiver-aware (a `.set()` method call binds only to a repo `method`, never a free `function`) + single-callable-def, so the ranking is centrality, not name popularity (name-based per ADR-0010; #9)
 
 ```sh
 repoctx overview

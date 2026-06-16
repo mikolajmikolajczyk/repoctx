@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use repoctx_store::{
@@ -174,10 +175,30 @@ fn overview_aggregates_modules_entrypoints_hotspots() {
         s.file_sizes().unwrap(),
         vec![("src/main.rs".to_string(), 100)]
     );
+    // (path, total, code) — both symbols are functions, so total == code.
     assert_eq!(
         s.symbol_counts_by_file().unwrap(),
-        vec![("src/main.rs".to_string(), 2)]
+        vec![("src/main.rs".to_string(), 2, 2)]
     );
+
+    // doc/config symbols (markdown section, config key) count toward total but
+    // not code (issue #9-D).
+    s.upsert_file(
+        &fr("README.md", 1, 50, "markdown"),
+        &[
+            sr("README.md", "Intro", "section", 0),
+            sr("README.md", "Usage", "section", 1),
+        ],
+    )
+    .unwrap();
+    let counts: HashMap<String, (u64, u64)> = s
+        .symbol_counts_by_file()
+        .unwrap()
+        .into_iter()
+        .map(|(p, t, c)| (p, (t, c)))
+        .collect();
+    assert_eq!(counts["README.md"], (2, 0), "headings are doc, not code");
+    assert_eq!(counts["src/main.rs"], (2, 2));
 
     // entry points: main.
     let ep = s.entry_points().unwrap();
