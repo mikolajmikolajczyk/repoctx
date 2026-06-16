@@ -103,10 +103,22 @@ pub(crate) fn do_index(repo_root: &Path, force: bool, warn_on_skip: bool) -> Res
             };
             // Skip minified / generated files (e.g. emscripten glue, bundles):
             // one absurdly long line means it's machine-emitted, not source.
-            // Indexing it floods symbols/hotspots/dead-code with noise. Treat
-            // like the size/UTF-8 skips — drop it from the index entirely.
+            // Indexing it floods symbols/hotspots/dead-code with noise.
+            //
+            // Send the FileRecord with EMPTY symbols/edges rather than just
+            // returning: that records the file (so the mtime-skip works next
+            // run) AND purges any rows a prior index left behind. A bare
+            // `return` would orphan stale symbols forever (the file is still
+            // on disk, so prune never removes it).
             if is_minified(&source) {
                 warn!(path = %c.abs.display(), "skipping minified/generated file");
+                let record = FileRecord {
+                    path: c.rel,
+                    mtime_ns: c.mtime_ns,
+                    size: c.size,
+                    language: c.language.slug().to_string(),
+                };
+                let _ = tx.send((record, Vec::new(), Vec::new(), Vec::new()));
                 return;
             }
             let symbols = match parse_file_with(&c.rel, c.language, &source, parse_opts) {

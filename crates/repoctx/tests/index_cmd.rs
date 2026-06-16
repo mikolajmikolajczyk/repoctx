@@ -123,3 +123,61 @@ fn non_utf8_file_is_skipped() {
     let s = run_index(tmp.path());
     assert_eq!(s["indexed"].as_u64().unwrap(), 5, "{s}");
 }
+
+#[test]
+fn minified_file_contributes_no_symbols() {
+    let tmp = fixture();
+    let root = tmp.path();
+    // One 6000-char line = minified/generated. Define a fn that would
+    // otherwise be a symbol.
+    let minified = format!("function glue(){{}};var x=\"{}\";", "y".repeat(6000));
+    fs::write(root.join("glue.js"), &minified).unwrap();
+    run_index(root);
+
+    // `glue` must not be indexed as a symbol.
+    let out = Command::cargo_bin("repoctx")
+        .unwrap()
+        .args([
+            "--repo",
+            root.to_str().unwrap(),
+            "--json",
+            "symbols",
+            "glue",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v: Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(
+        v["count"].as_u64().unwrap(),
+        0,
+        "minified glue.js not indexed: {v}"
+    );
+
+    // And re-indexing after editing it down to real source picks it up —
+    // proves the skip purges, not orphans. (Write a normal small file.)
+    fs::write(root.join("glue.js"), "export function glue() {}\n").unwrap();
+    run_index(root);
+    let out2 = Command::cargo_bin("repoctx")
+        .unwrap()
+        .args([
+            "--repo",
+            root.to_str().unwrap(),
+            "--json",
+            "symbols",
+            "glue",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let v2: Value = serde_json::from_slice(&out2).unwrap();
+    assert_eq!(
+        v2["count"].as_u64().unwrap(),
+        1,
+        "de-minified glue.js indexed: {v2}"
+    );
+}
