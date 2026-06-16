@@ -6,7 +6,7 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ### Added
 
-- **Lexical visibility extraction — Go (issue #10).** New `visibility` column on symbols (`public`/`private`/`unknown`), set syntactically by the extractor. **Go** is the first language: exported iff the identifier's first letter is uppercase. `deadcode` now excludes `public` symbols — exported API called across boundaries (or via DI) is no longer falsely flagged dead. `unknown` is the safe default for languages without extraction yet (no behavior change). Schema v8; run `repoctx index --force` to populate visibility for existing rows. Next languages: Rust (`pub*` + FFI attrs), then JS/TS inline `export`. Also unlocks the future `overview` public-API surface.
+- **Lexical visibility extraction — Go + JS/TS (issue #10).** New `visibility` column on symbols (`public`/`private`/`unknown`), set syntactically by the extractor. **Go**: exported iff the identifier's first letter is uppercase. **JS/TS/TSX**: exported iff the definition is wrapped by an inline `export` (`export function/class/const`, `export default`) — cuts the common `create*`-factory false positives. `deadcode` now excludes `public` symbols — exported API called across boundaries (or via DI) is no longer falsely flagged dead. `unknown` is the safe default for languages without extraction yet (no behavior change). Schema v8; run `repoctx index --force` to populate visibility for existing rows. Not yet: `export {{ … }}` clauses / CJS (those stay `private` for now), Rust `pub`. Also unlocks the future `overview` public-API surface.
 
 ## [0.11.7] — 2026-06-16
 

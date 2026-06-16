@@ -215,7 +215,7 @@ pub fn parse_file_with(
 
         let start = def.start_position();
         let end = def.end_position();
-        let visibility = visibility_for(language, &name).to_string();
+        let visibility = visibility_for(language, &name, def).to_string();
         out.push(SymbolRecord {
             file_path: file_path.to_string(),
             name,
@@ -544,9 +544,13 @@ fn node_text<'a>(n: Node, bytes: &'a [u8]) -> &'a str {
 /// `"unknown"` where the language has no cheap signal yet — a safe default
 /// that preserves prior behavior (the `languages` full/partial philosophy).
 ///
-/// Go: exported iff the identifier's first letter is uppercase (the language
-/// rule — no AST lookup needed).
-fn visibility_for(language: Language, name: &str) -> &'static str {
+/// - Go: exported iff the identifier's first letter is uppercase.
+/// - JS/TS/TSX: exported iff the definition is wrapped by an inline
+///   `export` (`export function f`, `export class C`, `export const x = …`,
+///   `export default …`). `export {{ a }}` clauses + CJS are not handled yet
+///   → those stay `private` (a future #10 step); inline export already cuts
+///   the common factory false positives.
+fn visibility_for(language: Language, name: &str, def: Node) -> &'static str {
     match language {
         Language::Go => {
             if name.chars().next().is_some_and(|c| c.is_uppercase()) {
@@ -555,8 +559,40 @@ fn visibility_for(language: Language, name: &str) -> &'static str {
                 "private"
             }
         }
+        Language::TypeScript | Language::Tsx | Language::JavaScript => {
+            if is_inline_exported(def) {
+                "public"
+            } else {
+                "private"
+            }
+        }
         _ => "unknown",
     }
+}
+
+/// Walk up from a JS/TS definition node looking for the `export_statement`
+/// that directly wraps it. Stops at a nesting boundary (a body / another
+/// callable / class) so a function nested inside an exported one isn't
+/// mistaken for exported. Bounded hop count for safety.
+fn is_inline_exported(def: Node) -> bool {
+    let mut cur = def.parent();
+    let mut hops = 0;
+    while let Some(n) = cur {
+        match n.kind() {
+            "export_statement" => return true,
+            // structural wrappers between a `const`/`let` decl and its export.
+            "lexical_declaration" | "variable_declaration" | "variable_declarator" => {}
+            // anything else (a body, another callable, class, etc.) = not a
+            // direct top-level export.
+            _ => return false,
+        }
+        hops += 1;
+        if hops > 4 {
+            return false;
+        }
+        cur = n.parent();
+    }
+    false
 }
 
 /// Strip surrounding quotes from string-keyed captures (json, toml).
@@ -663,5 +699,29 @@ export { foo } from "./util";
     fn non_go_visibility_is_unknown() {
         let syms = parse_file("a.rs", Language::Rust, "pub fn foo() {}\nfn bar() {}\n").unwrap();
         assert!(syms.iter().all(|s| s.visibility == "unknown"));
+    }
+
+    #[test]
+    fn ts_inline_export_visibility() {
+        let src = "\
+export function createFoo() {}
+export const createBar = () => {};
+function deadHelper() {}
+export default function entry() {}
+function outer() { function inner() {} }
+";
+        let syms = parse_file("a.ts", Language::TypeScript, src).unwrap();
+        let vis = |n: &str| {
+            syms.iter()
+                .find(|s| s.name == n)
+                .map(|s| s.visibility.as_str())
+        };
+        assert_eq!(vis("createFoo"), Some("public"));
+        assert_eq!(vis("createBar"), Some("public"), "export const arrow");
+        assert_eq!(vis("entry"), Some("public"), "export default");
+        assert_eq!(vis("deadHelper"), Some("private"));
+        // nested fn inside a non-exported outer is NOT exported.
+        assert_eq!(vis("inner"), Some("private"));
+        assert_eq!(vis("outer"), Some("private"));
     }
 }

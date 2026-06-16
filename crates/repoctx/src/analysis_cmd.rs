@@ -88,7 +88,7 @@ fn deadcode_advisory(empty: bool) -> Option<String> {
     Some(
         "name-based: these have no in-repo caller, but may be called \
          dynamically / via traits / FFI. Exported/public symbols (where the \
-         language has visibility extraction — currently Go), test files, \
+         language has visibility extraction — Go + JS/TS inline `export`), test files, \
          `.d.ts` decls, and minified/generated files are already excluded. \
          Treat as candidates — verify before deleting."
             .to_string(),
