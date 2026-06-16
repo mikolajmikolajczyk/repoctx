@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.10] — 2026-06-16
+
 ### Added
 
 - **tsconfig path-alias resolution for the import graph (issue #8).** A shared resolver now turns alias specifiers (`@adapters/*` → `src/adapters/*`) into indexed files, not just relative `./`/`../` imports — aliases are collected from every `tsconfig*.json` / `jsconfig.json` at the repo root (covers split base/app configs + `extends` without chasing the chain; JSONC-tolerant). **`modules`/`import-cycles`** now resolve far more of the graph (madside: external edges 393 → 163, resolved edges 286 → 501). **`boundary`** is alias-aware: it resolves each import and counts a crossing when the resolved target hits `--to`, so `boundary --from src/ui --to src/adapters` catches `@adapters/*` imports — and `count: 0` now reports how many bare/unresolved imports (node_modules/unmapped) remained, instead of a misleading "clean." Bare/package specifiers + non-TS module syntax (Rust/Python/Go) stay external (future work).
