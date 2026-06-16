@@ -54,6 +54,7 @@ involves navigating or understanding code in this repo.
 | Find recursion / call cycles | `{REPOCTX_BIN} cycles` |
 | What a file imports / what imports a module | `{REPOCTX_BIN} deps path/to/file.ts` / `{REPOCTX_BIN} rdeps @scope/mod` |
 | Does layer A import layer B? (boundary check) | `{REPOCTX_BIN} boundary --from src/ui --to @adapters` |
+| Circular imports / module build order | `{REPOCTX_BIN} import-cycles` / `{REPOCTX_BIN} modules` |
 | See the structure of one file | `{REPOCTX_BIN} outline path/to/file.rs` |
 | Check index health / staleness | `{REPOCTX_BIN} status` |
 | See how many tokens you've saved | `{REPOCTX_BIN} gain` |
