@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.11.5] — 2026-06-16
+
 ### Added
 
 - **`repoctx import-cycles` / `modules`** (epic #4, ADR-0011): graph analyses over the import graph. `import-cycles` finds circular imports (petgraph `tarjan_scc`); `modules` emits the resolved import topology + a dependency-first build order (petgraph `toposort`), flagging cyclic graphs. To get file→file edges, relative specifiers (`./x`, `../y`) are resolved against the indexed file set (common extensions + `/index`); alias/package specifiers (`@scope/x`, `react`) need build-config resolution we don't do yet, so they're counted as external and excluded (advisory says so). Best fit for JS/TS/relative includes. **First petgraph adoption** — built as an ephemeral graph from a store query, run, dropped; SQLite stays source of truth (decision: `wiki/decisions/2026-06-16-petgraph-for-graph-algos.md`).
