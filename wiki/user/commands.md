@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `communities`, `changed`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `communities`, `report`, `changed`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -397,6 +397,32 @@ Pure topology — name-based (ADR-0010), no embeddings or LLM. Clustering ambigu
 ```sh
 repoctx communities
 ```
+
+## `repoctx report`
+
+One-page architecture report, **generated deterministically from graph topology — no LLM, no network**. Composes the resolved call graph into:
+
+- **God nodes** — highest-degree symbols (cross-cutting hubs).
+- **Subsystems** — `communities` (#14) clusters, labeled by representative member.
+- **Cross-cluster bridges** — call edges whose endpoints sit in different subsystems, ranked by combined endpoint degree. The coupling worth scrutinizing.
+- **Entry points** — `main`-like symbols (same heuristic as `overview`).
+- **Suggested questions** — templated from structure (top god node, largest subsystem, top bridges). Orientation prompts, **not** findings.
+
+Human output *is* the report markdown — pipe it (`repoctx report > REPORT.md`) or use `--out`:
+
+| Flag | Effect |
+|---|---|
+| `--out <path>` | Write the markdown report to a file (e.g. `REPORT.md`). Always writes markdown regardless of `--json`/`--toon`. |
+
+`--json` / `--toon` emit the structured form (`{nodes, edges, communities_count, god_nodes, communities, bridges, entry_points, questions, advisory}`).
+
+```sh
+repoctx report                  # markdown to stdout
+repoctx report --out REPORT.md  # write the file
+repoctx report --json           # structured data
+```
+
+Name-based (ADR-0010); the same single-callable-def resolution as `communities`. An opt-in `--llm` prose-narration layer is deferred.
 
 ## `repoctx changed [--since REF]`
 

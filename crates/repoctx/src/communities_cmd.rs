@@ -28,7 +28,7 @@ const MAX_MEMBERS: usize = 15;
 const MAX_GOD_NODES: usize = 15;
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Community {
+pub(crate) struct Community {
     /// Highest-degree member — the cluster's representative symbol.
     pub label: String,
     pub size: usize,
@@ -37,7 +37,7 @@ pub struct Community {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct GodNode {
+pub(crate) struct GodNode {
     pub name: String,
     pub degree: usize,
 }
@@ -90,41 +90,8 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
     let graph = Graph::from_pairs(&pairs);
     let comm = graph.louvain();
 
-    // Group node indices by community id.
-    let mut groups: HashMap<usize, Vec<usize>> = HashMap::new();
-    for (node, &cid) in comm.iter().enumerate() {
-        groups.entry(cid).or_default().push(node);
-    }
-    let mut communities: Vec<Community> = groups
-        .into_values()
-        .map(|mut members| {
-            // highest-degree first; label = top member.
-            members.sort_by_key(|&n| std::cmp::Reverse(graph.degree(n)));
-            let label = graph.name(members[0]).to_string();
-            let size = members.len();
-            let names = members
-                .iter()
-                .take(MAX_MEMBERS)
-                .map(|&n| graph.name(n).to_string())
-                .collect();
-            Community {
-                label,
-                size,
-                members: names,
-            }
-        })
-        .collect();
-    communities.sort_by(|a, b| b.size.cmp(&a.size).then(a.label.cmp(&b.label)));
-    communities.truncate(MAX_COMMUNITIES);
-
-    let mut god_nodes: Vec<GodNode> = (0..graph.n)
-        .map(|n| GodNode {
-            name: graph.name(n).to_string(),
-            degree: graph.degree(n),
-        })
-        .collect();
-    god_nodes.sort_by(|a, b| b.degree.cmp(&a.degree).then(a.name.cmp(&b.name)));
-    god_nodes.truncate(MAX_GOD_NODES);
+    let communities = build_communities(&graph, &comm, MAX_COMMUNITIES, MAX_MEMBERS);
+    let god_nodes = top_god_nodes(&graph, MAX_GOD_NODES);
 
     let advisory = advisory(graph.n);
     let report = CommunitiesReport {
@@ -161,12 +128,61 @@ fn advisory(nodes: usize) -> Option<String> {
     )
 }
 
+/// Group nodes by community id and build the ranked, capped `Community` list.
+/// Shared by `communities` and `report` (#15).
+pub(crate) fn build_communities(
+    graph: &Graph,
+    comm: &[usize],
+    max_communities: usize,
+    max_members: usize,
+) -> Vec<Community> {
+    let mut groups: HashMap<usize, Vec<usize>> = HashMap::new();
+    for (node, &cid) in comm.iter().enumerate() {
+        groups.entry(cid).or_default().push(node);
+    }
+    let mut communities: Vec<Community> = groups
+        .into_values()
+        .map(|mut members| {
+            // highest-degree first; label = top member.
+            members.sort_by_key(|&n| std::cmp::Reverse(graph.degree(n)));
+            let label = graph.name(members[0]).to_string();
+            let size = members.len();
+            let names = members
+                .iter()
+                .take(max_members)
+                .map(|&n| graph.name(n).to_string())
+                .collect();
+            Community {
+                label,
+                size,
+                members: names,
+            }
+        })
+        .collect();
+    communities.sort_by(|a, b| b.size.cmp(&a.size).then(a.label.cmp(&b.label)));
+    communities.truncate(max_communities);
+    communities
+}
+
+/// Top-degree nodes overall — the cross-cutting hubs. Shared by `report` (#15).
+pub(crate) fn top_god_nodes(graph: &Graph, max: usize) -> Vec<GodNode> {
+    let mut god_nodes: Vec<GodNode> = (0..graph.n)
+        .map(|n| GodNode {
+            name: graph.name(n).to_string(),
+            degree: graph.degree(n),
+        })
+        .collect();
+    god_nodes.sort_by(|a, b| b.degree.cmp(&a.degree).then(a.name.cmp(&b.name)));
+    god_nodes.truncate(max);
+    god_nodes
+}
+
 // ── Graph + Louvain ───────────────────────────────────────────────────────
 
 /// Undirected weighted graph over symbol names, built from `(caller, callee)`
 /// pairs. Parallel edges accumulate weight.
-struct Graph {
-    n: usize,
+pub(crate) struct Graph {
+    pub(crate) n: usize,
     names: Vec<String>,
     /// adjacency: node -> [(neighbor, weight)].
     adj: Vec<Vec<(usize, f64)>>,
@@ -177,7 +193,7 @@ struct Graph {
 }
 
 impl Graph {
-    fn from_pairs(pairs: &[(String, String)]) -> Self {
+    pub(crate) fn from_pairs(pairs: &[(String, String)]) -> Self {
         let mut idx: HashMap<String, usize> = HashMap::new();
         let mut names: Vec<String> = Vec::new();
         fn intern(s: &str, idx: &mut HashMap<String, usize>, names: &mut Vec<String>) -> usize {
@@ -220,18 +236,32 @@ impl Graph {
         }
     }
 
-    fn name(&self, n: usize) -> &str {
+    pub(crate) fn name(&self, n: usize) -> &str {
         &self.names[n]
     }
 
-    fn degree(&self, n: usize) -> usize {
+    pub(crate) fn degree(&self, n: usize) -> usize {
         self.adj[n].len()
+    }
+
+    /// Unique undirected edges as `(a, b)` with `a < b`. For cross-cluster
+    /// bridge detection in `report` (#15).
+    pub(crate) fn edges(&self) -> Vec<(usize, usize)> {
+        let mut out = Vec::new();
+        for a in 0..self.n {
+            for &(b, _) in &self.adj[a] {
+                if a < b {
+                    out.push((a, b));
+                }
+            }
+        }
+        out
     }
 
     /// Single-level Louvain local-moving phase. Returns a community id per
     /// node, relabeled contiguous. Good enough for orientation; full multilevel
     /// aggregation is overkill here.
-    fn louvain(&self) -> Vec<usize> {
+    pub(crate) fn louvain(&self) -> Vec<usize> {
         let mut comm: Vec<usize> = (0..self.n).collect();
         let mut sigma_tot: Vec<f64> = self.k.clone();
         if self.m2 == 0.0 {

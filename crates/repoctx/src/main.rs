@@ -35,6 +35,7 @@ mod output_symbols;
 mod overview_cmd;
 mod read_cmd;
 mod repo_root;
+mod report_cmd;
 mod resolver;
 mod search_cmd;
 mod status_cmd;
@@ -213,6 +214,14 @@ enum Cmd {
     Overview,
     /// Cluster the call graph into subsystems (Louvain) + god nodes.
     Communities,
+    /// Deterministic architecture report (markdown) from graph topology: god
+    /// nodes, subsystems, cross-cluster bridges, entry points, questions.
+    Report {
+        /// Write the markdown report to this file (e.g. REPORT.md) instead of
+        /// stdout. Always writes markdown regardless of --json/--toon.
+        #[arg(long)]
+        out: Option<std::path::PathBuf>,
+    },
     /// Change-aware blast radius: symbols changed since a git ref + their
     /// transitive callers ("what this change touches + what it can break").
     Changed {
@@ -540,6 +549,7 @@ fn run() -> Result<()> {
         Cmd::Modules => modulegraph_cmd::run_modules(&repo_root, render, gain_opts),
         Cmd::Overview => overview_cmd::run(&repo_root, render, gain_opts),
         Cmd::Communities => communities_cmd::run(&repo_root, render, gain_opts),
+        Cmd::Report { out } => report_cmd::run(&repo_root, render, gain_opts, out),
         Cmd::Changed { since } => changed_cmd::run(&repo_root, since, render, gain_opts),
         Cmd::Discover { samples, idiom } => {
             if samples {

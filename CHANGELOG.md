@@ -6,6 +6,7 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ### Added
 
+- **`repoctx report` — deterministic architecture report (issue #15).** Composes the resolved call graph into a one-page markdown summary, **generated entirely from topology — no LLM, no network**: god nodes, subsystems (#14 Louvain clusters), cross-cluster bridges (call edges whose endpoints sit in different subsystems, ranked by combined degree — the coupling worth scrutinizing), entry points, and templated "suggested questions" derived from structure (orientation prompts, not findings). Human render *is* the markdown; `--out <path>` writes it to a file (e.g. `REPORT.md`) regardless of `--json`/`--toon`; JSON/TOON emit the structured data. Preserves repoctx's cheap-and-deterministic identity; an opt-in `--llm` prose layer is deferred.
 - **`repoctx communities` — subsystem clustering + god nodes (issue #14).** Runs single-level Louvain modularity optimization over the **resolved** call graph (unambiguous, single-callable-def callees only) to group symbols into subsystems, labels each cluster by its highest-degree member, and surfaces god nodes (highest-degree symbols overall). Pure topology — no embeddings, no LLM. Clustering over ambiguous fan-out produces garbage, so the input is resolved-only by construction. Output capped (30 clusters, 15 members each, 15 god nodes) for token thrift; JSON/TOON/human. The "dropped into an unfamiliar repo, where are the seams" command.
 
 ## [0.11.10] — 2026-06-16
