@@ -1,0 +1,15 @@
+# Adoption-probe tasks — realistic structural navigation questions that
+# repoctx answers better than grep/cat. One per line; blank lines + # ignored.
+# Targeted at the madside codebase (real TS app) but phrased generically.
+Where is the function getDB defined? Answer with the file and line.
+What calls the function createWorkbench?
+Give a high-level overview of this repository's architecture: its main subsystems and entry points.
+List everywhere parseProjectManifest is used across the codebase.
+What does the file that defines the App component import?
+
+# --- harder / exploratory (stronger grep reflex) — for the full sweep ---
+Find all call sites and string occurrences of the term "snapshot" in this repo.
+Which files import the storage adapter, and does the UI layer import it directly?
+Trace what happens when a project is deleted: what functions are involved?
+Is there any dead code (functions defined but never called)?
+What are the most central / most-called functions in this codebase?
