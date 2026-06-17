@@ -127,13 +127,21 @@ pub fn run(repo_root: &Path, file_arg: PathBuf, render: Render, gain_opts: GainO
 
     let store = Store::open(repo_root).context("open store")?;
     if !store.file_exists(&db_path).context("file_exists")? {
-        // The index is already fresh here (ensure_fresh ran above), so the
-        // file is genuinely not indexable — say why, don't suggest a manual
-        // reindex (read commands auto-index).
+        // The index is already fresh here (ensure_fresh ran above). Split the
+        // two very different causes: a path that doesn't exist (usually a
+        // *guessed* path for a symbol) vs a real file that isn't indexable.
+        if !repo_root.join(&db_path).is_file() {
+            bail!(
+                "no such file: {db_path}\n\
+                 If you're looking for a symbol (not a file), find where it lives first:\n\
+                 \x20 repoctx definition <name>   (exact-name definition + its file)\n\
+                 \x20 repoctx search <name>       (defs + every textual match)\n\
+                 then `repoctx outline <that-file>`."
+            );
+        }
         bail!(
-            "{} is not in the index — not on disk, gitignored, oversized (>2 MiB), \
-             non-UTF-8, or in an unsupported language (see `repoctx languages`).",
-            db_path
+            "{db_path} exists but isn't indexed — gitignored, oversized (>2 MiB), \
+             non-UTF-8, or an unsupported language (see `repoctx languages`)."
         );
     }
     let backend = TreeSitterBackend::new(store);

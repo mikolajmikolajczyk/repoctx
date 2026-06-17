@@ -94,14 +94,20 @@ Path argument accepts both forms:
 
 Both are canonicalized and re-anchored against the repo root before lookup. A path outside the repo bails with `path is outside repo: …`.
 
-If the file isn't in the index, you get:
+If the path doesn't exist (commonly a *guessed* path for a symbol), you get a
+recovery nudge toward the symbol-finding commands:
 
 ```text
-crates/foo/bar.rs is not in the index — file may be new, ignored, oversized
-(>2 MiB), non-UTF-8, or in an unsupported language. Run `repoctx index` to refresh.
+no such file: src/ui/hooks/useProject.ts
+If you're looking for a symbol (not a file), find where it lives first:
+  repoctx definition <name>   (exact-name definition + its file)
+  repoctx search <name>       (defs + every textual match)
+then `repoctx outline <that-file>`.
 ```
 
-Exit 1. Those four causes are the entire set — no other reason exists for a file to be missing once `index` succeeds.
+If the file exists on disk but isn't indexed, the error names the cause
+instead — gitignored, oversized (>2 MiB), non-UTF-8, or an unsupported language
+(see `repoctx languages`). Either way exit 1.
 
 ```sh
 repoctx outline --json crates/repoctx/src/outline_cmd.rs
