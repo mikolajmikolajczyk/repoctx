@@ -52,8 +52,13 @@ pub fn run(repo_root: &Path) -> Result<()> {
     let located = store.located_edges()?;
     let graph = resolved_graph(&located).graph;
     let comm = graph.louvain();
-    let (subsystems, subsystem_total) =
-        build_communities(&graph, &comm, min_size, MAX_SUBSYSTEMS, MEMBERS_PER_SUBSYSTEM);
+    let (subsystems, subsystem_total) = build_communities(
+        &graph,
+        &comm,
+        min_size,
+        MAX_SUBSYSTEMS,
+        MEMBERS_PER_SUBSYSTEM,
+    );
     let hubs = top_god_nodes(&graph, MAX_HUBS);
 
     let mut out = String::new();
@@ -61,7 +66,9 @@ pub fn run(repo_root: &Path) -> Result<()> {
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("repo");
-    out.push_str(&format!("# repoctx map — {name} (auto-generated, deterministic)\n\n"));
+    out.push_str(&format!(
+        "# repoctx map — {name} (auto-generated, deterministic)\n\n"
+    ));
 
     // Headline. Sort languages by symbol count desc so the dominant code
     // languages lead (per_language isn't count-ordered).
@@ -96,8 +103,14 @@ pub fn run(repo_root: &Path) -> Result<()> {
 
     // Hubs (one line, token-thrifty).
     if !hubs.is_empty() {
-        let line: Vec<String> = hubs.iter().map(|h| format!("{}({})", h.name, h.degree)).collect();
-        out.push_str(&format!("\n## Hubs (highest-degree)\n{}\n", line.join(", ")));
+        let line: Vec<String> = hubs
+            .iter()
+            .map(|h| format!("{}({})", h.name, h.degree))
+            .collect();
+        out.push_str(&format!(
+            "\n## Hubs (highest-degree)\n{}\n",
+            line.join(", ")
+        ));
     }
 
     // Entry points.

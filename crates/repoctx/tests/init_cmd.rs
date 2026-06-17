@@ -64,10 +64,7 @@ fn init_installs_session_start_script_and_guidance() {
     assert!(body.contains("repoctx prime"));
     assert!(body.contains("your session-start context below"));
     // Guidance skill written.
-    assert!(repo
-        .path()
-        .join(".claude/skills/repoctx/SKILL.md")
-        .exists());
+    assert!(repo.path().join(".claude/skills/repoctx/SKILL.md").exists());
 }
 
 #[test]

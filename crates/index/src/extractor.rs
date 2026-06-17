@@ -779,9 +779,17 @@ pub extern \"C\" fn ffi_entry() {}
 fn named() {}
 ";
         let syms = parse_file("a.rs", Language::Rust, src).unwrap();
-        let vis = |n: &str| syms.iter().find(|s| s.name == n).map(|s| s.visibility.as_str());
+        let vis = |n: &str| {
+            syms.iter()
+                .find(|s| s.name == n)
+                .map(|s| s.visibility.as_str())
+        };
         assert_eq!(vis("exported"), Some("public"), "pub");
-        assert_eq!(vis("crate_pub"), Some("public"), "pub(crate) over-approximated");
+        assert_eq!(
+            vis("crate_pub"),
+            Some("public"),
+            "pub(crate) over-approximated"
+        );
         assert_eq!(vis("private_fn"), Some("private"));
         assert_eq!(vis("Thing"), Some("public"), "pub struct");
         assert_eq!(vis("Hidden"), Some("private"));

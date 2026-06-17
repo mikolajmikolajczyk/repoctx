@@ -88,7 +88,9 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
     let mut store = Store::open(repo_root).context("open store")?;
     let located = store.located_edges()?;
 
-    let min_size = crate::config::Config::load(&store)?.analysis.subsystem_min_size;
+    let min_size = crate::config::Config::load(&store)?
+        .analysis
+        .subsystem_min_size;
 
     let graph = resolved_graph(&located).graph;
     let comm = graph.louvain();

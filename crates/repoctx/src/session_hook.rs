@@ -78,12 +78,15 @@ pub fn write_script(script_path: &Path, dry_run: bool) -> Result<bool> {
         Ok(existing) => merge_managed(&existing),
         Err(_) => fresh_script(),
     };
-    let changed = fs::read_to_string(script_path).map(|c| c != next).unwrap_or(true);
+    let changed = fs::read_to_string(script_path)
+        .map(|c| c != next)
+        .unwrap_or(true);
     if changed && !dry_run {
         if let Some(parent) = script_path.parent() {
             fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
         }
-        fs::write(script_path, &next).with_context(|| format!("write {}", script_path.display()))?;
+        fs::write(script_path, &next)
+            .with_context(|| format!("write {}", script_path.display()))?;
         make_executable(script_path);
     }
     Ok(changed)
@@ -128,7 +131,12 @@ pub fn install_settings(settings_path: &Path, command: &str, dry_run: bool) -> R
 /// Remove repoctx's SessionStart entry (matching `command`) and strip the
 /// managed block from the script — deleting the script if nothing but the
 /// managed block + boilerplate remains. Returns whether the settings changed.
-pub fn uninstall(settings_path: &Path, script_path: &Path, command: &str, dry_run: bool) -> Result<bool> {
+pub fn uninstall(
+    settings_path: &Path,
+    script_path: &Path,
+    command: &str,
+    dry_run: bool,
+) -> Result<bool> {
     // Strip the managed block from the script; delete if no user content.
     if let Ok(existing) = fs::read_to_string(script_path) {
         if let (Some(b), Some(e)) = (existing.find(MANAGED_BEGIN), existing.find(MANAGED_END)) {
@@ -187,7 +195,10 @@ fn user_content_is_empty(s: &str) -> bool {
 }
 
 fn make_executable(path: &Path) {
-    let _ = std::process::Command::new("chmod").arg("+x").arg(path).status();
+    let _ = std::process::Command::new("chmod")
+        .arg("+x")
+        .arg(path)
+        .status();
 }
 
 fn load_or_empty(path: &Path) -> Result<Value> {
@@ -250,7 +261,11 @@ mod tests {
         );
         let merged = merge_managed(&user);
         assert!(merged.contains("echo \"my own note\""), "user line kept");
-        assert_eq!(merged.matches(MANAGED_BEGIN).count(), 1, "single managed block");
+        assert_eq!(
+            merged.matches(MANAGED_BEGIN).count(),
+            1,
+            "single managed block"
+        );
     }
 
     #[test]
@@ -302,7 +317,10 @@ mod tests {
         // Unrelated key preserved.
         assert_eq!(v["permissions"]["allow"][0], "Bash(ls:*)");
         // Sibling hook type preserved.
-        assert_eq!(v["hooks"]["PreToolUse"][0]["hooks"][0]["command"], "my-own-hook");
+        assert_eq!(
+            v["hooks"]["PreToolUse"][0]["hooks"][0]["command"],
+            "my-own-hook"
+        );
         // User's own SessionStart entry preserved + ours appended.
         let ss = v["hooks"]["SessionStart"].as_array().unwrap();
         assert!(ss.iter().any(|e| e["hooks"][0]["command"] == "echo mine"));

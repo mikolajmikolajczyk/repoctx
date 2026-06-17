@@ -64,7 +64,9 @@ pub fn run(repo_root: &Path, out: Option<PathBuf>) -> Result<()> {
     read_cmd::ensure_fresh(repo_root)?;
     let store = Store::open(repo_root).context("open store")?;
     let located = store.located_edges()?;
-    let min_size = crate::config::Config::load(&store)?.analysis.subsystem_min_size;
+    let min_size = crate::config::Config::load(&store)?
+        .analysis
+        .subsystem_min_size;
 
     // Communities + node identity over the resolved subgraph — same basis as
     // `communities`/`report`. Map each definition's identity key to its
@@ -94,7 +96,12 @@ pub fn run(repo_root: &Path, out: Option<PathBuf>) -> Result<()> {
     let mut edges: Vec<VizEdge> = Vec::with_capacity(located.len());
     for e in &located {
         let ckey = node_key(&e.caller_name, &e.caller_file, e.caller_line);
-        let ia = acc.intern(ckey, &e.caller_name, Some(&e.caller_file), Some(e.caller_line));
+        let ia = acc.intern(
+            ckey,
+            &e.caller_name,
+            Some(&e.caller_file),
+            Some(e.caller_line),
+        );
         let (ib, ambiguous) = match (e.callee_defs, &e.callee_file, e.callee_line) {
             (1, Some(f), Some(l)) => {
                 let key = node_key(&e.callee_name, f, l);

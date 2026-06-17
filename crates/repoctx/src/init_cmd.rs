@@ -37,7 +37,10 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         );
         eprintln!("  would install: {} guidance files", opts.agent);
         if claude {
-            eprintln!("  would write  : {} (managed `repoctx prime` block)", script_path.display());
+            eprintln!(
+                "  would write  : {} (managed `repoctx prime` block)",
+                script_path.display()
+            );
             eprintln!(
                 "  would wire   : SessionStart hook `{command}` in {}",
                 settings_path.display()
@@ -47,8 +50,15 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
     }
 
     if !opts.yes && io::stdin().is_terminal() {
-        let scope = if opts.global { "user-global" } else { "this project" };
-        if !prompt_yes_no(&format!("Install repoctx for {scope} ({})?", opts.agent), true)? {
+        let scope = if opts.global {
+            "user-global"
+        } else {
+            "this project"
+        };
+        if !prompt_yes_no(
+            &format!("Install repoctx for {scope} ({})?", opts.agent),
+            true,
+        )? {
             eprintln!("aborted.");
             return Ok(());
         }
@@ -88,15 +98,23 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
     eprintln!("  agent       : {}", opts.agent);
     eprintln!(
         "  skill       : {}",
-        guidance_dir.join(".claude/skills/repoctx/SKILL.md").display()
+        guidance_dir
+            .join(".claude/skills/repoctx/SKILL.md")
+            .display()
     );
     if claude {
-        eprintln!("  script      : {} (runs `repoctx prime`; extend it freely)", script_path.display());
+        eprintln!(
+            "  script      : {} (runs `repoctx prime`; extend it freely)",
+            script_path.display()
+        );
         eprintln!("  SessionStart: {} → `{command}`", settings_path.display());
         eprintln!("  the agent is now primed at session start. Add your own");
         eprintln!("  context below the managed block in the script.");
     } else {
-        eprintln!("  note: SessionStart priming is Claude-only; {} uses guidance files.", opts.agent);
+        eprintln!(
+            "  note: SessionStart priming is Claude-only; {} uses guidance files.",
+            opts.agent
+        );
     }
     Ok(())
 }
@@ -122,10 +140,19 @@ pub fn run_uninstall(repo_root: &Path, global: bool, dry_run: bool) -> Result<()
     let removed = crate::session_hook::uninstall(&settings_path, &script_path, &command, false)?;
     eprintln!("repoctx init --uninstall: done.");
     if removed {
-        eprintln!("  removed SessionStart prime hook: {}", settings_path.display());
-        eprintln!("  stripped managed block from {} (kept any of your own lines)", script_path.display());
+        eprintln!(
+            "  removed SessionStart prime hook: {}",
+            settings_path.display()
+        );
+        eprintln!(
+            "  stripped managed block from {} (kept any of your own lines)",
+            script_path.display()
+        );
     } else {
-        eprintln!("  no repoctx SessionStart hook found at {}", settings_path.display());
+        eprintln!(
+            "  no repoctx SessionStart hook found at {}",
+            settings_path.display()
+        );
     }
     if !global {
         eprintln!("  left alone: .repoctx/index.db + config, CLAUDE.md, .claude/skills/repoctx/.");

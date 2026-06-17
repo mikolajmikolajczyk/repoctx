@@ -247,7 +247,11 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
             symbols.sort();
             let count = symbols.len() as u64;
             symbols.truncate(MAX_PUBLIC_SYMBOLS_PER_MODULE);
-            PublicModule { dir, count, symbols }
+            PublicModule {
+                dir,
+                count,
+                symbols,
+            }
         })
         .collect();
     public_api.sort_by(|a, b| b.count.cmp(&a.count).then(a.dir.cmp(&b.dir)));

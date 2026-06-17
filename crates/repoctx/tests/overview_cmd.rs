@@ -88,5 +88,8 @@ fn overview_composes_the_index_and_call_graph() {
         .map(|s| s.as_str().unwrap())
         .collect();
     assert!(syms.contains(&"util:function"), "util exported: {pub_src}");
-    assert!(!syms.iter().any(|s| s.starts_with("helper")), "helper is private");
+    assert!(
+        !syms.iter().any(|s| s.starts_with("helper")),
+        "helper is private"
+    );
 }

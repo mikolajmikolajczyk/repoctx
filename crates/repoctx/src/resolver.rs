@@ -175,7 +175,10 @@ fn importer_mod_dir(importer: &str, src_root: &str) -> Vec<String> {
         .unwrap_or(importer);
     let rel = rel.strip_suffix(".rs").unwrap_or(rel);
     let mut segs: Vec<String> = rel.split('/').map(|s| s.to_string()).collect();
-    if matches!(segs.last().map(String::as_str), Some("lib" | "main" | "mod")) {
+    if matches!(
+        segs.last().map(String::as_str),
+        Some("lib" | "main" | "mod")
+    ) {
         segs.pop();
     }
     segs
@@ -417,12 +420,7 @@ mod tests {
     #[test]
     fn rust_self_super_resolution() {
         let r = ImportResolver {
-            files: files(&[
-                "src/a.rs",
-                "src/a/b.rs",
-                "src/a/helper.rs",
-                "src/top.rs",
-            ]),
+            files: files(&["src/a.rs", "src/a/b.rs", "src/a/helper.rs", "src/top.rs"]),
             aliases: vec![],
         };
         // self:: from a/b.rs -> module a::b, self::x stays in a/b/... ; here
@@ -432,7 +430,10 @@ mod tests {
             Some("src/a/helper.rs".into())
         );
         // super:: from a/b.rs reaching the crate root sibling
-        assert_eq!(r.resolve("src/a/b.rs", "super::super::top"), Some("src/top.rs".into()));
+        assert_eq!(
+            r.resolve("src/a/b.rs", "super::super::top"),
+            Some("src/top.rs".into())
+        );
     }
 
     #[test]

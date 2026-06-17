@@ -279,9 +279,7 @@ impl Store {
                AND kind NOT IN ('key','section','field','variable')
              ORDER BY file_path ASC, name ASC",
         )?;
-        let rows = stmt.query_map([], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-        })?;
+        let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
         let mut out = Vec::new();
         for r in rows {
             out.push(r?);
