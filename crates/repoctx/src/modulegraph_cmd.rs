@@ -127,7 +127,8 @@ fn import_cycle_advisory(rg: &ResolvedGraph, empty: bool, truncated: bool) -> Op
     }
     Some(
         "members of each strongly-connected group import each other (directly or \
-         transitively). Relative + tsconfig-alias resolution; bare/package edges excluded."
+         transitively). Resolution: relative + tsconfig aliases (JS/TS) + Rust \
+         crate/self/super module paths; bare/package + external-crate edges excluded."
             .to_string(),
     )
 }
@@ -225,9 +226,10 @@ pub fn run_modules(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Res
 fn modules_advisory(rg: &ResolvedGraph, cyclic: bool, shown: usize) -> Option<String> {
     if rg.edges.is_empty() {
         return Some(format!(
-            "no resolved intra-repo import edges ({} external edges) — relative + \
-             tsconfig-alias resolution; bare/package specifiers + non-TS languages \
-             (Rust/Python/Go module resolution) stay external",
+            "no resolved intra-repo import edges ({} external edges) — resolution \
+             covers JS/TS (relative + tsconfig aliases) and Rust (crate/self/super); \
+             Python/Go module resolution + bare/package/external-crate specifiers \
+             stay external",
             rg.external
         ));
     }

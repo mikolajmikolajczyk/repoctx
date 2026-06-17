@@ -337,7 +337,7 @@ repoctx rdeps storage-idb                # same, by substring
 String-based and approximate, mirroring the call graph:
 
 - **The raw specifier is stored as written** (quotes/angle-brackets stripped). Aliased/package specifiers (`@adapters/x`, `react`) match exactly; relative specifiers (`./x`, `../y`) are verbatim, so `rdeps` by bare name is most useful for aliases/packages. `deps` by file is exact regardless.
-- **No specifier→file resolution.** tsconfig paths, `node_modules`, and crate layout are not resolved yet (deferred to a future resolver writing `semantic` edges into the same table).
+- **`deps`/`rdeps` show raw specifiers** (no resolution). Specifier→file resolution runs in `boundary`/`modules`/`import-cycles`: JS/TS relative + tsconfig aliases, and Rust `crate`/`self`/`super` module paths (#8). `node_modules`/external crates/Python/Go specifiers stay external; query-time, not stored.
 - **`rdeps` substring matching can over-match** (`util` matches `./my-util`). The exact `module` field in `--json` lets you disambiguate.
 - **Languages:** the core 8 (Rust `use`/`extern crate`, Python `import`/`from`, JS/TS/TSX ESM `import`/`export … from`, Go imports, C/C++ `#include`, Java `import`). Other indexed languages return no edges yet.
 

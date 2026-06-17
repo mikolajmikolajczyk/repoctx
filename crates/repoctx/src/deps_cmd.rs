@@ -181,8 +181,8 @@ pub fn run_boundary(
         if unresolved > 0 {
             Some(format!(
                 "no crossings from `{from}` into `{to}` (relative + tsconfig-alias \
-                 resolved). {unresolved} bare/unresolved import(s) (node_modules or \
-                 unmapped aliases) couldn't be checked."
+                 + Rust crate/self/super resolved). {unresolved} bare/unresolved \
+                 import(s) (node_modules / external crates / unmapped) couldn't be checked."
             ))
         } else {
             Some(format!(

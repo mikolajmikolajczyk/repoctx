@@ -5,12 +5,13 @@
 //! repo — not just relative `./`/`../` imports but **tsconfig path aliases**
 //! (`@adapters/*` → `src/adapters/*`), which dominate real TS codebases.
 //!
-//! Scope (this slice): TS/JS. Relative + tsconfig `paths`/`baseUrl`. Aliases
-//! are collected from every `tsconfig*.json` / `jsconfig.json` at the repo
-//! root (so split base/app configs and `extends` chains are covered without
-//! resolving the chain). Bare/package specifiers (`react`) and anything
-//! unresolved stay external — never wrong, just unresolved. Rust/Python/Go
-//! module resolution remains future work.
+//! Scope: TS/JS (relative + tsconfig `paths`/`baseUrl` aliases, collected from
+//! every `tsconfig*.json` / `jsconfig.json` at the repo root) and **Rust**
+//! (intra-crate `crate::`/`self::`/`super::` paths against the crate `src` root,
+//! via the `a/b.rs` | `a/b/mod.rs` module-file convention). Bare/package
+//! specifiers (`react`), external crates (`std`, `serde`), workspace-member
+//! crates, and anything unresolved stay external — never wrong, just
+//! unresolved. Python/Go module resolution remains future work.
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -52,10 +53,68 @@ impl ImportResolver {
                 format!("{dir}/{spec}")
             };
             self.try_candidates(&normalize_path(&joined))?
+        } else if importer.ends_with(".rs") {
+            self.resolve_rust(importer, spec)?
         } else {
             self.resolve_alias(spec)?
         };
         (target != importer).then_some(target)
+    }
+
+    /// Resolve a Rust `use` path to a file within the same crate (issue #8).
+    /// Handles intra-crate `crate::` / `self::` / `super::` paths against the
+    /// crate's `src` root via the module-file convention (`a/b.rs` or
+    /// `a/b/mod.rs`); external crates (`std`, `serde`, workspace members) and
+    /// anything unresolved stay external. Item segments are dropped by trying
+    /// the longest module prefix first. Heuristic — does not parse `mod`
+    /// declarations, so a non-conventional module layout may miss.
+    fn resolve_rust(&self, importer: &str, spec: &str) -> Option<String> {
+        // Drop a `{...}` import group + any trailing `::`/space.
+        let path = spec.split('{').next().unwrap_or(spec);
+        let path = path.trim().trim_end_matches([':', ' ', ',']);
+        let segs: Vec<&str> = path
+            .split("::")
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
+        let src_root = rust_src_root(importer)?;
+        let base: Vec<String> = match *segs.first()? {
+            "crate" => segs[1..].iter().map(|s| s.to_string()).collect(),
+            "self" | "super" => {
+                // Consume the leading run of self (stay) / super (up one module).
+                let mut m = importer_mod_dir(importer, &src_root);
+                let mut i = 0;
+                while let Some(&s) = segs.get(i) {
+                    match s {
+                        "self" => {}
+                        "super" => {
+                            m.pop();
+                        }
+                        _ => break,
+                    }
+                    i += 1;
+                }
+                m.extend(segs[i..].iter().map(|s| s.to_string()));
+                m
+            }
+            // std / external crate / workspace member crate (deferred).
+            _ => return None,
+        };
+        // Longest module prefix that maps to a file wins (drops item segments).
+        for k in (1..=base.len()).rev() {
+            let p = format!("{}/{}", src_root, base[..k].join("/"));
+            if let Some(f) = self.try_rust_file(&p) {
+                return Some(f);
+            }
+        }
+        None
+    }
+
+    /// `base.rs` or `base/mod.rs` against the indexed file set.
+    fn try_rust_file(&self, base: &str) -> Option<String> {
+        [format!("{base}.rs"), format!("{base}/mod.rs")]
+            .into_iter()
+            .find(|c| self.files.contains(c))
     }
 
     fn resolve_alias(&self, spec: &str) -> Option<String> {
@@ -92,6 +151,34 @@ impl ImportResolver {
         }
         None
     }
+}
+
+/// The crate `src` root of a Rust DB path: the prefix up to and including the
+/// first `src` segment (`crates/store/src/x.rs` → `crates/store/src`,
+/// `src/main.rs` → `src`). `None` if the file isn't under a `src/`.
+fn rust_src_root(importer: &str) -> Option<String> {
+    if let Some(i) = importer.find("/src/") {
+        return Some(importer[..i + 4].to_string());
+    }
+    if importer.starts_with("src/") {
+        return Some("src".to_string());
+    }
+    None
+}
+
+/// Module-directory segments of a Rust file, relative to its crate `src` root,
+/// for `self::`/`super::` resolution. `src/foo/bar.rs` → `[foo, bar]`;
+/// `lib.rs`/`main.rs`/`mod.rs` collapse to their containing directory.
+fn importer_mod_dir(importer: &str, src_root: &str) -> Vec<String> {
+    let rel = importer
+        .strip_prefix(&format!("{src_root}/"))
+        .unwrap_or(importer);
+    let rel = rel.strip_suffix(".rs").unwrap_or(rel);
+    let mut segs: Vec<String> = rel.split('/').map(|s| s.to_string()).collect();
+    if matches!(segs.last().map(String::as_str), Some("lib" | "main" | "mod")) {
+        segs.pop();
+    }
+    segs
 }
 
 /// Collapse `.`/`..`/empty segments in a `/`-separated path.
@@ -286,6 +373,66 @@ mod tests {
             r.resolve("src/ui/a.tsx", "@core"),
             Some("src/core/index.ts".into())
         );
+    }
+
+    #[test]
+    fn rust_crate_path_resolution() {
+        let r = ImportResolver {
+            files: files(&[
+                "crates/repoctx/src/main.rs",
+                "crates/repoctx/src/gain.rs",
+                "crates/repoctx/src/output.rs",
+                "crates/repoctx/src/read_cmd.rs",
+                "crates/repoctx/src/hook/mod.rs",
+            ]),
+            aliases: vec![],
+        };
+        let from = "crates/repoctx/src/main.rs";
+        // item segment dropped: crate::gain::GainOpts -> gain.rs
+        assert_eq!(
+            r.resolve(from, "crate::gain::GainOpts"),
+            Some("crates/repoctx/src/gain.rs".into())
+        );
+        // `{...}` group stripped: crate::output::{HumanRender, Render} -> output.rs
+        assert_eq!(
+            r.resolve(from, "crate::output::{HumanRender, Render}"),
+            Some("crates/repoctx/src/output.rs".into())
+        );
+        // single module segment
+        assert_eq!(
+            r.resolve(from, "crate::read_cmd"),
+            Some("crates/repoctx/src/read_cmd.rs".into())
+        );
+        // mod.rs form
+        assert_eq!(
+            r.resolve(from, "crate::hook::install"),
+            Some("crates/repoctx/src/hook/mod.rs".into())
+        );
+        // external crate + std stay external
+        assert_eq!(r.resolve(from, "serde::Serialize"), None);
+        assert_eq!(r.resolve(from, "std::collections::HashMap"), None);
+        assert_eq!(r.resolve(from, "repoctx_store::Store"), None);
+    }
+
+    #[test]
+    fn rust_self_super_resolution() {
+        let r = ImportResolver {
+            files: files(&[
+                "src/a.rs",
+                "src/a/b.rs",
+                "src/a/helper.rs",
+                "src/top.rs",
+            ]),
+            aliases: vec![],
+        };
+        // self:: from a/b.rs -> module a::b, self::x stays in a/b/... ; here
+        // super:: drops back to module `a` -> a/helper.rs
+        assert_eq!(
+            r.resolve("src/a/b.rs", "super::helper::go"),
+            Some("src/a/helper.rs".into())
+        );
+        // super:: from a/b.rs reaching the crate root sibling
+        assert_eq!(r.resolve("src/a/b.rs", "super::super::top"), Some("src/top.rs".into()));
     }
 
     #[test]
