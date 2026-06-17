@@ -4,6 +4,12 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.15.3] — 2026-06-17
+
+### Fixed
+
+- **`overview`/`report` crash on Rust repos with `macro_rules!` callees (`Invalid column type Null`).** `hotspots` counted a non-method `foo!()` call as resolving to its single `macro` symbol (`callee_match` includes `macro`), but the `file_path`/`start_line` subqueries used a looser `kind IN ('function','method')` that excluded macros — so they returned NULL and the row-map crashed. All three symbol lookups now share the same `callee_match` predicate, so the counted symbol is always the one resolved. Surfaced on heartwood (radicle); any macro-heavy Rust repo hit it.
+
 ## [0.15.2] — 2026-06-17
 
 ### Changed

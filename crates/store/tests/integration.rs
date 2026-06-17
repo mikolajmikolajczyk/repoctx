@@ -250,6 +250,38 @@ fn hotspots_excludes_host_method_calls_and_ambiguous() {
 }
 
 #[test]
+fn hotspots_resolves_rust_macro_callee_without_null_crash() {
+    // Regression: a non-method `foo!()` call resolves (via `callee_match`) to a
+    // single `macro` symbol — counted by the WHERE — but the file_path subquery
+    // used a looser `kind IN ('function','method')` that excluded macros, so it
+    // returned NULL and the row-map crashed ("Invalid column type Null") on real
+    // Rust repos (heartwood). All three lookups now share `callee_match`.
+    let mut s = Store::open_in_memory().unwrap();
+    s.upsert_file(
+        &fr("m.rs", 1, 10, "rust"),
+        &[
+            sr("m.rs", "caller", "function", 0),
+            sr("m.rs", "my_macro", "macro", 5),
+        ],
+    )
+    .unwrap();
+    s.upsert_calls(
+        "m.rs",
+        &[
+            cr("m.rs", "caller", 0, "my_macro", 1), // free call -> the macro
+            cr("m.rs", "caller", 0, "my_macro", 2),
+        ],
+    )
+    .unwrap();
+
+    let hot = s.hotspots(10).unwrap();
+    assert_eq!(hot.len(), 1, "the macro resolves and is counted");
+    assert_eq!(hot[0].0, "my_macro");
+    assert_eq!(hot[0].2, "m.rs", "file_path resolves (not NULL)");
+    assert_eq!(hot[0].3, 5, "start_line is the macro's def line");
+}
+
+#[test]
 fn method_call_does_not_bind_to_free_function() {
     // `obj.set()` must NOT resolve to a free `function set` (the bug). With a
     // repo method `set`, the same call resolves.

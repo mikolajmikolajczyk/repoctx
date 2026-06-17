@@ -362,13 +362,19 @@ impl Store {
         // `.get()`/`.push()` with no repo method of that name resolves to zero
         // and drops out — replacing the old host-method stop-list (#9).
         let m = callee_match("c", "s");
+        // All three symbol lookups MUST use the same receiver-aware predicate
+        // (`callee_match`): the WHERE guarantees exactly one symbol matches it,
+        // so the file_path/start_line subqueries resolve to that same symbol and
+        // never return NULL. Using a looser `kind IN ('function','method')` here
+        // dropped Rust `macro_rules!` callees (a `foo!()` resolves to one macro,
+        // counted but excluded from the subquery → NULL → row-map crash).
         let sql = format!(
             "SELECT c.callee_name, COUNT(*) AS n,
                     (SELECT s.file_path FROM symbols s
-                     WHERE s.name = c.callee_name AND s.kind IN ('function','method')
+                     WHERE s.name = c.callee_name AND {m}
                      ORDER BY s.file_path, s.start_line LIMIT 1),
                     (SELECT s.start_line FROM symbols s
-                     WHERE s.name = c.callee_name AND s.kind IN ('function','method')
+                     WHERE s.name = c.callee_name AND {m}
                      ORDER BY s.file_path, s.start_line LIMIT 1)
              FROM calls c
              WHERE (SELECT COUNT(*) FROM symbols s
