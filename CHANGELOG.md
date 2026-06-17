@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-06-17
+
 ### Changed
 
 - **SessionStart priming now goes through an editable script.** Instead of wiring `repoctx prime` straight into `settings.json`, `repoctx init` writes a bashrc-style `.claude/hooks/session-start.sh` and points the SessionStart hook at it (`bash .claude/hooks/session-start.sh`). The script has a **managed block** (`repoctx prime`, regenerated on re-`init`) plus a **user region** below it that's preserved across re-runs — so you can append your own session-start context (anything echoed to stdout lands in the agent's context). `--uninstall` strips the managed block and removes the script only if you never added anything; otherwise it keeps your lines. `-g` writes `~/.claude/hooks/session-start.sh`.
