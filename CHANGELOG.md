@@ -4,7 +4,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
-## [0.13.1] — 2026-06-17
+### Changed
+
+- **Complete, grep-free discovery path from session start.** `prime`'s cheat-sheet is now an explicit **intent→command** map (find a symbol → `search`, who-calls → `callers`/`callgraph`, architecture → `overview`/`report`/`communities`, drill into a subsystem → `callgraph <label> --direction both`, …), with a hard "navigate with repoctx, NOT grep/cat/find" directive, a fallback rule (only grep on partial-coverage languages or for prose reasoning after locating code), and a pointer to the full skill reference. The agent gets the repo's shape **and** the exact command for any structural question in one session-start payload — no static per-subsystem files needed (those would go stale; the live commands are fresh + exactly-scoped).
+- **Refreshed the `repoctx` skill (`SKILL.md`).** Removed the obsolete "transparent rewrite / hook" section (the hook is gone) and replaced it with an "use repoctx instead of grep/find/cat" intent table; added the orientation commands (`communities`/`report`/`export`) and a subsystem drill-down note. The skill is now current + complete.
 
 ### Changed
 

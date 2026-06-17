@@ -160,11 +160,30 @@ result carries an `advisory`.
 
 ### `{REPOCTX_BIN} overview`
 
-Repo architecture in one call — totals, per-language breakdown, per-directory
-module sizes, entry points (`main`), and hotspots (most-called symbols). Use
-it first when **dropped into an unfamiliar repo** instead of `ls`/`cat`/grep
-round-trips. Public API surface not included yet (#8); hotspots are
-name-based.
+Repo architecture in one call — totals (code vs doc/config split), per-language
+breakdown, per-directory module sizes **ranked by code symbols**, entry points
+(`main` + JS/TS bootstraps), and hotspots (most-called symbols, receiver-aware).
+Use it first when **dropped into an unfamiliar repo** instead of `ls`/`cat`/grep
+round-trips. Public API surface not included yet (#8); name-based (ADR-0010).
+
+### `{REPOCTX_BIN} communities` / `report` / `export`
+
+The orientation layer — understand a repo's shape without reading it:
+
+- `communities` — clusters the call graph into **subsystems** (Louvain) +
+  god nodes (highest-degree hubs). "Where are the seams?"
+- `report` — a deterministic one-page markdown architecture report (god nodes,
+  subsystems, cross-cluster bridges, entry points, suggested questions). `--out
+  REPORT.md` writes a file.
+- `export --out graph.html` — a self-contained interactive call-graph (no
+  server/build): subsystems colored, edges styled by ambiguity.
+
+A subsystem = a cluster with ≥ `analysis.subsystem_min_size` members (default
+5); all three report the same count. To drill into a subsystem, run
+`callgraph <its-label> --direction both` or `outline` its members' files.
+
+> The repo map you received at session start came from `repoctx prime` (the
+> SessionStart hook). These commands give the fuller, on-demand picture.
 
 ### `{REPOCTX_BIN} changed [--since REF]`
 
@@ -211,41 +230,25 @@ Surface the navigation tokens this skill has actually saved. `gain top
   needed and incrementally reindex changed files before answering.
 - File arguments must be inside the repo root (`{REPO_ROOT}`).
 
-## Transparent rewrite (it may already be happening)
+## Use repoctx instead of grep / find / cat
 
-If `repoctx hook install claude` ran on this repo, some of your
-`rg` / `grep` commands get transparently rewritten to `repoctx`
-equivalents before Claude Code executes them. You don't need to do
-anything — the rewrite is automatic for these patterns:
+repoctx does **not** intercept your commands — you choose it. For any
+structural question, run the repoctx command instead of reaching for
+`rg`/`grep`/`find`/wholesale `Read`. Map your instinct to the command:
 
-- `rg <identifier>` → `repoctx search <identifier> --json`
-  (textually complete: symbol defs **+** every ripgrep match — no loss)
-- `rg "fn <name>"` / `class` / `struct` / `function` →
-  `repoctx definition <name> --json`
-- **Navigation flags on a bare identifier are understood** (they change
-  rg's output, not the intent):
-  - `rg -n` / `-l` / `-i` / `-w` / `-F <ident>` → `repoctx search`
-  - `rg --type <lang> <ident>` → `repoctx search <ident> --lang <lang>`
-  - `rg -A/-B/-C <n> <ident>` → `repoctx context <ident> --context <n>`
-- Same shapes for `grep -r` / `grep -rn`
+| Instead of… | Run |
+|---|---|
+| `rg <ident>` / `grep -r <ident>` | `repoctx search <ident>` (symbol defs + every textual match, compressed) |
+| `rg "fn <name>"` / `class`/`struct`/`def` | `repoctx definition <name>` |
+| `rg -A/-B/-C <n> <ident>` (context) | `repoctx context <ident> --context <n>` |
+| `rg "<name>\("` (call sites) | `repoctx callers <name>` (and `callees` / `callgraph`) |
+| `rg "import .*<mod>"` | `repoctx rdeps <mod>` (or `deps <file>`) |
+| `find -name '*.x'` / `ls -R` to learn layout | `repoctx overview` / `repoctx report` |
+| reading many files to grasp structure | `repoctx communities` / `repoctx export --out graph.html` |
 
-There is **no** transparent rewrite for the call graph — `rg "name("`
-stays a literal search (the `(` is a regex metacharacter). Call
-`callers` / `callees` / `callgraph` explicitly when you want call edges.
-
-Hard passthrough (your command runs as-is): regex patterns, shell
-metacharacters, multiple identifiers, explicit paths, single-quoted
-literals (`rg "TODO"` stays a literal grep), and non-navigation flags
-that change the result set rather than its formatting (`-c` count, `-v`
-invert, `-o` only-matching, `--json`, unknown `--type`). Any
-other PreToolUse hook the user had installed (rtk, etc.) runs as
-a chain after our rewrite layer — so all your other commands still
-get whatever optimizations were there before.
-
-You'll see the rewrite reflected in the tool input you receive; if
-you want to bypass it for one command, use a pattern that doesn't
-match the rules (e.g. quote it, add a flag, or use a non-`.`
-path).
+Only fall back to `rg`/`Read` when (a) the language is `partial` coverage
+(see the advisory + `languages`), or (b) you need prose-level reasoning
+about an implementation after repoctx has located it.
 
 ## Coverage advisory — when to fall back to ripgrep
 

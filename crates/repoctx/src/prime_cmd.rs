@@ -111,19 +111,24 @@ pub fn run(repo_root: &Path) -> Result<()> {
         out.push_str(&format!("\n## Entry points\n{}\n", entries.join(", ")));
     }
 
-    // Skill pointer — the adoption nudge. A grouped cheat-sheet so the agent
-    // knows the toolbox, not just that one exists. Prefer these over grep/cat.
+    // Skill pointer — the adoption nudge. An intent→command cheat-sheet so the
+    // agent has a complete path from "I need to navigate" to the exact command,
+    // never reaching for grep/cat/find.
     out.push_str(
-        "\n## Use repoctx (token-cheap, structure-aware — prefer over grep/cat/find)\n\
-         - Find a symbol or text: `repoctx search <query>` (exact defs + compressed ripgrep)\n\
-         - A file's structure: `repoctx outline <file>`\n\
-         - Where defined / with source: `repoctx definition <sym>` · `repoctx context <sym>`\n\
-         - Call graph: `repoctx callers <sym>` · `callees <sym>` · `callgraph <sym> --depth N --direction up|down`\n\
-         - Blast radius / dead code / cycles: `repoctx impact <sym>` · `deadcode` · `cycles`\n\
-         - Imports: `repoctx deps <file>` · `rdeps <module>` · `boundary --from <path> --to <module>`\n\
-         - Architecture: `repoctx overview` · `report` · `communities` · `export --out graph.html`\n\
-         - Change review: `repoctx changed --since <ref>` (changed symbols + their callers)\n\
-         All accept `--json`. Name-based, resolution-aware (ADR-0010). Re-run any with `--help` for flags.\n",
+        "\n## Navigate with repoctx — NOT grep/cat/find (token-cheap, structure-aware)\n\
+         For any structural question, run the repoctx command instead of grep/rg/find/bulk-Read:\n\
+         - Find a symbol or text → `repoctx search <query>` (exact defs + compressed ripgrep)\n\
+         - A file's structure → `repoctx outline <file>`\n\
+         - Where defined / show source → `repoctx definition <sym>` · `repoctx context <sym>`\n\
+         - Who calls / what it calls → `repoctx callers <sym>` · `callees <sym>` · `callgraph <sym> --direction up|down|both`\n\
+         - Blast radius / dead code / cycles → `repoctx impact <sym>` · `deadcode` · `cycles`\n\
+         - Imports / layering → `repoctx deps <file>` · `rdeps <module>` · `boundary --from <p> --to <m>`\n\
+         - Architecture / orientation → `repoctx overview` · `report` · `communities` · `export --out graph.html`\n\
+         - Review a change → `repoctx changed --since <ref>` (changed symbols + their callers)\n\
+         - Drill into a subsystem above → `repoctx callgraph <label> --direction both`, or `outline` its files\n\
+         All accept `--json`. Name-based, resolution-aware (ADR-0010). Only fall back to grep/Read when a \
+         language is `partial` coverage (check the `advisory`) or you need prose-level reasoning after locating code.\n\
+         Full reference: the `repoctx` skill (`.claude/skills/repoctx/SKILL.md`) — or `repoctx <cmd> --help`.\n",
     );
 
     print!("{out}");
