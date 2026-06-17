@@ -4,6 +4,10 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- **Data-driven language registry (issue #18, internal).** The 20-language facts that were spread across 14 parallel `match` blocks (10 in `language.rs`, 4 `OnceLock` query caches in `extractor.rs`) collapse into one source-of-truth `LANGS` descriptor table; accessors are O(1) discriminant-indexed lookups and the caches are `[OnceLock<_>; LANG_COUNT]` arrays. Adding a language goes from "edit ~14 match arms across 2 files" to "add one table row," guarded by a completeness test (table dense + index-aligned with the enum). No behavior change — `repoctx languages` output is byte-identical; static linking unchanged (ADR-0002).
+
 ## [0.15.1] — 2026-06-17
 
 ### Fixed

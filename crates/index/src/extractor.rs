@@ -7,7 +7,7 @@ use thiserror::Error;
 use tracing::debug;
 use tree_sitter::{Node, Parser, Query, QueryCursor, StreamingIterator};
 
-use crate::language::Language;
+use crate::language::{Language, LANG_COUNT};
 
 #[derive(Debug, Error)]
 pub enum ExtractError {
@@ -98,53 +98,23 @@ fn definition_kind(rest: &str) -> &'static str {
     }
 }
 
-/// Look up (and lazily compile) the per-language query.
+/// Look up (and lazily compile) the per-language query. Cache is one
+/// discriminant-indexed slot per language (`[OnceLock<_>; LANG_COUNT]`).
 fn compiled_for(language: Language) -> &'static Result<Compiled> {
-    macro_rules! slot {
-        ($lang:expr) => {{
-            static CELL: OnceLock<Result<Compiled>> = OnceLock::new();
-            CELL.get_or_init(|| compile($lang))
-        }};
-    }
-    match language {
-        Language::Go => slot!(Language::Go),
-        Language::Rust => slot!(Language::Rust),
-        Language::TypeScript => slot!(Language::TypeScript),
-        Language::Tsx => slot!(Language::Tsx),
-        Language::JavaScript => slot!(Language::JavaScript),
-        Language::Python => slot!(Language::Python),
-        Language::Json => slot!(Language::Json),
-        Language::Yaml => slot!(Language::Yaml),
-        Language::Toml => slot!(Language::Toml),
-        Language::Markdown => slot!(Language::Markdown),
-        Language::Ruby => slot!(Language::Ruby),
-        Language::C => slot!(Language::C),
-        Language::Cpp => slot!(Language::Cpp),
-        Language::Bash => slot!(Language::Bash),
-        Language::Java => slot!(Language::Java),
-        Language::CSharp => slot!(Language::CSharp),
-        Language::Php => slot!(Language::Php),
-        Language::Lua => slot!(Language::Lua),
-        Language::Kotlin => slot!(Language::Kotlin),
-        Language::Swift => slot!(Language::Swift),
-    }
+    static CELLS: [OnceLock<Result<Compiled>>; LANG_COUNT] =
+        [const { OnceLock::new() }; LANG_COUNT];
+    CELLS[language as usize].get_or_init(|| compile(language))
 }
 
-/// Deep (nested-key) compiled query for the data languages that have a
-/// deep variant. Falls back to the normal cache for everything else.
+/// Deep (nested-key) compiled query for the data languages that have a deep
+/// variant; falls back to the normal cache for everything else.
 fn compiled_deep_for(language: Language) -> &'static Result<Compiled> {
-    macro_rules! slot {
-        ($lang:expr) => {{
-            static CELL: OnceLock<Result<Compiled>> = OnceLock::new();
-            CELL.get_or_init(|| compile_deep($lang))
-        }};
+    if language.tags_query_deep().is_none() {
+        return compiled_for(language);
     }
-    match language {
-        Language::Json => slot!(Language::Json),
-        Language::Yaml => slot!(Language::Yaml),
-        Language::Toml => slot!(Language::Toml),
-        other => compiled_for(other),
-    }
+    static CELLS: [OnceLock<Result<Compiled>>; LANG_COUNT] =
+        [const { OnceLock::new() }; LANG_COUNT];
+    CELLS[language as usize].get_or_init(|| compile_deep(language))
 }
 
 /// Parse `source` and extract symbols with default options.
@@ -261,24 +231,11 @@ fn compile_calls(language: Language) -> Option<Result<CompiledCalls>> {
 /// Lazily compiled call query per language. `None` for languages without a
 /// call query (everything outside the core 8).
 fn compiled_calls_for(language: Language) -> Option<&'static Result<CompiledCalls>> {
-    macro_rules! slot {
-        ($lang:expr) => {{
-            static CELL: OnceLock<Option<Result<CompiledCalls>>> = OnceLock::new();
-            CELL.get_or_init(|| compile_calls($lang)).as_ref()
-        }};
-    }
-    match language {
-        Language::Rust => slot!(Language::Rust),
-        Language::Python => slot!(Language::Python),
-        Language::JavaScript => slot!(Language::JavaScript),
-        Language::TypeScript => slot!(Language::TypeScript),
-        Language::Tsx => slot!(Language::Tsx),
-        Language::Go => slot!(Language::Go),
-        Language::C => slot!(Language::C),
-        Language::Cpp => slot!(Language::Cpp),
-        Language::Java => slot!(Language::Java),
-        _ => None,
-    }
+    static CELLS: [OnceLock<Option<Result<CompiledCalls>>>; LANG_COUNT] =
+        [const { OnceLock::new() }; LANG_COUNT];
+    CELLS[language as usize]
+        .get_or_init(|| compile_calls(language))
+        .as_ref()
 }
 
 /// Extract call edges from `source`. Each `@callee` capture becomes one
@@ -401,24 +358,11 @@ fn compile_imports(language: Language) -> Option<Result<CompiledImports>> {
 /// Lazily compiled import query per language. `None` for languages without
 /// an import query yet.
 fn compiled_imports_for(language: Language) -> Option<&'static Result<CompiledImports>> {
-    macro_rules! slot {
-        ($lang:expr) => {{
-            static CELL: OnceLock<Option<Result<CompiledImports>>> = OnceLock::new();
-            CELL.get_or_init(|| compile_imports($lang)).as_ref()
-        }};
-    }
-    match language {
-        Language::Rust => slot!(Language::Rust),
-        Language::Python => slot!(Language::Python),
-        Language::JavaScript => slot!(Language::JavaScript),
-        Language::TypeScript => slot!(Language::TypeScript),
-        Language::Tsx => slot!(Language::Tsx),
-        Language::Go => slot!(Language::Go),
-        Language::C => slot!(Language::C),
-        Language::Cpp => slot!(Language::Cpp),
-        Language::Java => slot!(Language::Java),
-        _ => None,
-    }
+    static CELLS: [OnceLock<Option<Result<CompiledImports>>>; LANG_COUNT] =
+        [const { OnceLock::new() }; LANG_COUNT];
+    CELLS[language as usize]
+        .get_or_init(|| compile_imports(language))
+        .as_ref()
 }
 
 /// Extract import edges from `source`. Each `@module` capture becomes one
