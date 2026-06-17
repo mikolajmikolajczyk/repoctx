@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.13.2] — 2026-06-17
+
 ### Changed
 
 - **The SessionStart hook now lands in `.claude/settings.local.json`, not `.claude/settings.json` (project scope).** A SessionStart hook *executes a command*, so it belongs in the personal, auto-gitignored project settings — a per-developer opt-in (`repoctx init`), not something committed into the shared `settings.json` that imposes (and prompts) the whole team. The inert, shared parts (skill + `CLAUDE.md` block) stay committed. Global scope is unchanged (`~/.claude/settings.json` is already personal).
