@@ -71,7 +71,7 @@ CLI binary + workspace today:
 - `ignore` + `walkdir` — gitignore-aware tree walk
 - `rayon` — parallel file parsing
 - `tracing` + `tracing-subscriber` — structured logging
-- `toml` — `repoctx hook` manifest parser (content embedded via `include_str!`, no network deps)
+- `toml` — per-agent guidance manifest parser (content embedded via `include_str!`, no network deps)
 
 Deferred until the daemon arrives (ADR-0005):
 

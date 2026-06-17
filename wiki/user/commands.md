@@ -1,6 +1,6 @@
 # Commands reference
 
-Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `communities`, `report`, `export`, `prime`, `changed`, `status`, `languages`, `config`, `init`, `hook`, `gain`, `discover`, plus the debug-only `rewrite`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
+Commands: `index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `deadcode`, `impact`, `cycles`, `deps`, `rdeps`, `boundary`, `import-cycles`, `modules`, `overview`, `communities`, `report`, `export`, `prime`, `changed`, `status`, `languages`, `config`, `init`, `gain`. (`callers`/`callees`/`callgraph` are the static call graph, ADR-0010; `deps`/`rdeps`/`boundary` are the import / dependency graph, ADR-0011; `search` is the textually-complete search, epic `f4cb992`.)
 
 ## Global flags
 
@@ -242,8 +242,7 @@ Lines are 0-based in machine output (human mode prints 1-based).
 
 Use `search` when you might care about non-symbol mentions (a value in a
 comment/string, a config key). Use `symbols`/`definition` when you only want
-the structural answer. The hook rewrites ambiguous `rg <ident>` to `search`,
-so you usually get this automatically.
+the structural answer.
 
 ## `repoctx callers <name>` / `repoctx callees <name>`
 
@@ -449,7 +448,7 @@ External call targets (no in-repo definition) are dropped so the graph stays abo
 
 A compact, token-budgeted (~600 token) **session-start orientation digest** — meant to be injected into an agent's context so it begins primed to use repoctx instead of blind `grep`/`cat`. Deterministic markdown to stdout: headline (files / code symbols / top languages), top subsystems (#14, 3 members each), highest-degree hubs, entry points, and a one-block `repoctx` skill pointer. The full call graph is referenced by command (`repoctx export`), never inlined.
 
-`repoctx hook install claude` registers this as a **SessionStart** hook automatically, so you normally don't run it by hand. It never cold-indexes — if the repo isn't indexed yet it emits a one-line nudge and exits (keeping session start fast); otherwise it refreshes incrementally.
+`repoctx init` (for Claude) registers this as a **SessionStart** hook automatically, so you normally don't run it by hand — the digest is injected into the agent's context at session start. It never cold-indexes — if the repo isn't indexed yet it emits a one-line nudge and exits (keeping session start fast); otherwise it refreshes incrementally.
 
 ```sh
 repoctx prime          # print the digest (what the SessionStart hook injects)
@@ -544,10 +543,8 @@ rules: [`config.md`](config.md).
 | `repoctx config unset <key>` | Delete row; built-in default applies again. |
 
 Precedence (highest wins): CLI flag → environment variable → settings
-row → built-in default. Keys today: `hook.rewrite`, `hook.use_rtk`,
-`hook.chainable`, `gain.no_record`, `gain.record_query`,
-`output.default`, `index.nested_keys`, `analysis.subsystem_min_size`
-(plus read-only `hook.script_path`).
+row → built-in default. Keys today: `gain.no_record`, `gain.record_query`,
+`output.default`, `index.nested_keys`, `analysis.subsystem_min_size`.
 
 `analysis.subsystem_min_size` (default `5`, env
 `REPOCTX_ANALYSIS_SUBSYSTEM_MIN_SIZE`): the minimum Louvain-cluster size
@@ -557,42 +554,20 @@ for fewer, larger subsystems; lower it (min `2`) for more.
 
 ## `repoctx init`
 
-First-class onboarding for Claude Code: installs the committed hook
-script, points `settings.json` at it, and drops the guidance files. Full
-reference: [`init.md`](init.md).
+The single onboarding command. Installs the agent guidance files and,
+for Claude, wires a **SessionStart** hook that runs `repoctx prime` so
+the orientation digest is injected into the agent's context at session
+start. Full reference: [`init.md`](init.md).
 
 | Invocation | Effect |
 |---|---|
-| `repoctx init` | Project-scope install (`.repoctx/hook.sh` + `.claude/settings.json` + guidance). |
+| `repoctx init` | Project-scope install (guidance files + Claude SessionStart prime hook in `.claude/settings.json`). |
 | `repoctx init -g` | User-global install (`~/.claude/`). |
-| `repoctx init [--rtk auto\|on\|off] [--yes] [--force] [--dry-run]` | Control rtk chaining / prompts / planning. |
-| `repoctx init --uninstall [-g] [--restore-backup]` | Remove the repoctx hook (inverse of install). |
-| `repoctx rewrite '<cmd>'` | Show the hook's decision for one command (exit 0 + rewrite, or 1 = passthrough). |
+| `repoctx init --agent <name>` | Pick the agent (`claude`, `codex`, `opencode`; default `claude`). |
+| `repoctx init [--yes] [--force] [--dry-run]` | Skip prompts / override a refused install / plan-only. |
+| `repoctx init --uninstall [-g]` | Remove the SessionStart hook + guidance (inverse of install). |
 
-## `repoctx hook`
-
-The meta-hook + the low-level guidance installer. `init` is the supported
-entry for Claude; `hook install` is the primitive for rules-only agents.
-Full reference: [`hook.md`](hook.md).
-
-| Subcommand | Effect |
-|---|---|
-| `repoctx hook list` | Enumerate available agents (`claude`, `codex`, `opencode`) with descriptions. |
-| `repoctx hook status [--dir PATH]` | For each agent, show which destination files exist in the target dir. |
-| `repoctx hook install <agent> [--dir PATH] [--dry-run] [--force]` | Install one agent's guidance files (use for codex/opencode). |
-| `repoctx hook doctor [-g] [--fix]` | Check the installed hook for drift/conflicts; `--fix` repairs. |
-| `repoctx hook claude [--rtk-chain=0\|1]` | PreToolUse handler (called by the hook script, not by hand). |
-
-Per-agent files are embedded in the binary — install works offline and always matches your installed version.
-
-## `repoctx rewrite`
-
-Debug/bench helper: ask whether a bash command *would* be rewritten by the hook, without the JSON wrapping. Exit 0 + the rewritten command on stdout when it rewrites; exit 1 on passthrough. Mirrors the hook's decision (see [`hook.md`](hook.md)).
-
-```sh
-repoctx rewrite "rg parseConfig"     # -> repoctx symbols parseConfig --json (exit 0)
-repoctx rewrite "rg -i foo"          # -> (no output, exit 1: passthrough)
-```
+Per-agent guidance files are embedded in the binary — install works offline and always matches your installed version.
 
 ## `repoctx gain`
 
@@ -615,27 +590,3 @@ Surface the navigation cost the agent avoided. `gain` defaults to the **last 30 
 `gain` invocations are **not** themselves recorded. Empty usage in the window is a success: zeros, exit 0.
 
 Full philosophy + privacy stance: [`gain.md`](gain.md).
-
-## `repoctx discover`
-
-Report **hook passthrough telemetry**: for each `grep`/`rg`/`find` idiom the PreToolUse hook saw, how often it was rewritten to repoctx vs left as grep (`passthrough`) vs chained to rtk (`chained`). Ranked by volume so the biggest adoption gaps surface first.
-
-```sh
-repoctx discover
-```
-
-```text
-hook passthrough telemetry (142 events)
-idiom               rewritten  passthrough  chained   total  rewritten%
-bare-ident                 88            4        0      92         95%
-flagged-nav-ident          12           19        0      31         38%
-regex                       0           11        0      11          0%
-...
-```
-
-What it's for: deciding which grep idioms to teach the hook to rewrite next. A high-volume, low-`rewritten%` idiom is a candidate for a new rewrite rule.
-
-- **Recording** happens in the hook on every grep/rg/find command, **aggregate-only** — no command body, no pattern, no paths (same privacy stance as `gain`). Best-effort: never blocks or fails a command; only writes when an index DB already exists.
-- **Opt out** with `hook.telemetry = false` (or `REPOCTX_HOOK_TELEMETRY=0`).
-- **See the actual commands**: aggregate buckets tell you *where* the gap is, not *what* the commands are. Enable `hook.telemetry_samples = true` (default off, local-only) to also capture command bodies, then `repoctx discover --samples [--idiom <bucket>]` lists them (capped 20/idiom). Use it to design rewrite rules from real commands — e.g. inspect what's hiding in `other`.
-- Idiom buckets are heuristic (`bare-ident`, `flagged-nav-ident`, `literal-string`, `regex`, `call-shape`, `import-shape`, `multi-term`, `explicit-path`, `pipe-filter`, `find`, `other`); refined from the data they collect. `literal-string` = single-token literal patterns (kebab-case, `@scope/pkg`) that `repoctx search` can serve. `pipe-filter` = a grep fed by a real pipe (`… | grep …`) — it filters command output, not the codebase, so it's not a rewrite target. Splitting is quote-aware (a `|` inside a quoted pattern is part of the pattern, not a pipe).

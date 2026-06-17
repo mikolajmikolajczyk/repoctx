@@ -587,54 +587,6 @@ fn call_edges_pruned_on_file_reindex() {
 }
 
 #[test]
-fn hook_events_record_and_aggregate() {
-    let mut s = Store::open_in_memory().unwrap();
-    s.record_hook_event("rg", "bare-ident", "rewritten")
-        .unwrap();
-    s.record_hook_event("rg", "bare-ident", "rewritten")
-        .unwrap();
-    s.record_hook_event("grep", "flagged-nav-ident", "passthrough")
-        .unwrap();
-    s.record_hook_event("rg", "regex", "passthrough").unwrap();
-
-    let stats = s.hook_event_stats(None).unwrap();
-    // Three distinct (idiom, outcome, tool) groups.
-    let bare = stats
-        .iter()
-        .find(|r| r.idiom == "bare-ident" && r.outcome == "rewritten")
-        .unwrap();
-    assert_eq!(bare.count, 2);
-    assert_eq!(bare.tool, "rg");
-    assert!(stats
-        .iter()
-        .any(|r| r.idiom == "flagged-nav-ident" && r.outcome == "passthrough" && r.count == 1));
-    // Ordered by count desc -> the 2-count group leads.
-    assert_eq!(stats[0].count, 2);
-}
-
-#[test]
-fn hook_samples_capped_per_idiom() {
-    let mut s = Store::open_in_memory().unwrap();
-    // Insert 5 "other" samples with a cap of 3 -> only the latest 3 survive.
-    for i in 0..5 {
-        s.record_hook_sample("rg", "other", "chained", &format!("rg cmd{i}"), 3)
-            .unwrap();
-    }
-    s.record_hook_sample("grep", "regex", "chained", "grep foo.*", 3)
-        .unwrap();
-
-    let other = s.hook_samples(Some("other")).unwrap();
-    assert_eq!(other.len(), 3, "capped at 3 per idiom");
-    // Newest first: cmd4, cmd3, cmd2.
-    assert_eq!(other[0].command, "rg cmd4");
-    assert_eq!(other[2].command, "rg cmd2");
-
-    // Filter by idiom + unfiltered.
-    assert_eq!(s.hook_samples(Some("regex")).unwrap().len(), 1);
-    assert_eq!(s.hook_samples(None).unwrap().len(), 4);
-}
-
-#[test]
 fn open_creates_dot_repoctx() {
     let tmp = tempdir().unwrap();
     let _s = Store::open(tmp.path()).unwrap();

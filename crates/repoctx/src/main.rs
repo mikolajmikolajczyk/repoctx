@@ -15,16 +15,9 @@ mod config_cmd;
 mod context_cmd;
 mod definition_cmd;
 mod deps_cmd;
-mod discover_cmd;
 mod export_cmd;
 mod gain;
 mod gain_cmd;
-mod hook_cmd;
-mod hook_marker;
-mod hook_rewrite;
-mod hook_scan;
-mod hook_script;
-mod hook_takeover;
 mod index_cmd;
 mod init_cmd;
 mod languages_cmd;
@@ -39,6 +32,7 @@ mod read_cmd;
 mod repo_root;
 mod report_cmd;
 mod resolver;
+mod session_hook;
 mod search_cmd;
 mod status_cmd;
 mod symbols_cmd;
@@ -254,59 +248,31 @@ enum Cmd {
         #[arg(long)]
         forbid: bool,
     },
-    /// Report hook passthrough telemetry: per grep/rg/find idiom, how often
-    /// it was rewritten to repoctx vs left as grep. Shows the adoption gap.
-    Discover {
-        /// Show captured command samples instead of the aggregate table.
-        /// Requires `hook.telemetry_samples = true`.
-        #[arg(long)]
-        samples: bool,
-        /// Filter samples to one idiom bucket (e.g. `other`, `regex`).
-        #[arg(long)]
-        idiom: Option<String>,
-    },
     /// Print the per-language coverage matrix (how well repoctx
     /// indexes each language). Agents check this before deciding to
     /// fall back to ripgrep.
     Languages,
-    /// Decide whether a bash command would be rewritten (debug/bench).
-    /// Exit 0 + the rewritten command on stdout if rewritten; exit 1 on
-    /// passthrough. Mirrors the hook's decision without JSON wrapping.
-    Rewrite {
-        /// The bash command to test, e.g. `repoctx rewrite 'rg foo'`.
-        command: String,
-    },
     /// Read or write the per-repo settings table.
     Config {
         #[command(subcommand)]
         sub: ConfigSub,
     },
-    /// Manage per-agent integration files (skills, AGENTS.md fragments).
-    Hook {
-        #[command(subcommand)]
-        sub: HookSub,
-    },
-    /// Install the repoctx hook + agent guidance (first-class onboarding).
+    /// Onboard an agent: install guidance files + (Claude) the SessionStart
+    /// hook that primes context with `repoctx prime`.
     Init {
         /// Install at user-global scope (`~/.claude/`) instead of this repo.
         #[arg(short = 'g', long)]
         global: bool,
-        /// Agent to set up. Only `claude` is supported today.
+        /// Agent to set up (`claude`, `codex`, `opencode`, …).
         #[arg(long, default_value = "claude")]
         agent: String,
-        /// Chain rtk underneath: `auto` (when on PATH) | `on` | `off`.
-        #[arg(long, default_value = "auto")]
-        rtk: String,
-        /// Remove the repoctx hook (inverse of install).
+        /// Remove the repoctx SessionStart hook (inverse of install).
         #[arg(long)]
         uninstall: bool,
-        /// With --uninstall -g: restore the most recent settings backup.
-        #[arg(long)]
-        restore_backup: bool,
         /// Skip interactive prompts; take defaults / flags.
         #[arg(short = 'y', long)]
         yes: bool,
-        /// Overwrite/remove files whose content differs (drifted script).
+        /// Overwrite destinations whose content differs.
         #[arg(long)]
         force: bool,
         /// Print the plan; write nothing.
@@ -342,56 +308,6 @@ enum ConfigSub {
     Set { key: String, value: String },
     /// Delete one key (default applies again).
     Unset { key: String },
-}
-
-#[derive(Subcommand, Debug)]
-enum HookSub {
-    /// List available agents and their descriptions.
-    List,
-    /// Show which destination files exist for each agent in the target dir.
-    Status {
-        /// Target directory. Defaults to the repo root.
-        #[arg(long, value_name = "PATH")]
-        dir: Option<PathBuf>,
-    },
-    /// PreToolUse hook handler — Claude Code calls this with the
-    /// tool-use JSON on stdin. Rewrites recognized `rg`/`grep`
-    /// patterns to `repoctx` commands; on passthrough, chains
-    /// `rtk hook claude` when `--rtk-chain=1` (or `hook.use_rtk`).
-    Claude {
-        /// Chain `rtk hook claude` on passthrough: `0` (off) or `1` (on).
-        /// Omitted → resolve from `hook.use_rtk` config.
-        #[arg(long, value_name = "0|1")]
-        rtk_chain: Option<u8>,
-        /// Probe used by the generated hook script's version guard:
-        /// exit 0 if this binary understands `--rtk-chain`.
-        #[arg(long, hide = true)]
-        supports_rtk_chain: bool,
-    },
-    /// Check the installed hook for drift/tamper + scope conflicts, and
-    /// (with `--fix`) regenerate the script + restore the settings entry.
-    /// Exits 1 when issues are found without `--fix`.
-    Doctor {
-        /// Operate on the user-global install (`~/.claude/`).
-        #[arg(short = 'g', long)]
-        global: bool,
-        /// Repair: regenerate the script + restore the settings entry.
-        #[arg(long)]
-        fix: bool,
-    },
-    /// Install one agent's files into the target dir.
-    Install {
-        /// Agent name (`claude`, `codex`, `opencode`).
-        agent: String,
-        #[arg(long, value_name = "PATH")]
-        dir: Option<PathBuf>,
-        /// Plan the install without touching the filesystem.
-        #[arg(long)]
-        dry_run: bool,
-        /// Overwrite write-mode destinations even when current content differs.
-        #[arg(long)]
-        force: bool,
-    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -460,17 +376,6 @@ fn run() -> Result<()> {
             limit,
         } => context_cmd::run(&repo_root, symbol, context, limit, render, gain_opts),
         Cmd::Languages => languages_cmd::run(render),
-        Cmd::Rewrite { command } => {
-            // Exit-code protocol (e06f463): 0 = rewrite (stdout = command),
-            // 1 = passthrough. 2/3 (deny/ask) reserved for future rules.
-            match hook_rewrite::try_semantic_rewrite(&command) {
-                Some((rewritten, _rule)) => {
-                    println!("{rewritten}");
-                    std::process::exit(0);
-                }
-                None => std::process::exit(1),
-            }
-        }
         Cmd::Config { sub } => match sub {
             ConfigSub::Show => config_cmd::run_show(&repo_root, render),
             ConfigSub::Get { key } => config_cmd::run_get(&repo_root, key, render),
@@ -565,66 +470,20 @@ fn run() -> Result<()> {
         Cmd::Report { out } => report_cmd::run(&repo_root, render, gain_opts, out),
         Cmd::Export { out } => export_cmd::run(&repo_root, out),
         Cmd::Changed { since } => changed_cmd::run(&repo_root, since, render, gain_opts),
-        Cmd::Discover { samples, idiom } => {
-            if samples {
-                discover_cmd::run_samples(&repo_root, idiom, render)
-            } else {
-                discover_cmd::run(&repo_root, render)
-            }
-        }
-        Cmd::Hook { sub } => match sub {
-            HookSub::Claude {
-                rtk_chain,
-                supports_rtk_chain,
-            } => {
-                if supports_rtk_chain {
-                    std::process::exit(0); // version-guard probe
-                }
-                let code = hook_rewrite::run(&repo_root, &cfg.hook, rtk_chain.map(|v| v != 0))?;
-                std::process::exit(code);
-            }
-            HookSub::Doctor { global, fix } => init_cmd::run_doctor(&repo_root, global, fix),
-            HookSub::List => hook_cmd::run_list(render),
-            HookSub::Status { dir } => {
-                let target = hook_cmd::resolve_dir(dir, &repo_root);
-                hook_cmd::run_status(&target, render)
-            }
-            HookSub::Install {
-                agent,
-                dir,
-                dry_run,
-                force,
-            } => {
-                let target = hook_cmd::resolve_dir(dir, &repo_root);
-                let bin = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("repoctx"));
-                hook_cmd::run_install(hook_cmd::InstallContext {
-                    dir: &target,
-                    repo_root: &repo_root,
-                    agent: &agent,
-                    dry_run,
-                    force,
-                    repoctx_bin: &bin,
-                    render,
-                })
-            }
-        },
         Cmd::Init {
             global,
             agent,
-            rtk,
             uninstall,
-            restore_backup,
             yes,
             force,
             dry_run,
         } => {
             if uninstall {
-                init_cmd::run_uninstall(&repo_root, global, force, dry_run, restore_backup)
+                init_cmd::run_uninstall(&repo_root, global, dry_run)
             } else {
                 let opts = init_cmd::InitOpts {
                     global,
                     agent,
-                    rtk: config::HookUseRtk::parse(&rtk)?,
                     yes,
                     force,
                     dry_run,

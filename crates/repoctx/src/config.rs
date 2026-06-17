@@ -39,64 +39,6 @@ impl Source {
     }
 }
 
-/// `hook.rewrite` — kill switch for the future transparent rewrite hook
-/// (consumer in v0.5.0).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HookRewrite {
-    Auto,
-    Off,
-    Force,
-}
-
-impl HookRewrite {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::Off => "off",
-            Self::Force => "force",
-        }
-    }
-
-    pub fn parse(s: &str) -> Result<Self> {
-        match s.to_ascii_lowercase().as_str() {
-            "auto" => Ok(Self::Auto),
-            "off" => Ok(Self::Off),
-            "force" => Ok(Self::Force),
-            other => Err(anyhow!(
-                "expected one of [auto, off, force] (got '{other}')"
-            )),
-        }
-    }
-}
-
-/// `hook.use_rtk` — whether `repoctx hook claude` chains `rtk hook claude`
-/// underneath on passthrough. `Auto` = chain when rtk is on PATH.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HookUseRtk {
-    Auto,
-    On,
-    Off,
-}
-
-impl HookUseRtk {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::On => "on",
-            Self::Off => "off",
-        }
-    }
-
-    pub fn parse(s: &str) -> Result<Self> {
-        match s.to_ascii_lowercase().as_str() {
-            "auto" => Ok(Self::Auto),
-            "on" => Ok(Self::On),
-            "off" => Ok(Self::Off),
-            other => Err(anyhow!("expected one of [auto, on, off] (got '{other}')")),
-        }
-    }
-}
-
 /// `output.default` — persistent output-format choice. `Auto` matches
 /// the existing TTY/non-TTY detection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -151,15 +93,6 @@ fn parse_subsystem_min_size(s: &str) -> Result<usize> {
     Ok(n)
 }
 
-/// Split a `,`- or newline-separated list, trimming + dropping blanks.
-fn split_list(s: &str) -> Vec<String> {
-    s.split([',', '\n'])
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string)
-        .collect()
-}
-
 fn fmt_bool(b: bool) -> &'static str {
     if b {
         "true"
@@ -170,32 +103,6 @@ fn fmt_bool(b: bool) -> &'static str {
 
 /// Resolved per-section config. Each field carries its value AND the
 /// `Source` that supplied it.
-#[derive(Debug, Clone)]
-pub struct HookConfig {
-    pub rewrite: HookRewrite,
-    pub rewrite_source: Source,
-    /// Whether to chain `rtk hook claude` on passthrough.
-    pub use_rtk: HookUseRtk,
-    pub use_rtk_source: Source,
-    /// Allowlist of tools repoctx may chain underneath on passthrough.
-    /// Only `rtk` is meaningful in v0.6.0; structural for future tools.
-    pub chainable: Vec<String>,
-    pub chainable_source: Source,
-    /// PreToolUse hooks displaced by `repoctx hook install` so the
-    /// runtime handler can chain through them on passthrough. Stored
-    /// as a `\n`-separated string in the settings table.
-    pub chain_commands: Vec<String>,
-    pub chain_commands_source: Source,
-    /// Record per-command grep/rg/find passthrough telemetry (issue #7).
-    /// Local-only, aggregate (no command bodies); powers `repoctx discover`.
-    pub telemetry: bool,
-    pub telemetry_source: Source,
-    /// Also capture command BODIES into per-idiom samples (`discover
-    /// --samples`). OFF by default; local-only. Requires `telemetry`.
-    pub telemetry_samples: bool,
-    pub telemetry_samples_source: Source,
-}
-
 #[derive(Debug, Clone)]
 pub struct GainConfig {
     pub no_record: bool,
@@ -229,7 +136,6 @@ pub struct AnalysisConfig {
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub hook: HookConfig,
     pub gain: GainConfig,
     pub output: OutputConfig,
     pub index: IndexConfig,
@@ -241,20 +147,6 @@ impl Config {
     /// read from (e.g. tests).
     pub fn defaults() -> Self {
         Self {
-            hook: HookConfig {
-                rewrite: HookRewrite::Auto,
-                rewrite_source: Source::Default,
-                use_rtk: HookUseRtk::Auto,
-                use_rtk_source: Source::Default,
-                chainable: vec!["rtk".to_string()],
-                chainable_source: Source::Default,
-                chain_commands: Vec::new(),
-                chain_commands_source: Source::Default,
-                telemetry: true,
-                telemetry_source: Source::Default,
-                telemetry_samples: false,
-                telemetry_samples_source: Source::Default,
-            },
             gain: GainConfig {
                 no_record: false,
                 no_record_source: Source::Default,
@@ -287,50 +179,10 @@ impl Config {
     fn apply_settings(cfg: &mut Self, store: &Store) -> Result<()> {
         for (key, value) in store.all_settings()? {
             match key.as_str() {
-                "hook.rewrite" => match HookRewrite::parse(&value) {
-                    Ok(v) => {
-                        cfg.hook.rewrite = v;
-                        cfg.hook.rewrite_source = Source::Settings;
-                    }
-                    Err(e) => warn_invalid(&key, &value, e),
-                },
-                "hook.use_rtk" => match HookUseRtk::parse(&value) {
-                    Ok(v) => {
-                        cfg.hook.use_rtk = v;
-                        cfg.hook.use_rtk_source = Source::Settings;
-                    }
-                    Err(e) => warn_invalid(&key, &value, e),
-                },
-                // Removed in 0.5.3: install content is embedded in the
-                // binary; there is no fetch ref or cache. Old rows are
-                // ignored quietly rather than warned about.
-                "hook.ref" | "hook.no_cache" => {}
-                "hook.chainable" => {
-                    cfg.hook.chainable = split_list(&value);
-                    cfg.hook.chainable_source = Source::Settings;
-                }
-                "hook.chain_commands" => {
-                    cfg.hook.chain_commands = value
-                        .split('\n')
-                        .filter(|s| !s.trim().is_empty())
-                        .map(str::to_string)
-                        .collect();
-                    cfg.hook.chain_commands_source = Source::Settings;
-                }
-                "hook.telemetry" => match parse_bool(&value) {
-                    Ok(v) => {
-                        cfg.hook.telemetry = v;
-                        cfg.hook.telemetry_source = Source::Settings;
-                    }
-                    Err(e) => warn_invalid(&key, &value, e),
-                },
-                "hook.telemetry_samples" => match parse_bool(&value) {
-                    Ok(v) => {
-                        cfg.hook.telemetry_samples = v;
-                        cfg.hook.telemetry_samples_source = Source::Settings;
-                    }
-                    Err(e) => warn_invalid(&key, &value, e),
-                },
+                // The per-command rewrite hook was removed (adoption pivoted to
+                // session-start priming, 2026-06-16). Old `hook.*` rows from
+                // prior installs are ignored quietly, not warned about.
+                k if k.starts_with("hook.") => {}
                 "gain.no_record" => match parse_bool(&value) {
                     Ok(v) => {
                         cfg.gain.no_record = v;
@@ -375,42 +227,6 @@ impl Config {
     }
 
     fn apply_env(cfg: &mut Self) {
-        if let Ok(v) = env::var("REPOCTX_HOOK_REWRITE") {
-            match HookRewrite::parse(&v) {
-                Ok(r) => {
-                    cfg.hook.rewrite = r;
-                    cfg.hook.rewrite_source = Source::Env;
-                }
-                Err(e) => warn_invalid("REPOCTX_HOOK_REWRITE", &v, e),
-            }
-        }
-        if let Ok(v) = env::var("REPOCTX_HOOK_USE_RTK") {
-            match HookUseRtk::parse(&v) {
-                Ok(u) => {
-                    cfg.hook.use_rtk = u;
-                    cfg.hook.use_rtk_source = Source::Env;
-                }
-                Err(e) => warn_invalid("REPOCTX_HOOK_USE_RTK", &v, e),
-            }
-        }
-        if let Ok(v) = env::var("REPOCTX_HOOK_TELEMETRY") {
-            match parse_bool(&v) {
-                Ok(b) => {
-                    cfg.hook.telemetry = b;
-                    cfg.hook.telemetry_source = Source::Env;
-                }
-                Err(e) => warn_invalid("REPOCTX_HOOK_TELEMETRY", &v, e),
-            }
-        }
-        if let Ok(v) = env::var("REPOCTX_HOOK_TELEMETRY_SAMPLES") {
-            match parse_bool(&v) {
-                Ok(b) => {
-                    cfg.hook.telemetry_samples = b;
-                    cfg.hook.telemetry_samples_source = Source::Env;
-                }
-                Err(e) => warn_invalid("REPOCTX_HOOK_TELEMETRY_SAMPLES", &v, e),
-            }
-        }
         if let Ok(v) = env::var("REPOCTX_GAIN_NO_RECORD") {
             match parse_bool(&v) {
                 Ok(b) => {
@@ -480,20 +296,15 @@ fn warn_invalid<E: std::fmt::Display>(key: &str, value: &str, err: E) {
 /// Validate + write a setting through the store.
 pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
     let normalized = match key {
-        "hook.rewrite" => HookRewrite::parse(value)?.as_str().to_string(),
-        "hook.use_rtk" => HookUseRtk::parse(value)?.as_str().to_string(),
-        "hook.chainable" => split_list(value).join(","),
-        "hook.chain_commands" => value.to_string(),
-        "hook.telemetry"
-        | "hook.telemetry_samples"
-        | "gain.no_record"
-        | "gain.record_query"
-        | "index.nested_keys" => fmt_bool(parse_bool(value)?).to_string(),
+        "gain.no_record" | "gain.record_query" | "index.nested_keys" => {
+            fmt_bool(parse_bool(value)?).to_string()
+        }
         "output.default" => OutputDefault::parse(value)?.as_str().to_string(),
         "analysis.subsystem_min_size" => parse_subsystem_min_size(value)?.to_string(),
-        "hook.script_path" => {
+        k if k.starts_with("hook.") => {
             return Err(anyhow!(
-                "hook.script_path is read-only (managed by `repoctx init`)"
+                "`{k}` is obsolete: the per-command rewrite hook was removed; \
+                 repoctx now primes via a SessionStart hook (`repoctx init`)"
             ))
         }
         other => return Err(anyhow!("unknown config key: {other}")),
@@ -506,12 +317,6 @@ pub fn set(store: &mut Store, key: &str, value: &str) -> Result<String> {
 /// `config show` to display every row even when none are stored.
 pub fn known_keys() -> Vec<(&'static str, String)> {
     vec![
-        ("hook.rewrite", HookRewrite::Auto.as_str().to_string()),
-        ("hook.use_rtk", HookUseRtk::Auto.as_str().to_string()),
-        ("hook.chainable", "rtk".to_string()),
-        ("hook.chain_commands", String::new()),
-        ("hook.telemetry", fmt_bool(true).to_string()),
-        ("hook.telemetry_samples", fmt_bool(false).to_string()),
         ("gain.no_record", fmt_bool(false).to_string()),
         ("gain.record_query", fmt_bool(false).to_string()),
         ("output.default", OutputDefault::Auto.as_str().to_string()),
@@ -528,13 +333,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hook_rewrite_parses_case_insensitive() {
-        assert_eq!(HookRewrite::parse("Auto").unwrap(), HookRewrite::Auto);
-        assert_eq!(HookRewrite::parse("OFF").unwrap(), HookRewrite::Off);
-        assert!(HookRewrite::parse("banana").is_err());
-    }
-
-    #[test]
     fn output_default_parses_case_insensitive() {
         assert_eq!(OutputDefault::parse("Auto").unwrap(), OutputDefault::Auto);
         assert_eq!(OutputDefault::parse("JSON").unwrap(), OutputDefault::Json);
@@ -542,30 +340,14 @@ mod tests {
     }
 
     #[test]
-    fn use_rtk_parses() {
-        assert_eq!(HookUseRtk::parse("auto").unwrap(), HookUseRtk::Auto);
-        assert_eq!(HookUseRtk::parse("ON").unwrap(), HookUseRtk::On);
-        assert_eq!(HookUseRtk::parse("off").unwrap(), HookUseRtk::Off);
-        assert!(HookUseRtk::parse("maybe").is_err());
-    }
-
-    #[test]
-    fn chainable_defaults_to_rtk_and_round_trips() {
+    fn obsolete_hook_keys_rejected_on_set_and_ignored_on_load() {
         let mut store = Store::open_in_memory().unwrap();
-        assert_eq!(Config::defaults().hook.chainable, vec!["rtk".to_string()]);
-        set(&mut store, "hook.chainable", "rtk, future-tool").unwrap();
-        set(&mut store, "hook.use_rtk", "on").unwrap();
-        let cfg = Config::load(&store).unwrap();
-        assert_eq!(cfg.hook.chainable, vec!["rtk", "future-tool"]);
-        assert_eq!(cfg.hook.use_rtk, HookUseRtk::On);
-        assert_eq!(cfg.hook.use_rtk_source, Source::Settings);
-    }
-
-    #[test]
-    fn script_path_is_read_only() {
-        let mut store = Store::open_in_memory().unwrap();
-        let err = set(&mut store, "hook.script_path", "x").unwrap_err();
-        assert!(err.to_string().contains("read-only"));
+        // `config set hook.*` is rejected with an obsolete message.
+        let err = set(&mut store, "hook.use_rtk", "on").unwrap_err();
+        assert!(err.to_string().contains("obsolete"));
+        // A stale hook.* row from an old install loads without error/warn noise.
+        store.set_setting("hook.rewrite", "off").unwrap();
+        assert!(Config::load(&store).is_ok());
     }
 
     #[test]
@@ -582,13 +364,12 @@ mod tests {
     #[test]
     fn defaults_are_consistent() {
         let c = Config::defaults();
-        assert_eq!(c.hook.rewrite, HookRewrite::Auto);
         assert!(!c.gain.no_record);
         assert_eq!(c.output.default, OutputDefault::Auto);
         for source in [
-            c.hook.rewrite_source,
             c.gain.no_record_source,
             c.output.default_source,
+            c.analysis.subsystem_min_size_source,
         ] {
             assert_eq!(source, Source::Default);
         }
@@ -597,12 +378,9 @@ mod tests {
     #[test]
     fn load_from_in_memory_store_round_trips() {
         let mut store = Store::open_in_memory().unwrap();
-        set(&mut store, "hook.rewrite", "off").unwrap();
         set(&mut store, "gain.no_record", "true").unwrap();
         set(&mut store, "output.default", "json").unwrap();
         let cfg = Config::load(&store).unwrap();
-        assert_eq!(cfg.hook.rewrite, HookRewrite::Off);
-        assert_eq!(cfg.hook.rewrite_source, Source::Settings);
         assert!(cfg.gain.no_record);
         assert_eq!(cfg.gain.no_record_source, Source::Settings);
         assert_eq!(cfg.output.default, OutputDefault::Json);
@@ -618,8 +396,8 @@ mod tests {
     #[test]
     fn set_rejects_invalid_enum_value() {
         let mut store = Store::open_in_memory().unwrap();
-        let err = set(&mut store, "hook.rewrite", "banana").unwrap_err();
-        assert!(err.to_string().contains("auto, off, force"));
+        let err = set(&mut store, "output.default", "banana").unwrap_err();
+        assert!(err.to_string().contains("auto, human, toon, json"));
     }
 
     #[test]
@@ -627,9 +405,9 @@ mod tests {
         // Hand-write an invalid value (simulates DB hand-edit / older
         // binary writing a key newer one renamed).
         let mut store = Store::open_in_memory().unwrap();
-        store.set_setting("hook.rewrite", "banana").unwrap();
+        store.set_setting("output.default", "banana").unwrap();
         let cfg = Config::load(&store).unwrap();
-        assert_eq!(cfg.hook.rewrite, HookRewrite::Auto);
-        assert_eq!(cfg.hook.rewrite_source, Source::Default);
+        assert_eq!(cfg.output.default, OutputDefault::Auto);
+        assert_eq!(cfg.output.default_source, Source::Default);
     }
 }

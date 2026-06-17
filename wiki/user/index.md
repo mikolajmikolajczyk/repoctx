@@ -8,7 +8,7 @@
 - [Quickstart](quickstart.md) — five-minute walk-through of every read command.
 - [Commands reference](commands.md) — every command, every flag, exit codes.
 - [Config — per-repo settings](config.md) — `repoctx config show / get / set / unset` over the `.repoctx/index.db` settings table.
-- [Hook — per-agent install](hook.md) — `repoctx hook install <agent>` for Claude Code / Codex / opencode.
+- [Onboarding — `repoctx init`](init.md) — wire repoctx into Claude Code (guidance + SessionStart prime) / Codex / opencode.
 - [Output formats + agent integration](output-formats.md) — TOON vs JSON vs human; CLAUDE.md recipe, jq snippets.
 - [Gain analytics](gain.md) — what `repoctx gain` measures, baseline rules, privacy stance.
 - [Why repoctx saves tokens](why-repoctx.md) — the cost model + per-release [benchmark results](../bench/results.md).
@@ -19,7 +19,7 @@ Coding-agent docs (architecture, conventions, status) live under [`../agents/`](
 
 ## Project status
 
-Pre-1.0 — see [`../agents/status.md`](../agents/status.md). The CLI surface (`index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `status`, `languages`, `config`, `init`, `hook`, `gain`) is end-to-end on Linux/macOS/Windows, including a static call graph (ADR-0010). An LSP-backed daemon is on the roadmap.
+Pre-1.0 — see [`../agents/status.md`](../agents/status.md). The CLI surface (`index`, `symbols`, `search`, `outline`, `definition`, `context`, `callers`, `callees`, `callgraph`, `prime`, `status`, `languages`, `config`, `init`, `gain`) is end-to-end on Linux/macOS/Windows, including a static call graph (ADR-0010). An LSP-backed daemon is on the roadmap.
 
 ## License
 

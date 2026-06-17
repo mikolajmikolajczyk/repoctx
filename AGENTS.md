@@ -1,6 +1,6 @@
 # AGENTS.md — repoctx
 
-Repo-specific notes for coding agents (Claude Code, Codex, opencode, Cursor, Aider, Copilot, …). Generic software-engineering advice is out of scope. End users wire `repoctx` into their own agent with `repoctx hook install <agent>` — see [`wiki/user/hook.md`](wiki/user/hook.md).
+Repo-specific notes for coding agents (Claude Code, Codex, opencode, Cursor, Aider, Copilot, …). Generic software-engineering advice is out of scope. End users wire `repoctx` into their own agent with `repoctx init` (installs guidance and, for Claude, a SessionStart hook that runs `repoctx prime`) — see [`wiki/user/init.md`](wiki/user/init.md).
 
 > **CLAUDE.md** at repo root is `@AGENTS.md` plus Claude-only overrides. Other agents read this file directly.
 

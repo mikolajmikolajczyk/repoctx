@@ -10,7 +10,6 @@ cargo build --release                             # release build
 cargo run -- <args>                               # run repoctx CLI
 cargo test                                        # unit + integration tests
 cargo test -p <crate>                             # scope to one workspace member
-cargo test --test hook_e2e                        # hook CLI e2e suite alone
 bash scripts/bench.sh                             # 5k-file synthetic perf bench
 ```
 
@@ -49,13 +48,13 @@ git push origin main --tags                        # GitHub; tag push triggers .
 
 GitHub Releases workflow builds + uploads 4-target archives + sha256 sidecars automatically.
 
-## Hook (integrations)
+## Onboarding (integrations)
 
 ```sh
-cargo run -- hook list                            # enumerate agents
-cargo run -- hook status                          # which dests exist
-cargo run -- hook install <agent> --dry-run       # plan, write nothing
-cargo run -- hook install claude --dir /tmp/proj  # content is embedded; no network
+cargo run -- init --dry-run                        # plan the install, write nothing
+cargo run -- init --agent claude                   # guidance + SessionStart prime hook
+cargo run -- init --agent codex                    # guidance only (rules-only agent)
+cargo run -- prime                                 # print the session-start digest
 ```
 
 ## GitHub (issues + code review)

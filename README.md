@@ -55,7 +55,7 @@ column, and symbol kind, so the agent receives a tiny structured response
 instead of a wall of source to grep through. `repoctx search` adds a
 textually-complete mode — symbol definitions **plus** every ripgrep match
 (comments, strings, anything), compressed — so you never lose textual data
-either. The hook transparently routes your `rg`/`grep` here.
+either.
 
 ### Example queries
 
@@ -150,32 +150,33 @@ nix profile install github:mikolajmikolajczyk/repoctx
 
 ## Wire it into your agent
 
-For **Claude Code**, one command does everything — installs a hook so the
-agent's `rg`/`grep` identifier searches route through repoctx
-automatically, plus the skill + `CLAUDE.md` guidance:
+One command does everything. For **Claude Code** it installs the skill +
+`CLAUDE.md` guidance and wires a **SessionStart** hook that runs
+`repoctx prime`, so every new session begins with a compact repo
+orientation digest in context and the agent reaches for repoctx instead
+of blind `grep`/`cat`:
 
 ```sh
 cd /path/to/your/project
 repoctx init        # add -g for a user-global install (all repos)
 ```
 
-It writes a committed `.repoctx/hook.sh`, points `.claude/settings.json`
-at it, and drops `.claude/skills/repoctx/SKILL.md` + a `CLAUDE.md` block.
-If [rtk](https://github.com/rtk-ai/rtk) is present, repoctx chains it
-underneath (no degradation). Full reference: [`wiki/user/init.md`](wiki/user/init.md).
+It adds a `SessionStart` hook entry to `.claude/settings.json` and drops
+`.claude/skills/repoctx/SKILL.md` + a `CLAUDE.md` block. Adoption is via
+session-start **priming**, not command interception — repoctx doesn't
+touch `PreToolUse`, so your own `rtk` (or other) hook runs independently.
+Full reference: [`wiki/user/init.md`](wiki/user/init.md).
 
-For **Codex / opencode** (rules-only agents, no hook protocol), install
-just the guidance:
+For **Codex / opencode** (rules-only agents), install just the guidance:
 
 ```sh
-repoctx hook install codex         # OpenAI Codex
-repoctx hook install opencode      # opencode
+repoctx init --agent codex         # OpenAI Codex
+repoctx init --agent opencode      # opencode
 ```
 
 These write `.agents/skills/repoctx/SKILL.md` + an `AGENTS.md` block. The
 skill teaches the agent how to use `repoctx` and when to prefer it over
-`rg`. Re-running is a no-op when nothing changed. Hook details:
-[`wiki/user/hook.md`](wiki/user/hook.md).
+`rg`. Re-running is a no-op when nothing changed.
 
 ## What's in the box
 
@@ -183,7 +184,7 @@ skill teaches the agent how to use `repoctx` and when to prefer it over
 - `symbols` — case-insensitive substring search; `--kind`, `--lang`,
   `--limit` filters.
 - `search` — textually-complete search: symbol defs + every ripgrep
-  match, compressed. What the hook rewrites `rg <ident>` to.
+  match, compressed.
 - `outline` — symbol tree for one file (indented containment in human
   mode, flat in machine).
 - `definition` — exact-name lookup, definition-kind whitelist (no
@@ -196,13 +197,12 @@ skill teaches the agent how to use `repoctx` and when to prefer it over
 - `languages` — coverage matrix; agents check this to decide when to
   fall back to `rg`.
 - `config` — per-repo settings table (output format, gain recording,
-  hook rewrite/chaining).
+  nested keys, subsystem size).
 - `gain` — token-savings analytics ("navigation cost avoided").
-- `init` — wire repoctx into Claude Code as the meta-hook (committed
-  script + rtk chaining + `doctor`/`--uninstall`).
-- `hook` — the PreToolUse handler + per-agent guidance install.
-- `rewrite` — debug helper: shows whether/how the hook would rewrite a
-  command.
+- `prime` — compact ~600-token session-start orientation digest; what the
+  SessionStart hook injects into the agent's context.
+- `init` — wire repoctx into your agent: guidance files + (for Claude) a
+  SessionStart hook that runs `repoctx prime`. `--uninstall` reverses it.
 - Three output formats over one set of typed records: human (TTY),
   TOON (pipes), JSON (`--json`).
 - CI green on Linux + macOS + Windows.
@@ -219,8 +219,8 @@ User docs under [`wiki/user/`](wiki/user/index.md):
 - [Quickstart](wiki/user/quickstart.md) — five-minute walk-through.
 - [Commands reference](wiki/user/commands.md) — every flag, every
   exit code, the full kind vocabulary.
-- [Hook — per-agent install](wiki/user/hook.md) — Claude Code /
-  Codex / opencode integration.
+- [Onboarding — `repoctx init`](wiki/user/init.md) — Claude Code /
+  Codex / opencode integration (guidance + SessionStart prime).
 - [Config — per-repo settings](wiki/user/config.md) — the settings
   table, precedence rules, env-var conventions.
 - [Output formats + agent integration](wiki/user/output-formats.md) —

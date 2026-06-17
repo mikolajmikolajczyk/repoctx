@@ -11,7 +11,7 @@ For every config-backed value, repoctx layers four sources. Highest
 wins.
 
 1. **CLI flag** on this invocation (`--json`, `--no-record`, …).
-2. **Environment variable** (`REPOCTX_HOOK_REWRITE=off`, …).
+2. **Environment variable** (`REPOCTX_OUTPUT_DEFAULT=json`, …).
 3. **Stored `settings` row** in `.repoctx/index.db`.
 4. **Built-in default**.
 
@@ -23,20 +23,19 @@ Adding a new key is non-breaking; older binaries log a warn and ignore.
 
 | Key | Type | Values | Default | Notes |
 |---|---|---|---|---|
-| `hook.rewrite` | enum | `auto` \| `off` \| `force` | `auto` | Kill switch for the semantic rewrite (`off` = pure chain proxy). |
-| `hook.use_rtk` | enum | `auto` \| `on` \| `off` | `auto` | Chain rtk underneath on passthrough. `auto` = on when a chainable tool is on PATH. |
-| `hook.chainable` | list | comma/newline | `rtk` | Allowlist of tools repoctx may chain underneath. Only rtk is meaningful in v0.6.x. |
-| `hook.script_path` | string | (read-only) | `(not installed)` | Where `repoctx init` wrote the project hook script. Computed; `config set` rejects it. |
-| `hook.telemetry` | bool | `true` \| `false` | `true` | Record per-command grep/rg/find passthrough telemetry for `repoctx discover`. Local-only, aggregate (no command bodies). `false` disables. |
-| `hook.telemetry_samples` | bool | `true` \| `false` | `false` | Also capture command **bodies** into per-idiom samples (`discover --samples`). Off by default; local-only; requires `hook.telemetry`. |
 | `gain.no_record` | bool | `true` \| `false` | `false` | Persistent `--no-record`. |
 | `gain.record_query` | bool | `true` \| `false` | `false` | Persistent `--record-query`. |
 | `output.default` | enum | `auto` \| `human` \| `toon` \| `json` | `auto` | Persistent output-format choice. `auto` keeps today's behavior (Human on TTY, TOON on pipe). |
 | `index.nested_keys` | bool | `true` \| `false` | `false` | Index JSON/YAML/TOML keys at any depth (not just top-level). Re-index (`repoctx index --force`) after flipping. |
+| `analysis.subsystem_min_size` | int | `≥ 2` | `5` | Minimum Louvain-cluster size that counts as a "subsystem" in `communities`/`report`/`export`. |
 
-> Removed in 0.5.3: `hook.ref` and `hook.no_cache`. Integration content
-> is embedded in the binary — there is no fetch ref or cache. Old rows in
-> an existing settings table are ignored quietly.
+> Removed with the PreToolUse hook: the `hook.*` keys (`hook.rewrite`,
+> `hook.use_rtk`, `hook.chainable`, `hook.telemetry`,
+> `hook.telemetry_samples`, `hook.script_path`, and the older
+> `hook.ref`/`hook.no_cache`). repoctx no longer ships a command-rewrite
+> hook — adoption is via session-start priming (`repoctx init` +
+> `repoctx prime`). Old `hook.*` rows in an existing settings table are
+> ignored quietly.
 
 Booleans accept `true` / `false` / `1` / `0` / `yes` / `no` on read
 (case-insensitive). Writes via `config set` normalize to `true` /
@@ -48,12 +47,11 @@ Enum values are case-insensitive on read, lowercased on write.
 
 `REPOCTX_<SECTION>_<KEY>` in screaming snake; dots become underscores:
 
-- `REPOCTX_HOOK_REWRITE=off`
-- `REPOCTX_HOOK_REF=main`
-- `REPOCTX_HOOK_NO_CACHE=1`
 - `REPOCTX_GAIN_NO_RECORD=1`
 - `REPOCTX_GAIN_RECORD_QUERY=1`
 - `REPOCTX_OUTPUT_DEFAULT=json`
+- `REPOCTX_INDEX_NESTED_KEYS=1`
+- `REPOCTX_ANALYSIS_SUBSYSTEM_MIN_SIZE=8`
 
 The legacy `RUST_REPOCTX_NO_RECORD=1` env var keeps working as a
 back-compat alias for `REPOCTX_GAIN_NO_RECORD=1`. Deprecated; prefer
@@ -73,8 +71,8 @@ repoctx config unset <key>       # delete row, default applies again
 Invalid `set` values fail fast with the legal set named:
 
 ```text
-$ repoctx config set hook.rewrite banana
-Error: hook.rewrite must be one of [auto, off, force] (got 'banana')
+$ repoctx config set output.default banana
+Error: output.default must be one of [auto, human, toon, json] (got 'banana')
 ```
 
 ## Migration from existing flags
@@ -110,7 +108,7 @@ default (the binary won't refuse to run).
 ## See also
 
 - [`commands.md`](commands.md) — top-level command reference.
-- [`hook.md`](hook.md) — `hook.rewrite` / `hook.use_rtk` / `hook.chainable` drive the meta-hook.
+- [`init.md`](init.md) — onboarding (`repoctx init` + SessionStart priming).
 - [`gain.md`](gain.md) — `gain.no_record` / `gain.record_query` affect
   what gain analytics records.
 - `wiki/decisions/2026-06-12-config-schema.md` — the binding design

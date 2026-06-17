@@ -139,42 +139,6 @@ fn rows(cfg: &Config) -> Vec<ConfigRow> {
     };
     vec![
         row(
-            "hook.rewrite",
-            cfg.hook.rewrite.as_str(),
-            cfg.hook.rewrite_source.as_str(),
-            &default_for("hook.rewrite"),
-        ),
-        row(
-            "hook.use_rtk",
-            cfg.hook.use_rtk.as_str(),
-            cfg.hook.use_rtk_source.as_str(),
-            &default_for("hook.use_rtk"),
-        ),
-        row(
-            "hook.chainable",
-            &cfg.hook.chainable.join(","),
-            cfg.hook.chainable_source.as_str(),
-            &default_for("hook.chainable"),
-        ),
-        row(
-            "hook.chain_commands",
-            &cfg.hook.chain_commands.join("\\n"),
-            cfg.hook.chain_commands_source.as_str(),
-            &default_for("hook.chain_commands"),
-        ),
-        row(
-            "hook.telemetry",
-            bool_str(cfg.hook.telemetry),
-            cfg.hook.telemetry_source.as_str(),
-            &default_for("hook.telemetry"),
-        ),
-        row(
-            "hook.telemetry_samples",
-            bool_str(cfg.hook.telemetry_samples),
-            cfg.hook.telemetry_samples_source.as_str(),
-            &default_for("hook.telemetry_samples"),
-        ),
-        row(
             "gain.no_record",
             bool_str(cfg.gain.no_record),
             cfg.gain.no_record_source.as_str(),
