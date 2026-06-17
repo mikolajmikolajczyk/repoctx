@@ -199,7 +199,10 @@ absolute. Indented containment tree (human) or flat `{count, items}`
 (machine).
 
 Use this when you need the **structure** of a file but not its full
-contents.
+contents. Pass a **real** path — don't guess one for a symbol: a wrong
+path errors out. To go from a symbol to its file, run `definition <name>`
+(or `search <name>`) first, then `outline` the path it reports. To see a
+symbol's source directly, `context <name>` needs no path at all.
 
 ### `{REPOCTX_BIN} status`
 

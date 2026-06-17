@@ -118,14 +118,16 @@ pub fn run(repo_root: &Path) -> Result<()> {
         "\n## Navigate with repoctx — NOT grep/cat/find (token-cheap, structure-aware)\n\
          For any structural question, run the repoctx command instead of grep/rg/find/bulk-Read:\n\
          - Find a symbol or text → `repoctx search <query>` (exact defs + compressed ripgrep)\n\
-         - A file's structure → `repoctx outline <file>`\n\
-         - Where defined / show source → `repoctx definition <sym>` · `repoctx context <sym>`\n\
+         - A file's structure → `repoctx outline <file>` (use a real path — don't guess one)\n\
+         - Where defined / show source → `repoctx definition <sym>` · `repoctx context <sym>` (by name, no path needed)\n\
          - Who calls / what it calls → `repoctx callers <sym>` · `callees <sym>` · `callgraph <sym> --direction up|down|both`\n\
          - Blast radius / dead code / cycles → `repoctx impact <sym>` · `deadcode` · `cycles`\n\
          - Imports / layering → `repoctx deps <file>` · `rdeps <module>` · `boundary --from <p> --to <m>`\n\
          - Architecture / orientation → `repoctx overview` · `report` · `communities` · `export --out graph.html`\n\
          - Review a change → `repoctx changed --since <ref>` (changed symbols + their callers)\n\
          - Drill into a subsystem above → `repoctx callgraph <label> --direction both`, or `outline` its files\n\
+         Don't know a file's path? Don't guess it — `definition`/`search` return the real path; \
+         `context <sym>` shows a symbol's source with no path at all.\n\
          All accept `--json`. Name-based, resolution-aware (ADR-0010). Only fall back to grep/Read when a \
          language is `partial` coverage (check the `advisory`) or you need prose-level reasoning after locating code.\n\
          Full reference: the `repoctx` skill (`.claude/skills/repoctx/SKILL.md`) — or `repoctx <cmd> --help`.\n",

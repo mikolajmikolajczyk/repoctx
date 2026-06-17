@@ -6,7 +6,7 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ### Fixed
 
-- **`outline` on a non-existent path now points you to the symbol commands.** Passing a guessed file path (e.g. `outline src/ui/hooks/useProject.ts` when `useProject` actually lives in `src/app/state/store.ts`) returned a dead-end "not in the index — not on disk, gitignored, oversized, …" that lumped five causes together. It now splits them: a path that doesn't exist says `no such file: <path>` and nudges toward `repoctx definition <name>` / `repoctx search <name>` to locate the symbol's real file; a path that exists but isn't indexed names the actual cause (gitignored/oversized/non-UTF-8/unsupported language).
+- **`outline` on a non-existent path now points you to the symbol commands.** Passing a guessed file path (e.g. `outline src/ui/hooks/useProject.ts` when `useProject` actually lives in `src/app/state/store.ts`) returned a dead-end "not in the index — not on disk, gitignored, oversized, …" that lumped five causes together. It now splits them: a path that doesn't exist says `no such file: <path>` and nudges toward `repoctx definition <name>` / `repoctx search <name>` to locate the symbol's real file; a path that exists but isn't indexed names the actual cause (gitignored/oversized/non-UTF-8/unsupported language). To prevent the mistake up front, `prime` and the skill now tell the agent not to guess file paths — use `definition`/`search` to get a real path, or `context <sym>` to see source with no path at all.
 
 ## [0.13.2] — 2026-06-17
 
