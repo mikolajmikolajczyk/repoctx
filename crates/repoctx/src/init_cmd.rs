@@ -27,7 +27,7 @@ pub struct InitOpts {
 
 pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
     let claude = opts.agent == "claude";
-    let settings_path = settings_path(repo_root, opts.global)?;
+    let (settings_path, script_path, command) = claude_paths(repo_root, opts.global)?;
 
     if opts.dry_run {
         eprintln!(
@@ -37,9 +37,9 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         );
         eprintln!("  would install: {} guidance files", opts.agent);
         if claude {
+            eprintln!("  would write  : {} (managed `repoctx prime` block)", script_path.display());
             eprintln!(
-                "  would wire   : SessionStart hook `{}` in {}",
-                crate::session_hook::PRIME_COMMAND,
+                "  would wire   : SessionStart hook `{command}` in {}",
                 settings_path.display()
             );
         }
@@ -76,9 +76,12 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         .with_context(|| format!("install {} guidance files", opts.agent))?;
 
     // SessionStart priming is Claude-specific (settings.json hooks). Other
-    // agents pick repoctx up through their guidance files.
+    // agents pick repoctx up through their guidance files. The hook points at a
+    // bashrc-style script whose managed block runs `repoctx prime`; users can
+    // append their own session-start context below it.
     if claude {
-        crate::session_hook::install(&settings_path, false)?;
+        crate::session_hook::write_script(&script_path, false)?;
+        crate::session_hook::install_settings(&settings_path, &command, false)?;
     }
 
     eprintln!("repoctx init: done.");
@@ -88,12 +91,10 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
         guidance_dir.join(".claude/skills/repoctx/SKILL.md").display()
     );
     if claude {
-        eprintln!(
-            "  SessionStart: {} → `{}`",
-            settings_path.display(),
-            crate::session_hook::PRIME_COMMAND
-        );
-        eprintln!("  the agent is now primed with `repoctx prime` at session start.");
+        eprintln!("  script      : {} (runs `repoctx prime`; extend it freely)", script_path.display());
+        eprintln!("  SessionStart: {} → `{command}`", settings_path.display());
+        eprintln!("  the agent is now primed at session start. Add your own");
+        eprintln!("  context below the managed block in the script.");
     } else {
         eprintln!("  note: SessionStart priming is Claude-only; {} uses guidance files.", opts.agent);
     }
@@ -103,7 +104,7 @@ pub fn run(repo_root: &Path, opts: InitOpts) -> Result<()> {
 /// `repoctx init --uninstall [-g]` — remove the SessionStart hook. Guidance
 /// files are left in place (printed recipe), like the prior behavior.
 pub fn run_uninstall(repo_root: &Path, global: bool, dry_run: bool) -> Result<()> {
-    let settings_path = settings_path(repo_root, global)?;
+    let (settings_path, script_path, command) = claude_paths(repo_root, global)?;
 
     if dry_run {
         eprintln!(
@@ -111,16 +112,18 @@ pub fn run_uninstall(repo_root: &Path, global: bool, dry_run: bool) -> Result<()
             if global { " -g" } else { "" }
         );
         eprintln!(
-            "  would remove SessionStart prime hook from {}",
-            settings_path.display()
+            "  would remove SessionStart prime hook from {} + the managed block in {}",
+            settings_path.display(),
+            script_path.display()
         );
         return Ok(());
     }
 
-    let removed = crate::session_hook::uninstall(&settings_path, false)?;
+    let removed = crate::session_hook::uninstall(&settings_path, &script_path, &command, false)?;
     eprintln!("repoctx init --uninstall: done.");
     if removed {
         eprintln!("  removed SessionStart prime hook: {}", settings_path.display());
+        eprintln!("  stripped managed block from {} (kept any of your own lines)", script_path.display());
     } else {
         eprintln!("  no repoctx SessionStart hook found at {}", settings_path.display());
     }
@@ -135,14 +138,21 @@ pub fn run_uninstall(repo_root: &Path, global: bool, dry_run: bool) -> Result<()
     Ok(())
 }
 
-/// `settings.json` path for a scope: `<repo>/.claude/settings.json` (project)
-/// or `~/.claude/settings.json` (global).
-fn settings_path(repo_root: &Path, global: bool) -> Result<PathBuf> {
+/// Claude paths for a scope: `(settings.json, session-start.sh, hook command)`.
+/// Project uses a repo-relative command (Claude runs hooks with cwd = project
+/// root); global uses the absolute script path.
+fn claude_paths(repo_root: &Path, global: bool) -> Result<(PathBuf, PathBuf, String)> {
     if global {
         let home = home_dir().context("cannot resolve home directory")?;
-        Ok(home.join(".claude/settings.json"))
+        let script = home.join(".claude/hooks/session-start.sh");
+        let command = format!("bash {}", script.display());
+        Ok((home.join(".claude/settings.json"), script, command))
     } else {
-        Ok(repo_root.join(".claude/settings.json"))
+        Ok((
+            repo_root.join(".claude/settings.json"),
+            repo_root.join(".claude/hooks/session-start.sh"),
+            "bash .claude/hooks/session-start.sh".to_string(),
+        ))
     }
 }
 

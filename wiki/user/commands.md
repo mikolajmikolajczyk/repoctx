@@ -555,17 +555,18 @@ for fewer, larger subsystems; lower it (min `2`) for more.
 ## `repoctx init`
 
 The single onboarding command. Installs the agent guidance files and,
-for Claude, wires a **SessionStart** hook that runs `repoctx prime` so
-the orientation digest is injected into the agent's context at session
-start. Full reference: [`init.md`](init.md).
+for Claude, writes a bashrc-style `.claude/hooks/session-start.sh` (managed
+`repoctx prime` block + a user region you can extend) and points a
+**SessionStart** hook at it, so the orientation digest is injected into the
+agent's context at session start. Full reference: [`init.md`](init.md).
 
 | Invocation | Effect |
 |---|---|
-| `repoctx init` | Project-scope install (guidance files + Claude SessionStart prime hook in `.claude/settings.json`). |
+| `repoctx init` | Project-scope install (guidance + `.claude/hooks/session-start.sh` + SessionStart hook in `.claude/settings.json`). |
 | `repoctx init -g` | User-global install (`~/.claude/`). |
 | `repoctx init --agent <name>` | Pick the agent (`claude`, `codex`, `opencode`; default `claude`). |
 | `repoctx init [--yes] [--force] [--dry-run]` | Skip prompts / override a refused install / plan-only. |
-| `repoctx init --uninstall [-g]` | Remove the SessionStart hook + guidance (inverse of install). |
+| `repoctx init --uninstall [-g]` | Remove the SessionStart hook + strip the script's managed block (keeps your own lines). |
 
 Per-agent guidance files are embedded in the binary — install works offline and always matches your installed version.
 

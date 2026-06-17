@@ -38,7 +38,7 @@ fn prime_hooks(v: &Value) -> usize {
                             hs.iter().any(|h| {
                                 h.get("command")
                                     .and_then(|c| c.as_str())
-                                    .map(|s| s.contains("repoctx prime"))
+                                    .map(|s| s.contains("session-start.sh"))
                                     .unwrap_or(false)
                             })
                         })
@@ -50,12 +50,18 @@ fn prime_hooks(v: &Value) -> usize {
 }
 
 #[test]
-fn init_installs_session_start_prime_and_guidance() {
+fn init_installs_session_start_script_and_guidance() {
     let repo = TempDir::new().unwrap();
     run(repo.path(), &["init", "--yes"]).success();
 
-    // SessionStart prime hook present.
+    // SessionStart hook points at the script.
     assert_eq!(prime_hooks(&settings(repo.path())), 1);
+    // The script exists with the managed prime block.
+    let script = repo.path().join(".claude/hooks/session-start.sh");
+    assert!(script.exists());
+    let body = fs::read_to_string(&script).unwrap();
+    assert!(body.contains("repoctx prime"));
+    assert!(body.contains("your session-start context below"));
     // Guidance skill written.
     assert!(repo
         .path()
