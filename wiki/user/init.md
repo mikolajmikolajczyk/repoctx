@@ -49,16 +49,20 @@ you want the agent to see at the start of every session.
 
 ## What it writes (project scope, Claude)
 
-| Path | What |
-|---|---|
-| `.claude/hooks/session-start.sh` | bashrc-style script; managed `repoctx prime` block + your own region |
-| `.claude/settings.json` | a single `SessionStart` hook entry running `bash .claude/hooks/session-start.sh` |
-| `.claude/skills/repoctx/SKILL.md` | the repoctx skill |
-| `CLAUDE.md` | a `<!-- repoctx:start -->…<!-- repoctx:end -->` guidance block |
+| Path | What | Commit? |
+|---|---|---|
+| `.claude/skills/repoctx/SKILL.md` | the repoctx skill (inert guidance) | **yes** — shared |
+| `CLAUDE.md` | a `<!-- repoctx:start -->…<!-- repoctx:end -->` guidance block | **yes** — shared |
+| `.claude/hooks/session-start.sh` | bashrc-style script; managed `repoctx prime` block + your own region | yes (shared team context) or gitignore if personal |
+| `.claude/settings.local.json` | a single `SessionStart` hook entry running `bash .claude/hooks/session-start.sh` | **no** — personal, auto-gitignored |
 
-Commit all of these. A teammate who clones the repo gets the same
-session-start priming for free (they need `repoctx` on PATH for the
-digest to render; if it's missing the hook is simply a no-op).
+The **hook entry goes in `settings.local.json`, not `settings.json`** — a
+SessionStart hook *executes a command*, so it's a per-developer opt-in
+(Claude Code also prompts teammates to approve hooks shipped in the committed
+`settings.json`). Each teammate who wants priming runs `repoctx init`
+themselves. The shared, committed part is the inert guidance (skill +
+`CLAUDE.md`), which helps any agent without executing anything. (If `repoctx`
+isn't on a dev's PATH, the hook is a harmless no-op nudge.)
 
 ## Flags
 
@@ -80,7 +84,7 @@ repoctx init --uninstall [-g] [--force] [--dry-run]
 
 | | `repoctx init` | `repoctx init -g` |
 |---|---|---|
-| settings file | `<repo>/.claude/settings.json` | `~/.claude/settings.json` |
+| settings file | `<repo>/.claude/settings.local.json` (personal, gitignored) | `~/.claude/settings.json` |
 | SessionStart hook | yes (runs the script → `repoctx prime`) | yes (`~/.claude/hooks/session-start.sh`) |
 | guidance files | yes (SKILL + CLAUDE.md) | no (no project to write into) |
 | applies to | this repo | every repo you open |

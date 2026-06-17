@@ -6,6 +6,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ### Changed
 
+- **The SessionStart hook now lands in `.claude/settings.local.json`, not `.claude/settings.json` (project scope).** A SessionStart hook *executes a command*, so it belongs in the personal, auto-gitignored project settings — a per-developer opt-in (`repoctx init`), not something committed into the shared `settings.json` that imposes (and prompts) the whole team. The inert, shared parts (skill + `CLAUDE.md` block) stay committed. Global scope is unchanged (`~/.claude/settings.json` is already personal).
+
 - **Complete, grep-free discovery path from session start.** `prime`'s cheat-sheet is now an explicit **intent→command** map (find a symbol → `search`, who-calls → `callers`/`callgraph`, architecture → `overview`/`report`/`communities`, drill into a subsystem → `callgraph <label> --direction both`, …), with a hard "navigate with repoctx, NOT grep/cat/find" directive, a fallback rule (only grep on partial-coverage languages or for prose reasoning after locating code), and a pointer to the full skill reference. The agent gets the repo's shape **and** the exact command for any structural question in one session-start payload — no static per-subsystem files needed (those would go stale; the live commands are fresh + exactly-scoped).
 - **Refreshed the `repoctx` skill (`SKILL.md`).** Removed the obsolete "transparent rewrite / hook" section (the hook is gone) and replaced it with an "use repoctx instead of grep/find/cat" intent table; added the orientation commands (`communities`/`report`/`export`) and a subsystem drill-down note. The skill is now current + complete.
 

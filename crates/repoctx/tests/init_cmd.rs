@@ -21,7 +21,8 @@ fn run(repo: &Path, args: &[&str]) -> assert_cmd::assert::Assert {
 }
 
 fn settings(repo: &Path) -> Value {
-    let p = repo.join(".claude/settings.json");
+    // Project-scope hook lives in the personal, gitignored settings.local.json.
+    let p = repo.join(".claude/settings.local.json");
     serde_json::from_str(&fs::read_to_string(p).unwrap()).unwrap()
 }
 
@@ -81,7 +82,7 @@ fn init_is_idempotent() {
 fn init_dry_run_writes_nothing() {
     let repo = TempDir::new().unwrap();
     run(repo.path(), &["init", "--yes", "--dry-run"]).success();
-    assert!(!repo.path().join(".claude/settings.json").exists());
+    assert!(!repo.path().join(".claude/settings.local.json").exists());
 }
 
 #[test]

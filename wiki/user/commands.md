@@ -562,7 +562,7 @@ agent's context at session start. Full reference: [`init.md`](init.md).
 
 | Invocation | Effect |
 |---|---|
-| `repoctx init` | Project-scope install (guidance + `.claude/hooks/session-start.sh` + SessionStart hook in `.claude/settings.json`). |
+| `repoctx init` | Project-scope install (shared guidance + `.claude/hooks/session-start.sh` + a SessionStart hook in personal `.claude/settings.local.json`). |
 | `repoctx init -g` | User-global install (`~/.claude/`). |
 | `repoctx init --agent <name>` | Pick the agent (`claude`, `codex`, `opencode`; default `claude`). |
 | `repoctx init [--yes] [--force] [--dry-run]` | Skip prompts / override a refused install / plan-only. |

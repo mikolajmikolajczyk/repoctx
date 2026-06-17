@@ -138,7 +138,14 @@ pub fn run_uninstall(repo_root: &Path, global: bool, dry_run: bool) -> Result<()
     Ok(())
 }
 
-/// Claude paths for a scope: `(settings.json, session-start.sh, hook command)`.
+/// Claude paths for a scope: `(settings file, session-start.sh, hook command)`.
+///
+/// Project scope writes the hook into **`settings.local.json`** — the personal,
+/// auto-gitignored project settings — not the committed `settings.json`: a
+/// SessionStart hook executes a command, so it's a per-developer opt-in, not
+/// something to impose on (and prompt) the whole team. The inert guidance
+/// (skill + CLAUDE.md) is what gets committed/shared. Global scope uses
+/// `~/.claude/settings.json`, which is already the user's personal config.
 /// Project uses a repo-relative command (Claude runs hooks with cwd = project
 /// root); global uses the absolute script path.
 fn claude_paths(repo_root: &Path, global: bool) -> Result<(PathBuf, PathBuf, String)> {
@@ -149,7 +156,7 @@ fn claude_paths(repo_root: &Path, global: bool) -> Result<(PathBuf, PathBuf, Str
         Ok((home.join(".claude/settings.json"), script, command))
     } else {
         Ok((
-            repo_root.join(".claude/settings.json"),
+            repo_root.join(".claude/settings.local.json"),
             repo_root.join(".claude/hooks/session-start.sh"),
             "bash .claude/hooks/session-start.sh".to_string(),
         ))

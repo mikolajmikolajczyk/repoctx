@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+
+# >>> repoctx (managed — edits here are overwritten) >>>
+repoctx prime 2>/dev/null
+# <<< repoctx (managed) <<<
 # Claude Code SessionStart hook.
 # Prints a quick orientation snapshot so the agent doesn't burn tokens
 # rediscovering project state.
