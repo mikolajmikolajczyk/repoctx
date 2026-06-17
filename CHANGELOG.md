@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-06-17
+
 ### Added
 
 - **`overview` now surfaces the public API per module (issue #10).** A new `public_api` section lists exported (public-visibility) symbols grouped by directory, ranked by count — the "what does this layer expose" view. Empty for repos whose languages have no visibility extractor yet (the advisory says so).
