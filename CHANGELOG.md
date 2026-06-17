@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-06-17
+
 ### Added
 
 - **Rust import resolution for the import graph (issue #8).** `deps`/`rdeps`/`boundary`/`import-cycles`/`modules` now resolve intra-crate Rust `use` paths — `crate::`, `self::`, `super::` (chained) — to files via the `a/b.rs` | `a/b/mod.rs` module-file convention against the crate's `src` root, with item segments and `{…}` import groups stripped (longest module prefix wins). Previously only TS/JS (relative + tsconfig aliases) resolved; every Rust crate's import graph was effectively empty. On repoctx itself, `modules` now resolves **82 internal edges** (was ~0). External crates (`std`, `serde`), workspace-member crates, and non-conventional layouts stay external — heuristic, doesn't parse `mod` declarations. Query-time, like the TS resolver. Python/Go remain future work; advisories updated to say so.
