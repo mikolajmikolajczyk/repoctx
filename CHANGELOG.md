@@ -4,6 +4,8 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-06-17
+
 ### Removed
 
 - **The per-command PreToolUse rewrite hook is gone — repoctx no longer intercepts `grep`/`rg`/`find` (BREAKING).** Telemetry showed it converted ~0% of real agent traffic (multi-term/path/find blocked by quoted metachars + `cd`-prefix), and most of that traffic was already compressed by the chained `rtk` proxy — so the brittle shell-rewrite machinery wasn't earning its keep. Removed: `repoctx hook` (all subcommands), `repoctx rewrite`, `repoctx discover` + its `hook_events`/`hook_samples` telemetry, the generated `.repoctx/hook.sh` script + settings takeover/doctor/drift logic, rtk chaining, and the `hook.*` config keys (`hook.rewrite`/`use_rtk`/`chainable`/`chain_commands`/`telemetry`/`telemetry_samples`). Old `hook.*` settings rows are now ignored silently; `config set hook.*` reports them obsolete. Adoption is now **session-start priming** (below). ~2,800 LOC deleted. Migration: re-run `repoctx init` to switch from the old PreToolUse hook to the SessionStart prime hook; remove any leftover `~/.claude/repoctx-hook.sh` + its PreToolUse entry by hand if present. (If you relied on the hook to chain `rtk`, install rtk's own hook directly — repoctx no longer manages it.)
