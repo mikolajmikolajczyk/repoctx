@@ -267,6 +267,28 @@ impl Store {
         Ok(out)
     }
 
+    /// Public API surface (issue #10): code symbols whose lexical visibility is
+    /// `public`, as `(file_path, name, kind)`. Only meaningful for languages
+    /// with a visibility extractor (Go/Rust/JS/TS); others are `unknown` and
+    /// never surface here. Excludes data/doc kinds. `overview` groups these by
+    /// directory into the per-module exported surface.
+    pub fn public_symbols(&self) -> Result<Vec<(String, String, String)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT file_path, name, kind FROM symbols
+             WHERE visibility = 'public'
+               AND kind NOT IN ('key','section','field','variable')
+             ORDER BY file_path ASC, name ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
     /// Entry-point symbols: functions/methods named `main`. Heuristic — for
     /// `overview` (issue #5).
     pub fn entry_points(&self) -> Result<Vec<SymbolRecord>> {

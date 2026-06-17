@@ -215,7 +215,7 @@ pub fn parse_file_with(
 
         let start = def.start_position();
         let end = def.end_position();
-        let visibility = visibility_for(language, &name, def).to_string();
+        let visibility = visibility_for(language, &name, def, bytes).to_string();
         out.push(SymbolRecord {
             file_path: file_path.to_string(),
             name,
@@ -573,12 +573,16 @@ fn node_text<'a>(n: Node, bytes: &'a [u8]) -> &'a str {
 /// that preserves prior behavior (the `languages` full/partial philosophy).
 ///
 /// - Go: exported iff the identifier's first letter is uppercase.
+/// - Rust: exported iff the item carries any `pub*` modifier (over-approximated
+///   — `pub`, `pub(crate)`, `pub(super)`, `pub(in …)` all count; the `pub mod`
+///   chain isn't traced), or it's an FFI entry point (`extern` fn,
+///   `#[no_mangle]`, `#[export_name]`) which is never dead.
 /// - JS/TS/TSX: exported iff the definition is wrapped by an inline
 ///   `export` (`export function f`, `export class C`, `export const x = …`,
 ///   `export default …`). `export {{ a }}` clauses + CJS are not handled yet
 ///   → those stay `private` (a future #10 step); inline export already cuts
 ///   the common factory false positives.
-fn visibility_for(language: Language, name: &str, def: Node) -> &'static str {
+fn visibility_for(language: Language, name: &str, def: Node, bytes: &[u8]) -> &'static str {
     match language {
         Language::Go => {
             if name.chars().next().is_some_and(|c| c.is_uppercase()) {
@@ -587,6 +591,7 @@ fn visibility_for(language: Language, name: &str, def: Node) -> &'static str {
                 "private"
             }
         }
+        Language::Rust => rust_visibility(def, bytes),
         Language::TypeScript | Language::Tsx | Language::JavaScript => {
             if is_inline_exported(def) {
                 "public"
@@ -596,6 +601,43 @@ fn visibility_for(language: Language, name: &str, def: Node) -> &'static str {
         }
         _ => "unknown",
     }
+}
+
+/// Rust lexical visibility (#10). `pub*` modifier or FFI export → `"public"`,
+/// else `"private"`. Over-approximate by design — don't chase the `pub mod`
+/// re-export chain; a `pub fn` in a private module still reads as public, which
+/// is the safe side for `deadcode` (won't flag a maybe-API symbol).
+fn rust_visibility(def: Node, bytes: &[u8]) -> &'static str {
+    let mut c = def.walk();
+    for ch in def.children(&mut c) {
+        match ch.kind() {
+            "visibility_modifier" => return "public",
+            // `extern "C" fn …` — an FFI export, never dead code.
+            "function_modifiers" if node_text(ch, bytes).contains("extern") => return "public",
+            _ => {}
+        }
+    }
+    // `#[no_mangle]` / `#[export_name]` attributes precede the item.
+    let mut sib = def.prev_sibling();
+    let mut hops = 0;
+    while let Some(s) = sib {
+        match s.kind() {
+            "attribute_item" => {
+                let t = node_text(s, bytes);
+                if t.contains("no_mangle") || t.contains("export_name") {
+                    return "public";
+                }
+            }
+            "line_comment" | "block_comment" => {}
+            _ => break,
+        }
+        hops += 1;
+        if hops > 8 {
+            break;
+        }
+        sib = s.prev_sibling();
+    }
+    "private"
 }
 
 /// Walk up from a JS/TS definition node looking for the `export_statement`
@@ -724,8 +766,33 @@ export { foo } from "./util";
     }
 
     #[test]
-    fn non_go_visibility_is_unknown() {
-        let syms = parse_file("a.rs", Language::Rust, "pub fn foo() {}\nfn bar() {}\n").unwrap();
+    fn rust_visibility_pub_extern_ffi() {
+        let src = "\
+pub fn exported() {}
+pub(crate) fn crate_pub() {}
+fn private_fn() {}
+pub struct Thing;
+struct Hidden;
+#[no_mangle]
+pub extern \"C\" fn ffi_entry() {}
+#[export_name = \"x\"]
+fn named() {}
+";
+        let syms = parse_file("a.rs", Language::Rust, src).unwrap();
+        let vis = |n: &str| syms.iter().find(|s| s.name == n).map(|s| s.visibility.as_str());
+        assert_eq!(vis("exported"), Some("public"), "pub");
+        assert_eq!(vis("crate_pub"), Some("public"), "pub(crate) over-approximated");
+        assert_eq!(vis("private_fn"), Some("private"));
+        assert_eq!(vis("Thing"), Some("public"), "pub struct");
+        assert_eq!(vis("Hidden"), Some("private"));
+        assert_eq!(vis("ffi_entry"), Some("public"), "extern/no_mangle");
+        assert_eq!(vis("named"), Some("public"), "#[export_name]");
+    }
+
+    #[test]
+    fn unsignalled_language_visibility_is_unknown() {
+        // A language with no visibility extractor yet keeps the safe default.
+        let syms = parse_file("a.c", Language::C, "int foo(void){return 0;}\n").unwrap();
         assert!(syms.iter().all(|s| s.visibility == "unknown"));
     }
 

@@ -383,12 +383,11 @@ Repo architecture in one call — the "dropped into an unfamiliar repo" command.
 - `modules` — per-directory `{dir, files, code_symbols, symbols, bytes}`, **ranked by code symbols** (top 30). Markdown headings + config keys count as doc/config, not code, so `wiki/`/`.github/`/`docs/` no longer top the list (#9-D)
 - `entry_points` — `main` functions/methods + JS/TS web-app bootstraps (`main.tsx`, `index.tsx`, …)
 - `hotspots` — most-called symbols (incoming call-edge count). Receiver-aware (a `.set()` method call binds only to a repo `method`, never a free `function`) + single-callable-def, so the ranking is centrality, not name popularity (name-based per ADR-0010; #9)
+- `public_api` — exported (public-visibility) symbols grouped by directory, ranked by count (#10). The "what does this layer expose" view. Lexical visibility is extracted for Go, Rust, and JS/TS; other languages are `unknown` and don't appear (the advisory notes coverage).
 
 ```sh
 repoctx overview
 ```
-
-Public API surface (exported symbols per module) is **not** included yet — it needs per-language export extraction (#8); the advisory notes this.
 
 ## `repoctx communities`
 

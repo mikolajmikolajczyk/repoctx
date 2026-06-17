@@ -4,6 +4,11 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **`overview` now surfaces the public API per module (issue #10).** A new `public_api` section lists exported (public-visibility) symbols grouped by directory, ranked by count — the "what does this layer expose" view. Empty for repos whose languages have no visibility extractor yet (the advisory says so).
+- **Rust visibility extraction (issue #10).** The indexer now marks Rust symbols `public` when they carry any `pub*` modifier (`pub`, `pub(crate)`, `pub(super)`, `pub(in …)` — over-approximated) or are FFI entry points (`extern` fn, `#[no_mangle]`, `#[export_name]`), else `private`. This cuts `deadcode` false positives (exported API isn't dead) and feeds the new public-API surface. Visibility is now extracted for Go, Rust, and JS/TS; other languages stay `unknown` (safe default). **Run `repoctx index --force` once** to populate visibility for already-indexed Rust files.
+
 ## [0.13.3] — 2026-06-17
 
 ### Fixed

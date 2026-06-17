@@ -73,6 +73,20 @@ fn overview_composes_the_index_and_call_graph() {
     assert!(helper.is_some(), "helper should be a hotspot: {v}");
     assert_eq!(helper.unwrap()["callers"], 2);
 
-    // advisory notes the public-API gap.
-    assert!(v["advisory"].as_str().unwrap().contains("public API"));
+    // public API surface (#10): `pub fn util` in src/lib.rs is exported; the
+    // private `helper`/`main` are not.
+    let pub_src = v["public_api"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["dir"] == "src")
+        .expect("src should have a public-API entry");
+    let syms: Vec<&str> = pub_src["symbols"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s.as_str().unwrap())
+        .collect();
+    assert!(syms.contains(&"util:function"), "util exported: {pub_src}");
+    assert!(!syms.iter().any(|s| s.starts_with("helper")), "helper is private");
 }

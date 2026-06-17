@@ -23,6 +23,8 @@ use crate::read_cmd;
 const MAX_MODULES: usize = 30;
 const DEFAULT_HOTSPOTS: usize = 15;
 const MAX_ENTRY_POINTS: usize = 20;
+const MAX_PUBLIC_MODULES: usize = 20;
+const MAX_PUBLIC_SYMBOLS_PER_MODULE: usize = 12;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct LanguageStat {
@@ -58,6 +60,15 @@ pub struct Hotspot {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct PublicModule {
+    pub dir: String,
+    /// Total public symbols in this directory.
+    pub count: u64,
+    /// Exported symbol names (capped), `name:kind`.
+    pub symbols: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct Overview {
     pub files: u64,
     pub symbols: u64,
@@ -65,6 +76,9 @@ pub struct Overview {
     pub code_symbols: u64,
     pub languages: Vec<LanguageStat>,
     pub modules: Vec<ModuleStat>,
+    /// Exported (public-visibility) symbols per directory (issue #10). Empty for
+    /// repos whose languages have no visibility extractor yet (all `unknown`).
+    pub public_api: Vec<PublicModule>,
     pub entry_points: Vec<EntryPoint>,
     pub hotspots: Vec<Hotspot>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -90,6 +104,18 @@ impl HumanRender for Overview {
                 "  {:<32} {} files, {} code symbols, {} B\n",
                 m.dir, m.files, m.code_symbols, m.bytes
             ));
+        }
+
+        if !self.public_api.is_empty() {
+            s.push_str("\n## public API (exported symbols by module)\n");
+            for m in &self.public_api {
+                s.push_str(&format!(
+                    "  {:<32} {} exported: {}\n",
+                    m.dir,
+                    m.count,
+                    m.symbols.join(", ")
+                ));
+            }
         }
 
         if !self.entry_points.is_empty() {
@@ -207,13 +233,34 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
         })
         .collect();
 
-    let advisory = overview_advisory(hotspots.is_empty());
+    // Public API surface (#10): exported symbols folded by directory.
+    let mut pub_by_dir: HashMap<String, Vec<String>> = HashMap::new();
+    for (path, name, kind) in store.public_symbols()? {
+        pub_by_dir
+            .entry(parent_dir(&path).to_string())
+            .or_default()
+            .push(format!("{name}:{kind}"));
+    }
+    let mut public_api: Vec<PublicModule> = pub_by_dir
+        .into_iter()
+        .map(|(dir, mut symbols)| {
+            symbols.sort();
+            let count = symbols.len() as u64;
+            symbols.truncate(MAX_PUBLIC_SYMBOLS_PER_MODULE);
+            PublicModule { dir, count, symbols }
+        })
+        .collect();
+    public_api.sort_by(|a, b| b.count.cmp(&a.count).then(a.dir.cmp(&b.dir)));
+    public_api.truncate(MAX_PUBLIC_MODULES);
+
+    let advisory = overview_advisory(hotspots.is_empty(), public_api.is_empty());
     let report = Overview {
         files: counts.files,
         symbols: counts.symbols,
         code_symbols: code_total,
         languages,
         modules,
+        public_api,
         entry_points,
         hotspots,
         advisory,
@@ -229,13 +276,17 @@ pub fn run(repo_root: &Path, render: Render, gain_opts: GainOpts) -> Result<()> 
     )
 }
 
-fn overview_advisory(no_hotspots: bool) -> Option<String> {
+fn overview_advisory(no_hotspots: bool, no_public_api: bool) -> Option<String> {
     let mut notes = vec![
         "modules ranked by code symbols; markdown headings + config keys counted \
          as doc/config, not code (#9-D)",
-        "public API surface (exported symbols per module) not included yet — needs \
-         per-language export extraction (#8)",
     ];
+    if no_public_api {
+        notes.push(
+            "public API surface empty — visibility is extracted for Go/Rust/JS/TS \
+             only; other languages are 'unknown' (#10)",
+        );
+    }
     if no_hotspots {
         notes.push(
             "no hotspots: call graph empty or this repo's languages lack call-graph \
