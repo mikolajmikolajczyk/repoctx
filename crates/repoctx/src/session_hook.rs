@@ -280,6 +280,36 @@ mod tests {
     }
 
     #[test]
+    fn install_merges_into_existing_settings() {
+        // Existing settings.local.json with unrelated keys + another hook must
+        // survive; repoctx's SessionStart entry is appended, not overwritten.
+        let tmp = tempdir().unwrap();
+        let settings = tmp.path().join(".claude/settings.local.json");
+        fs::create_dir_all(settings.parent().unwrap()).unwrap();
+        fs::write(
+            &settings,
+            r#"{
+                "permissions": {"allow": ["Bash(ls:*)"]},
+                "hooks": {
+                    "PreToolUse": [{"matcher":"Bash","hooks":[{"type":"command","command":"my-own-hook"}]}],
+                    "SessionStart": [{"hooks":[{"type":"command","command":"echo mine"}]}]
+                }
+            }"#,
+        )
+        .unwrap();
+        install_settings(&settings, CMD, false).unwrap();
+        let v: Value = serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
+        // Unrelated key preserved.
+        assert_eq!(v["permissions"]["allow"][0], "Bash(ls:*)");
+        // Sibling hook type preserved.
+        assert_eq!(v["hooks"]["PreToolUse"][0]["hooks"][0]["command"], "my-own-hook");
+        // User's own SessionStart entry preserved + ours appended.
+        let ss = v["hooks"]["SessionStart"].as_array().unwrap();
+        assert!(ss.iter().any(|e| e["hooks"][0]["command"] == "echo mine"));
+        assert_eq!(count_hooks(&settings), 1);
+    }
+
+    #[test]
     fn uninstall_keeps_script_with_user_content() {
         let tmp = tempdir().unwrap();
         let script = tmp.path().join(".claude/hooks/session-start.sh");
