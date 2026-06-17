@@ -4,6 +4,12 @@ All notable changes to this project will be documented here. Format follows [Kee
 
 ## [Unreleased]
 
+## [0.15.1] — 2026-06-17
+
+### Fixed
+
+- **CI fmt check.** Several recent feature commits ran `clippy` but not `cargo fmt`, so `cargo fmt --check` failed on `main`/the release tags. Reformatted; no logic change.
+
 ## [0.15.0] — 2026-06-17
 
 ### Added
